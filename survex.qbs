@@ -25,43 +25,50 @@ Project {
             ]
         }
 
+        Group {
+            name: "src"
+            fileTags: ["cpp"]
+            files: [
+                "src/cavern.c",
+                "src/filename.c",
+                "src/commands.c",
+                "src/netartic.c",
+                "src/netbits.c",
+                "src/netskel.c",
+                "src/network.c",
+                "src/listpos.c",
+                "src/message.c",
+                "src/matrix.c",
+                "src/datain.c",
+                "src/str.c",
+                "src/readval.c",
+                "src/namecmp.c",
+                "src/date.c",
+                "src/img_hosted.c",
+                "src/hash.c",
+                "src/osdepend.c",
+                "src/cmdline.c"
+            ]
+        }
+
         files: [
-            "src/cavern.c",
-            "src/filename.c",
             "src/filename.h",
-            "src/commands.c",
             "src/commands.h",
             "src/netartic.h",
-            "src/netartic.c",
-            "src/netbits.c",
             "src/netbits.h",
             "src/listpos.h",
-            "src/netskel.c",
             "src/netskel.h",
-            "src/network.c",
             "src/network.h",
-            "src/listpos.c",
-            "src/message.c",
             "src/message.h",
-            "src/matrix.c",
             "src/matrix.h",
-            "src/datain.c",
             "src/datain.h",
-            "src/str.c",
             "src/str.h",
             "src/readval.h",
-            "src/readval.c",
-            "src/namecmp.c",
             "src/namecmp.h",
-            "src/date.c",
             "src/date.h",
-            "src/img_hosted.c",
             "src/img_hosted.h",
             "src/hash.h",
-            "src/hash.c",
-            "src/osdepend.c",
             "src/osdepend.h",
-            "src/cmdline.c",
             "src/cmdline.h"
         ]
 
@@ -81,23 +88,31 @@ Project {
             cpp.includePaths: ["src", "."]
         }
 
+        Group {
+            name: "src"
+            fileTags: ["cpp"]
+            files: [
+                "src/cmdline.c",
+                "src/filename.c",
+                "src/img.c",
+                "src/message.c",
+                "src/osdepend.c",
+                "src/useful.c"
+            ]
+        }
+
+
         files: [
-            "src/cmdline.c",
             "src/cmdline.h",
             "config.h",
             "src/debug.h",
             "src/filelist.h",
-            "src/filename.c",
             "src/filename.h",
-            "src/img.c",
             "src/img.h",
-            "src/message.c",
             "src/message.h",
             "src/osalloc.h",
-            "src/osdepend.c",
             "src/osdepend.h",
             "src/ostypes.h",
-            "src/useful.c",
             "src/useful.h",
             "src/whichos.h"
         ]
