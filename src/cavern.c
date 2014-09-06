@@ -170,7 +170,7 @@ main(int argc, char **argv)
    }
 
    /* Always buffer by line for aven's benefit. */
-   setvbuf(stdout, NULL, _IOLBF, 0);
+   //setvbuf(stdout, NULL, _IOLBF, 1024);
 
    msg_init(argv);
 
@@ -201,76 +201,78 @@ main(int argc, char **argv)
       pfxHi[d] = pfxLo[d] = NULL;
    }
 
+   int first_opt_z = 0;
+
    /* at least one argument must be given */
    cmdline_init(argc, argv, short_opts, long_opts, NULL, help, 1, -1);
    while (1) {
-      int opt = cmdline_getopt();
-      if (opt == EOF) break;
-      switch (opt) {
+       int opt = cmdline_getopt();
+       if (opt == EOF) break;
+       switch (opt) {
        case 'p':
 #ifndef NO_PERCENTAGE
-	 fPercent = 1;
+           fPercent = 1;
 #endif
-	 break;
+           break;
 #ifndef NO_PERCENTAGE
        case 3:
-	 fPercent = 0;
-	 break;
+           fPercent = 0;
+           break;
 #endif
        case 'o': {
-	 osfree(fnm_output_base); /* in case of multiple -o options */
-	 /* can be a directory (in which case use basename of leaf input)
-	  * or a file (in which case just trim the extension off) */
-	 if (fDirectory(optarg)) {
-	    /* this is a little tricky - we need to note the path here,
-	     * and then add the leaf later on (in datain.c) */
-	    fnm_output_base = base_from_fnm(optarg);
-	    fnm_output_base_is_dir = 1;
-	 } else {
-	    fnm_output_base = base_from_fnm(optarg);
-	 }
-	 break;
+           osfree(fnm_output_base); /* in case of multiple -o options */
+           /* can be a directory (in which case use basename of leaf input)
+      * or a file (in which case just trim the extension off) */
+           if (fDirectory(optarg)) {
+               /* this is a little tricky - we need to note the path here,
+         * and then add the leaf later on (in datain.c) */
+               fnm_output_base = base_from_fnm(optarg);
+               fnm_output_base_is_dir = 1;
+           } else {
+               fnm_output_base = base_from_fnm(optarg);
+           }
+           break;
        }
        case 'q':
-	 if (fQuiet) fMute = 1;
-	 fQuiet = 1;
-	 break;
+           if (fQuiet) fMute = 1;
+           fQuiet = 1;
+           break;
        case 's':
-	 fSuppress = 1;
-	 break;
+           fSuppress = 1;
+           break;
        case 'v': {
-	 int v = atoi(optarg);
-	 if (v < IMG_VERSION_MIN || v > IMG_VERSION_MAX)
-	    fatalerror(/*3d file format versions %d to %d supported*/88,
-		       IMG_VERSION_MIN, IMG_VERSION_MAX);
-	 img_output_version = v;
-	 break;
+           int v = atoi(optarg);
+           if (v < IMG_VERSION_MIN || v > IMG_VERSION_MAX)
+               fatalerror(/*3d file format versions %d to %d supported*/88,
+                          IMG_VERSION_MIN, IMG_VERSION_MAX);
+           img_output_version = v;
+           break;
        }
        case 'w':
-	 f_warnings_are_errors = 1;
-	 break;
+           f_warnings_are_errors = 1;
+           break;
        case 'z': {
-	 /* Control which network optimisations are used (development tool) */
-	 static int first_opt_z = 1;
-	 char c;
-	 if (first_opt_z) {
-	    optimize = 0;
-	    first_opt_z = 0;
-	 }
-	 /* Lollipops, Parallel legs, Iterate mx, Delta* */
-	 while ((c = *optarg++) != '\0')
-	    if (islower((unsigned char)c)) optimize |= BITA(c);
-	 break;
+           /* Control which network optimisations are used (development tool) */
+           first_opt_z = 1;
+           char c;
+           if (first_opt_z) {
+               optimize = 0;
+               first_opt_z = 0;
+           }
+           /* Lollipops, Parallel legs, Iterate mx, Delta* */
+           while ((c = *optarg++) != '\0')
+               if (islower((unsigned char)c)) optimize |= BITA(c);
+           break;
        case 1:
-	 fLog = fTrue;
-	 break;
+               fLog = fTrue;
+               break;
 #if OS_WIN32
-       case 2:
-	 atexit(pause_on_exit);
-	 break;
+           case 2:
+               atexit(pause_on_exit);
+               break;
 #endif
+           }
        }
-      }
    }
 
    if (fLog) {

@@ -172,7 +172,7 @@ anon_wall_station:
       fNew = fFalse;
       if (name == NULL) {
 	 /* Need a new name buffer */
-	 name = osmalloc(name_len);
+     name = (char*)osmalloc(name_len);
       }
       /* i==0 iff this is the first pass */
       if (i) {
@@ -182,11 +182,11 @@ anon_wall_station:
       while (isNames(ch)) {
 	 if (i < pcs->Truncate) {
 	    /* truncate name */
-	    name[i++] = (pcs->Case == LOWER ? tolower(ch) :
-			 (pcs->Case == OFF ? ch : toupper(ch)));
+        name[i++] = (pcs->Case == Settings::LOWER ? tolower(ch) :
+             (pcs->Case == Settings::OFF ? ch : toupper(ch)));
 	    if (i >= name_len) {
 	       name_len = name_len + name_len;
-	       name = osrealloc(name, name_len);
+           name = (char*)osrealloc(name, name_len);
 	    }
 	 }
 	 nextch();
@@ -216,7 +216,7 @@ anon_wall_station:
       ptr = ptr->down;
       if (ptr == NULL) {
 	 /* Special case first time around at each level */
-	 name = osrealloc(name, i);
+     name = (char*)osrealloc(name, i);
 	 ptr = osnew(prefix);
 	 ptr->ident = name;
 	 name = NULL;
@@ -250,7 +250,7 @@ anon_wall_station:
 	 if (cmp) {
 	    /* ie we got to one that was higher, or the end */
 	    prefix *newptr;
-	    name = osrealloc(name, i);
+        name = (char*)osrealloc(name, i);
 	    newptr = osnew(prefix);
 	    newptr->ident = name;
 	    name = NULL;

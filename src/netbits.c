@@ -580,7 +580,7 @@ sprint_prefix_(const prefix *ptr)
       len = sprint_prefix_(ptr->up) + strlen(ptr->ident);
       if (ptr->up->up != NULL) len++;
       if (len > buffer_len) {
-	 buffer = osrealloc(buffer, len);
+     buffer = (char*)osrealloc(buffer, len);
 	 buffer_len = len;
       }
       if (ptr->up->up != NULL) strcat(buffer, ".");
@@ -593,7 +593,7 @@ extern char *
 sprint_prefix(const prefix *ptr)
 {
    SVX_ASSERT(ptr);
-   if (!buffer) buffer = osmalloc(buffer_len);
+   if (!buffer) buffer = (char*)osmalloc(buffer_len);
    if (TSTBIT(ptr->sflags, SFLAGS_ANON)) {
       /* We release the stations, so ptr->stn is NULL late on, so we can't
        * use that to print "anonymous station surveyed from somesurvey.12"

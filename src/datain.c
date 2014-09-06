@@ -305,7 +305,7 @@ read_reading(reading r, bool f_optional)
    }
    VAL(r) = read_numeric(f_optional, &n_readings);
    VAR(r) = var(q);
-   if (n_readings > 1) VAR(r) /= sqrt(n_readings);
+   if (n_readings > 1) VAR(r) /= sqrt((double)n_readings);
 }
 
 static void
@@ -322,7 +322,7 @@ read_bearing_or_omit(reading r)
 	BUG("Unexpected case");
    }
    VAR(r) = var(q);
-   if (n_readings > 1) VAR(r) /= sqrt(n_readings);
+   if (n_readings > 1) VAR(r) /= sqrt((double)n_readings);
 }
 
 /* For reading Compass MAK files which have a freeform syntax */
@@ -339,7 +339,7 @@ nextch_handling_eol(void)
 #define LITLEN(S) (sizeof(S"") - 1)
 #define has_ext(F,L,E) ((L) > LITLEN(E) + 1 &&\
 			(F)[(L) - LITLEN(E) - 1] == FNM_SEP_EXT &&\
-			strcasecmp((F) + (L) - LITLEN(E), E) == 0)
+            my_strcasecmp((F) + (L) - LITLEN(E), E) == 0)
 extern void
 data_file(const char *pth, const char *fnm)
 {
@@ -432,7 +432,7 @@ data_file(const char *pth, const char *fnm)
       t['-'] |= SPECIAL_MINUS;
       t['+'] |= SPECIAL_PLUS;
       pcs->Translate = t;
-      pcs->Case = OFF;
+      pcs->Case = Settings::OFF;
       pcs->Truncate = INT_MAX;
       pcs->infer = 7; /* FIXME: BIT(EQUATES)|BIT(EXPORTS)|BIT(PLUMBS); */
    } else if (fmt == FMT_MAK) {
@@ -463,7 +463,7 @@ data_file(const char *pth, const char *fnm)
       t['-'] |= SPECIAL_MINUS;
       t['+'] |= SPECIAL_PLUS;
       pcs->Translate = t;
-      pcs->Case = OFF;
+      pcs->Case = Settings::OFF;
       pcs->Truncate = INT_MAX;
    }
 
@@ -768,7 +768,7 @@ handle_plumb(clino_type *p_ctype)
       filepos fp;
       get_pos(&fp);
       get_token();
-      tok = match_tok(clino_tab, TABSIZE(clino_tab));
+      tok = (clino_tok)match_tok(clino_tab, TABSIZE(clino_tab));
       if (tok != CLINO_NULL) {
 	 *p_ctype = (tok == CLINO_LEVEL ? CTYPE_HORIZ : CTYPE_PLUMB);
 	 return clinos[tok];
@@ -1446,7 +1446,7 @@ data_normal(void)
 	  };
 	  dir_tok tok;
 	  get_token();
-	  tok = match_tok(dir_tab, TABSIZE(dir_tab));
+      tok = (dir_tok)match_tok(dir_tab, TABSIZE(dir_tab));
 	  switch (tok) {
 	   case DIR_FORE:
 	     break;
@@ -1539,7 +1539,7 @@ data_normal(void)
        case CompassDATLeft: case CompassDATRight:
        case CompassDATUp: case CompassDATDown: {
 	  /* FIXME: need to actually make use of these entries! */
-	  reading actual = Left + (*ordering - CompassDATLeft);
+      reading actual = (reading)(Left + (*ordering - CompassDATLeft));
 	  read_reading(actual, fFalse);
 	  if (VAL(actual) < 0) VAL(actual) = HUGE_REAL;
 	  break;

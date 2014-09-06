@@ -81,7 +81,7 @@ solve_matrix(node *list)
     * of stations left after reduction. If memory is
     * plentiful, we can be crass.
     */
-   stn_tab = osmalloc((OSSIZE_T)(n * ossizeof(pos*)));
+   stn_tab = (pos**)osmalloc((OSSIZE_T)(n * ossizeof(pos*)));
    n_stn_tab = 0;
 
    FOR_EACH_STN(stn, list) {
@@ -90,7 +90,7 @@ solve_matrix(node *list)
 
    if (n_stn_tab < n) {
       /* release unused entries in stn_tab */
-      stn_tab = osrealloc(stn_tab, n_stn_tab * ossizeof(pos*));
+      stn_tab = (pos**)osrealloc(stn_tab, n_stn_tab * ossizeof(pos*));
    }
 
    build_matrix(list);
@@ -124,8 +124,8 @@ build_matrix(node *list)
       return;
    }
    /* (OSSIZE_T) cast may be needed if n_stn_tab>=181 */
-   M = osmalloc((OSSIZE_T)((((OSSIZE_T)n_stn_tab * FACTOR * (n_stn_tab * FACTOR + 1)) >> 1)) * ossizeof(real));
-   B = osmalloc((OSSIZE_T)(n_stn_tab * FACTOR * ossizeof(real)));
+   M = (real*)osmalloc((OSSIZE_T)((((OSSIZE_T)n_stn_tab * FACTOR * (n_stn_tab * FACTOR + 1)) >> 1)) * ossizeof(real));
+   B = (real*)osmalloc((OSSIZE_T)(n_stn_tab * FACTOR * ossizeof(real)));
 
    if (!fQuiet) {
       if (n_stn_tab == 1)

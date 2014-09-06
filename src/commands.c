@@ -66,7 +66,7 @@ default_truncate(settings *s)
 static void
 default_case(settings *s)
 {
-   s->Case = LOWER;
+   s->Case = Settings::LOWER;
 }
 
 static reading default_order[] = { Fr, To, Tape, Comp, Clino, End };
@@ -190,7 +190,7 @@ get_token(void)
 
    if (!buffer) s_catchar(&buffer, &buf_len, '\0');
 
-   ucbuffer = osmalloc(buf_len);
+   ucbuffer = (char*)osmalloc(buf_len);
    do {
       i++;
       ucbuffer[i] = toupper(buffer[i]);
@@ -1080,7 +1080,7 @@ cmd_data(void)
    pcs->style = STYLE_IGNORE;
 
    kMac = 6; /* minimum for NORMAL style */
-   new_order = osmalloc(kMac * sizeof(reading));
+   new_order = (reading*)osmalloc(kMac * sizeof(reading));
 
    get_token();
    style = match_tok(styletab, TABSIZE(styletab));
@@ -1119,7 +1119,7 @@ cmd_data(void)
       filepos fp;
       get_pos(&fp);
       get_token();
-      d = match_tok(dtab, TABSIZE(dtab));
+      d = (reading)match_tok(dtab, TABSIZE(dtab));
       /* only token allowed after IGNOREALL is NEWLINE */
       if (k && new_order[k - 1] == IgnoreAll && d != Newline) {
 	 set_pos(&fp);
@@ -1237,7 +1237,7 @@ cmd_data(void)
       }
       if (k >= kMac) {
 	 kMac = kMac * 2;
-	 new_order = osrealloc(new_order, kMac * sizeof(reading));
+     new_order = (reading*)osrealloc(new_order, kMac * sizeof(reading));
       }
       new_order[k++] = d;
    } while (d != End);
@@ -1257,7 +1257,7 @@ cmd_data(void)
       if (TSTBIT(mUsed, Station)) {
 	 if (k >= kMac) {
 	    kMac = kMac * 2;
-	    new_order = osrealloc(new_order, kMac * sizeof(reading));
+        new_order = (reading*)osrealloc(new_order, kMac * sizeof(reading));
 	 }
 	 new_order[k - 1] = Newline;
 	 new_order[k++] = End;
@@ -1548,9 +1548,9 @@ cmd_title(void)
 }
 
 static sztok case_tab[] = {
-     {"PRESERVE", OFF},
-     {"TOLOWER",  LOWER},
-     {"TOUPPER",  UPPER},
+     {"PRESERVE", Settings::OFF},
+     {"TOLOWER",  Settings::LOWER},
+     {"TOUPPER",  Settings::UPPER},
      {NULL,       -1}
 };
 
@@ -1561,7 +1561,7 @@ cmd_case(void)
    get_token();
    setting = match_tok(case_tab, TABSIZE(case_tab));
    if (setting != -1) {
-      pcs->Case = setting;
+      pcs->Case = (Settings::SettingCase)setting;
    } else {
       file.lpos += strlen(buffer);
       compile_error_skip(-/*Found “%s”, expecting “PRESERVE”, “TOUPPER”, or “TOLOWER”*/10,
@@ -1591,7 +1591,7 @@ cmd_infer(void)
    infer_what setting;
    int on;
    get_token();
-   setting = match_tok(infer_tab, TABSIZE(infer_tab));
+   setting = (infer_what)match_tok(infer_tab, TABSIZE(infer_tab));
    if (setting == INFER_NULL) {
       file.lpos += strlen(buffer);
       compile_error_skip(-/*Found “%s”, expecting “EQUATES”, “EXPORTS”, or “PLUMBS”*/31, buffer);
@@ -1651,7 +1651,7 @@ cmd_require(void)
 	 while (isdigit(ch) || ch == '.') nextch();
 	 get_pos(&fp_tmp);
 	 len = (size_t)(fp_tmp.offset - fp.offset);
-	 v = osmalloc(len + 1);
+     v = (char*)osmalloc(len + 1);
 	 set_pos(&fp);
 	 for (i = 0; i < len; i++) {
 	    v[i] = ch;

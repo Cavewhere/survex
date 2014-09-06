@@ -20,7 +20,9 @@
    License along with the GNU C Library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
    02110-1301 USA.  */
-
+
+#include <cstring>
+
 /* This tells Alpha OSF/1 not to define a getopt prototype in <stdio.h>.
    Ditto for AIX 3.2 and <stdlib.h>.  */
 #ifndef _NO_PROTO
@@ -40,6 +42,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 
 /* Comment out all this code if we are using the GNU C Library, and are not
    actually compiling the library itself.  This code is part of the GNU C
@@ -196,7 +199,7 @@ static enum
 
 /* Value of POSIXLY_CORRECT environment variable.  */
 static char *posixly_correct;
-
+
 #ifdef	__GNU_LIBRARY__
 /* We want to avoid inclusion of string.h with non-GNU libraries
    because there are many ways it can cause trouble.
@@ -206,31 +209,31 @@ static char *posixly_correct;
 # define my_index	strchr
 #else
 
-# if HAVE_STRING_H
-#  include <string.h>
-# else
-#  include <strings.h>
-# endif
+//#include <cstring>
+
+//# if HAVE_STRING_H
+//#  include <string.h>
+//# else
+//#  include <string.h>
+//# endif
 
 /* Avoid depending on library functions or files
    whose names are inconsistent.  */
 
-#ifndef getenv
-/* avoid "warning C4273: 'getenv' : inconsistent dll linkage." */
-#ifndef __WIN32__
-extern char *getenv ();
-#endif
-#endif
+//#ifndef getenv
+///* avoid "warning C4273: 'getenv' : inconsistent dll linkage." */
+//#ifndef __WIN32__
+//extern char *getenv ();
+//#endif
+//#endif
 
 static char *
-my_index (str, chr)
-     const char *str;
-     int chr;
+my_index (const char* str, int chr)
 {
   while (*str)
     {
       if (*str == chr)
-	return (char *) str;
+    return (char *) str;
       str++;
     }
   return 0;
@@ -306,8 +309,7 @@ static void exchange (char **);
 #endif
 
 static void
-exchange (argv)
-     char **argv;
+exchange (char** argv)
 {
   int bottom = first_nonopt;
   int middle = last_nonopt;
@@ -391,10 +393,7 @@ exchange (argv)
 static const char *_getopt_initialize (int, char *const *, const char *);
 #endif
 static const char *
-_getopt_initialize (argc, argv, optstring)
-     int argc;
-     char *const *argv;
-     const char *optstring;
+_getopt_initialize (int argc, char* const* argv, const char* optstring)
 {
   /* Start processing options with ARGV-element 1 (since ARGV-element 0
      is the program name); the sequence of previously skipped
@@ -513,13 +512,12 @@ _getopt_initialize (argc, argv, optstring)
    long-named options.  */
 
 int
-_getopt_internal (argc, argv, optstring, longopts, longind, long_only)
-     int argc;
-     char *const *argv;
-     const char *optstring;
-     const struct option *longopts;
-     int *longind;
-     int long_only;
+_getopt_internal (int argc,
+                  char* const* argv,
+                  const char* optstring,
+                  const struct option *longopts,
+                  int* longind,
+                  int long_only)
 {
   int print_errors = opterr;
   if (optstring[0] == ':')
@@ -1194,10 +1192,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 }
 
 int
-getopt (argc, argv, optstring)
-     int argc;
-     char *const *argv;
-     const char *optstring;
+getopt (int argc, char* const* argv, const char* optstring)
 {
   return _getopt_internal (argc, argv, optstring,
 			   (const struct option *) 0,

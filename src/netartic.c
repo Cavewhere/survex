@@ -228,8 +228,8 @@ articulate(void)
 	 stn->colour = 0;
       }
    }
-   dirn_stack = osmalloc(cMaxVisits);
-   min_stack = osmalloc(cMaxVisits * sizeof(long));
+   dirn_stack = (unsigned char*)osmalloc(cMaxVisits);
+   min_stack = (long*)osmalloc(cMaxVisits * sizeof(long));
 
    /* fixedlist can be NULL here if we've had a *solve followed by survey
     * which is all hanging. */

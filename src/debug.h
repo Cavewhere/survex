@@ -42,7 +42,7 @@
 /* macro to report detected bug */
 #ifdef DEBUG_INVALID
 # define BUG(M) BLK(fputsnl(__FILE__":"STRING(__LINE__)": "M, STDERR);\
- fatalerror(/*Bug in program detected! Please report this to the authors*/11);)
+    fatalerror(/*Bug in program detected! Please report this to the authors*/11);)
 #else
 # define BUG(M) fatalerror(/*Bug in program detected! Please report this to the authors*/11)
 #endif
@@ -51,7 +51,7 @@
 #define SVX_ASSERT(E) if (E) {} else BUG("assert("#E") failed")
 
 /* assert macro, which calls BUG() if it fails */
-#define SVX_ASSERT2(E, M) if (E) {} else BUG("assert("#E") failed - "M)
+#define SVX_ASSERT2(E, M) if (E) {} else  BUG("assert("#E") failed - "M)
 
 /* datain.c */
 

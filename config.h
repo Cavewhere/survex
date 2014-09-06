@@ -4,6 +4,9 @@
 /* Define if building universal (internal helper macro) */
 /* #undef AC_APPLE_UNIVERSAL_BUILD */
 
+#ifndef CONFIG_H
+#define CONFIG_H
+
 /* Copyright Message for Aven */
 #define AVEN_COPYRIGHT_MSG "Copyright (C) 1999-2003,2005,2006 Mark R. Shinwell"
 
@@ -78,7 +81,7 @@
 /* #undef HAVE_DOPRNT */
 
 /* Define to 1 if you have the `getc_unlocked' function. */
-#define HAVE_GETC_UNLOCKED 1
+//#define HAVE_GETC_UNLOCKED 1
 
 /* Define to 1 if you have the `getpwuid' function. */
 #define HAVE_GETPWUID 1
@@ -105,10 +108,10 @@
 #define HAVE_LIMITS_H 1
 
 /* Define to 1 if you have the `lround' function. */
-#define HAVE_LROUND 1
+//#define HAVE_LROUND 1
 
 /* Define to 1 if you have the `lstat' function. */
-#define HAVE_LSTAT 1
+//#define HAVE_LSTAT 1
 
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
@@ -126,7 +129,7 @@
 #define HAVE_POPEN 1
 
 /* Define to 1 if you have the `putc_unlocked' function. */
-#define HAVE_PUTC_UNLOCKED 1
+//#define HAVE_PUTC_UNLOCKED 1
 
 /* Define to 1 if you have the `setenv' function. */
 #define HAVE_SETENV 1
@@ -144,7 +147,7 @@
 #define HAVE_STDLIB_H 1
 
 /* Define to 1 if you have the `strcasecmp' function. */
-#define HAVE_STRCASECMP 1
+//#define HAVE_STRCASECMP 1
 
 /* Define to 1 if you have the `strftime' function. */
 #define HAVE_STRFTIME 1
@@ -273,3 +276,19 @@
 # define PUTC(C, F) putc(C, F)
 #endif
 
+/* portable case insensitive string compare */
+#if defined(strcasecmp) || defined(HAVE_STRCASECMP)
+# define my_strcasecmp strcasecmp
+#else
+#include <cctype>
+static int my_strcasecmp(const char *s1, const char *s2) {
+   unsigned char c1, c2;
+   do {
+      c1 = *s1++;
+      c2 = *s2++;
+   } while (c1 && toupper(c1) == toupper(c2));
+   /* now calculate real difference */
+   return c1 - c2;
+}
+#endif
+#endif

@@ -42,7 +42,7 @@ s_catlen(char **pstr, int *plen, const char *s, int s_len)
 
    if (!*pstr || new_len > *plen) {
       *plen = (new_len + 32) & ~3;
-      *pstr = osrealloc(*pstr, *plen);
+      *pstr = (char*)osrealloc(*pstr, *plen);
    }
 
    memcpy(*pstr + len, s, s_len);
@@ -63,7 +63,7 @@ s_catchar(char **pstr, int *plen, char ch)
 
    if (!*pstr || new_len > *plen) {
       *plen = (new_len + 32) & ~3;
-      *pstr = osrealloc(*pstr, *plen);
+      *pstr = (char*)osrealloc(*pstr, *plen);
    }
 
    (*pstr)[len] = ch;

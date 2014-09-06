@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <algorithm>
 
 #include "img.h"
 
@@ -264,20 +265,20 @@ my_lround(double x) {
 }
 #endif
 
-/* portable case insensitive string compare */
-#if defined(strcasecmp) || defined(HAVE_STRCASECMP)
-# define my_strcasecmp strcasecmp
-#else
-static int my_strcasecmp(const char *s1, const char *s2) {
-   unsigned char c1, c2;
-   do {
-      c1 = *s1++;
-      c2 = *s2++;
-   } while (c1 && toupper(c1) == toupper(c2));
-   /* now calculate real difference */
-   return c1 - c2;
-}
-#endif
+///* portable case insensitive string compare */
+//#if defined(strcasecmp) || defined(HAVE_STRCASECMP)
+//# define my_strcasecmp strcasecmp
+//#else
+//static int my_strcasecmp(const char *s1, const char *s2) {
+//   unsigned char c1, c2;
+//   do {
+//      c1 = *s1++;
+//      c2 = *s2++;
+//   } while (c1 && toupper(c1) == toupper(c2));
+//   /* now calculate real difference */
+//   return c1 - c2;
+//}
+//#endif
 
 unsigned int img_output_version = IMG_VERSION_MAX;
 
@@ -2515,7 +2516,7 @@ img_write_item_new(img *pimg, int code, int flags, const char *s,
       if (r < 0) r = -1;
       if (u < 0) u = -1;
       if (d < 0) d = -1;
-      max_dim = max(max(l, r), max(u, d));
+      max_dim = std::max(std::max(l, r), std::max(u, d));
       flags = (flags & img_XFLAG_END) ? 1 : 0;
       if (max_dim >= 32768) flags |= 2;
       write_v8label(pimg, 0x30 | flags, 0, -1, s);
@@ -2579,7 +2580,7 @@ img_write_item_v3to7(img *pimg, int code, int flags, const char *s,
       if (r < 0) r = -1;
       if (u < 0) u = -1;
       if (d < 0) d = -1;
-      max_dim = max(max(l, r), max(u, d));
+      max_dim = std::max(std::max(l, r), std::max(u, d));
       flags = (flags & img_XFLAG_END) ? 1 : 0;
       if (max_dim >= 32768) flags |= 2;
       write_v3label(pimg, 0x30 | flags, s);

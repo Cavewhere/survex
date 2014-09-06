@@ -143,7 +143,7 @@ node_stat(prefix *p)
 
       if (order >= icOrderMac) {
 	 int c = order * 2;
-	 cOrder = osrealloc(cOrder, c * ossizeof(int));
+     cOrder = (int*)osrealloc(cOrder, c * ossizeof(int));
 	 while (icOrderMac < c) cOrder[icOrderMac++] = 0;
       }
       cOrder[order]++;
@@ -157,7 +157,7 @@ node_stats(prefix *from)
 {
    prefix * p;
    icOrderMac = 8; /* Start value */
-   cOrder = osmalloc(icOrderMac * ossizeof(int));
+   cOrder = (int*)osmalloc(icOrderMac * ossizeof(int));
    memset(cOrder, 0, icOrderMac * ossizeof(int));
    traverse_prefix_tree(from, node_stat);
    for (p = anon_list; p; p = p->right) {

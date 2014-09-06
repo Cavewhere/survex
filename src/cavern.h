@@ -308,7 +308,7 @@ typedef struct Settings {
    bool f_backclino_percent;
    bool dash_for_anon_wall_station;
    unsigned char infer;
-   enum {OFF, LOWER, UPPER} Case;
+   enum SettingCase {OFF, LOWER, UPPER} Case;
    int style;
    prefix *Prefix;
    prefix *begin_survey; /* used to check BEGIN and END match */

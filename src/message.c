@@ -30,6 +30,7 @@
 #include <limits.h>
 #include <errno.h>
 #include <locale.h>
+#include <iostream>
 
 #include "cmdline.h"
 #include "whichos.h"
@@ -160,7 +161,7 @@ osstrdup(const char *str)
    char *p;
    OSSIZE_T len;
    len = strlen(str) + 1;
-   p = osmalloc(len);
+   p = (char*)osmalloc(len);
    memcpy(p, str, len);
    return p;
 }
@@ -749,7 +750,7 @@ static char **
 parse_msgs(int n, unsigned char *p, int charset_code) {
    int i;
 
-   char **msgs = osmalloc(n * sizeof(char *));
+   char **msgs = (char**)osmalloc(n * sizeof(char *));
 
    for (i = 0; i < n; i++) {
       unsigned char *to = p;
@@ -883,7 +884,7 @@ parse_msg_file(int charset_code)
    len = 0;
    for (i = 16; i < 20; i++) len = (len << 8) | header[i];
 
-   p = osmalloc(len);
+   p = (unsigned char*)osmalloc(len);
    if (fread(p, 1, len, fh) < len)
       fatalerror(/*Message file truncated?*/1003);
 
@@ -920,6 +921,7 @@ void
 msg_init(char * const *argv)
 {
    char *p;
+   std::cout << "argv:" << argv;
    SVX_ASSERT(argv);
 
    /* Point to argv[0] itself so we report a more helpful error if the
@@ -1013,15 +1015,17 @@ macosx_got_msg:
       char *buf = NULL, *modname;
       while (1) {
 	  DWORD got;
-	  buf = osrealloc(buf, len);
-	  got = GetModuleFileName(NULL, buf, len);
+      buf = (char*)osrealloc(buf, len);
+      got = (DWORD)GetModuleFileName(NULL, (LPWSTR)buf, len);
 	  if (got < len) break;
 	  len += len;
       }
       modname = buf;
+      std::cout << "ModName:" << modname << "\n";
       /* Strange Win32 nastiness - strip prefix "\\?\" if present */
       if (strncmp(modname, "\\\\?\\", 4) == 0) modname += 4;
-      pth_cfg_files = path_from_fnm(modname);
+      pth_cfg_files =  use_path(exe_pth, "share/survex");
+      std::cout << "Sauce:" << pth_cfg_files << "\n";
       osfree(buf);
 #else
       /* Get the path to the support files from argv[0] */
@@ -1147,7 +1151,7 @@ macosx_got_msg:
    msg_lang = osstrdup(msg_lang);
 
    /* Convert en-us to en_US, etc */
-   p = strchr(msg_lang, '-');
+   p = (char*)strchr(msg_lang, '-');
    if (p) {
       *p++ = '_';
       while (*p) {
@@ -1156,7 +1160,7 @@ macosx_got_msg:
       }
    }
 
-   p = strchr(msg_lang, '_');
+   p = (char*)strchr(msg_lang, '_');
    if (p) {
       *p = '\0';
       msg_lang2 = osstrdup(msg_lang);

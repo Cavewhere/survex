@@ -17,6 +17,8 @@ Project {
 
         Group {
             name: "Shared Files"
+//            condition: qbs.targetOS.contains("osx") ||
+//                        qbs.targetOS.contains("linux")
             qbs.install: true
             qbs.installDir: project.installDir
 
@@ -24,6 +26,16 @@ Project {
                 "share"
             ]
         }
+
+//        Group {
+//            name: "Windows Shared Files"
+//            qbs.install: true
+//            qbs.installDir: project.installDir
+//            condition: qbs.targetOS.contains("windows")
+//            files: [
+//                "share/survex/*"
+//            ]
+//        }
 
         Group {
             name: "src"
@@ -47,7 +59,9 @@ Project {
                 "src/img_hosted.c",
                 "src/hash.c",
                 "src/osdepend.c",
-                "src/cmdline.c"
+                "src/cmdline.c",
+                "src/getopt.c"
+//                "src/getopt1.c"
             ]
         }
 
@@ -97,7 +111,8 @@ Project {
                 "src/img.c",
                 "src/message.c",
                 "src/osdepend.c",
-                "src/useful.c"
+                "src/useful.c",
+                "src/getopt.c"
             ]
         }
 
