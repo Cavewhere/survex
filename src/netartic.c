@@ -92,10 +92,14 @@ iter:
    print_prefix(stn->name);
    printf(" set to colour %ld -> min\n", colour);
 #endif
+
+   node* to = NULL;
+   long col = 0;
+
    for (i = 0; i <= 2 && stn->leg[i]; i++) {
       if (i != back) {
-	 node *to = stn->leg[i]->l.to;
-	 long col = to->colour;
+     to = stn->leg[i]->l.to;
+     col = to->colour;
 	 if (col == 0) {
 	    SVX_ASSERT(tos < cMaxVisits);
 	    dirn_stack[tos] = back;

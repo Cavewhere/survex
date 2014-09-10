@@ -275,7 +275,7 @@ default_charset(void)
    }
 
    if (p) {
-      char *q = strchr(p, '.');
+      const char *q = strchr(p, '.');
       if (q) p = q + 1;
    }
 
@@ -989,12 +989,12 @@ msg_init(char * const *argv)
 	  * from the program's path exists, and if so look there for
 	  * support files - this allows us to test binaries in the build
 	  * tree easily. */
-	 p = use_path(pth, "../lib/en.msg");
+     p = use_path(exe_pth, "/share/survex/en.msg");
 	 if (lstat(p, &buf) == 0) {
 #ifdef S_ISREG
 	    /* POSIX way */
 	    if (S_ISREG(buf.st_mode)) {
-	       pth_cfg_files = use_path(pth, "../lib");
+           pth_cfg_files = use_path(exe_pth, "/share/survex");
 	    }
 #else
 	    /* BSD way */
