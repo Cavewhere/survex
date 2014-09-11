@@ -65,26 +65,30 @@ Project {
             ]
         }
 
-        files: [
-            "src/filename.h",
-            "src/commands.h",
-            "src/netartic.h",
-            "src/netbits.h",
-            "src/listpos.h",
-            "src/netskel.h",
-            "src/network.h",
-            "src/message.h",
-            "src/matrix.h",
-            "src/datain.h",
-            "src/str.h",
-            "src/readval.h",
-            "src/namecmp.h",
-            "src/date.h",
-            "src/img_hosted.h",
-            "src/hash.h",
-            "src/osdepend.h",
-            "src/cmdline.h"
-        ]
+        Group {
+            name: "headers"
+            fileTags: ["hpp"]
+            files: [
+                "src/filename.h",
+                "src/commands.h",
+                "src/netartic.h",
+                "src/netbits.h",
+                "src/listpos.h",
+                "src/netskel.h",
+                "src/network.h",
+                "src/message.h",
+                "src/matrix.h",
+                "src/datain.h",
+                "src/str.h",
+                "src/readval.h",
+                "src/namecmp.h",
+                "src/date.h",
+                "src/img_hosted.h",
+                "src/hash.h",
+                "src/osdepend.h",
+                "src/cmdline.h"
+            ]
+        }
 
         cpp.includePaths: ["src", "."]
     }
@@ -116,22 +120,24 @@ Project {
             ]
         }
 
+        Group {
+            name: "headers"
+            fileTags: ["hpp"]
 
-        files: [
-            "src/cmdline.h",
-            "config.h",
-            "src/debug.h",
-            "src/filelist.h",
-            "src/filename.h",
-            "src/img.h",
-            "src/message.h",
-            "src/osalloc.h",
-            "src/osdepend.h",
-            "src/ostypes.h",
-            "src/useful.h",
-            "src/whichos.h"
-        ]
-
+            files: [
+                "src/cmdline.h",
+                "config.h",
+                "src/debug.h",
+                "src/filelist.h",
+                "src/filename.h",
+                "src/img.h",
+                "src/message.h",
+                "src/osalloc.h",
+                "src/osdepend.h",
+                "src/ostypes.h",
+                "src/useful.h",
+                "src/whichos.h"
+            ]
+        }
     }
-
 }

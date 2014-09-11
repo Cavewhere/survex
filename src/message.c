@@ -30,7 +30,6 @@
 #include <limits.h>
 #include <errno.h>
 #include <locale.h>
-#include <iostream>
 
 #include "cmdline.h"
 #include "whichos.h"
@@ -921,7 +920,6 @@ void
 msg_init(char * const *argv)
 {
    char *p;
-   std::cout << "argv:" << argv;
    SVX_ASSERT(argv);
 
    /* Point to argv[0] itself so we report a more helpful error if the
