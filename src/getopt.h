@@ -158,7 +158,6 @@ extern int _getopt_internal (int ___argc, char *const *___argv,
 #define GETOPT_INTERFACE_VERSION 2
 #if !defined _LIBC && defined __GLIBC__ && __GLIBC__ >= 2
 # include <gnu-versions.h>
-#else
 # if _GNU_GETOPT_INTERFACE_VERSION == GETOPT_INTERFACE_VERSION
 extern inline int getopt_long (int ___argc, char *const *___argv,
                                const char *__shortopts,
@@ -181,10 +180,19 @@ inline int getopt_long_only (int ___argc, char *const *___argv,
     return _getopt_internal (___argc, ___argv, __shortopts, __longopts, __longind, 1);
 }
 #endif
+#else
+inline int getopt_long (int ___argc, char *const *___argv,
+            const char *__shortopts,
+                const struct option *__longopts, int *__longind) {
+    return _getopt_internal (___argc, ___argv, __shortopts, __longopts, __longind, 0);
+}
+
+inline int getopt_long_only (int ___argc, char *const *___argv,
+                 const char *__shortopts,
+                     const struct option *__longopts, int *__longind) {
+    return _getopt_internal (___argc, ___argv, __shortopts, __longopts, __longind, 1);
+}
 #endif
-
-
-
 
 
 # endif

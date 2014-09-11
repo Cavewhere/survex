@@ -86,7 +86,8 @@ Project {
                 "src/img_hosted.h",
                 "src/hash.h",
                 "src/osdepend.h",
-                "src/cmdline.h"
+                "src/cmdline.h",
+                "src/getopt.h"
             ]
         }
 
