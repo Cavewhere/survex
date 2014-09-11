@@ -1019,11 +1019,9 @@ macosx_got_msg:
 	  len += len;
       }
       modname = buf;
-      std::cout << "ModName:" << modname << "\n";
       /* Strange Win32 nastiness - strip prefix "\\?\" if present */
       if (strncmp(modname, "\\\\?\\", 4) == 0) modname += 4;
       pth_cfg_files =  use_path(exe_pth, "share/survex");
-      std::cout << "Sauce:" << pth_cfg_files << "\n";
       osfree(buf);
 #else
       /* Get the path to the support files from argv[0] */
