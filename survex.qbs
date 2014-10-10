@@ -9,6 +9,8 @@ Project {
 
         Depends { name: "cpp" }
 
+        cpp.warningLevel: "none"
+
         Group {
             fileTagsFilter: ["application"]
             qbs.install: true
@@ -100,6 +102,7 @@ Project {
         Depends { name: "cpp" }
         cpp.defines: ["IMG_API_VERSION=1", "IMG_HOSTED"]
         cpp.includePaths: ["src", "."]
+        cpp.warningLevel: "none"
 
         Export {
             Depends { name: "cpp" }
@@ -116,7 +119,6 @@ Project {
                 "src/img.c",
                 "src/message.c",
                 "src/osdepend.c",
-                "src/useful.c",
                 "src/getopt.c"
             ]
         }
