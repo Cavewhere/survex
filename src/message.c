@@ -1013,7 +1013,7 @@ macosx_got_msg:
       char *buf = NULL, *modname;
       while (1) {
 	  DWORD got;
-      buf = (char*)osrealloc(buf, len);
+      buf = (char*)osrealloc(buf, len * sizeof(LPWSTR));
       got = (DWORD)GetModuleFileName(NULL, (LPWSTR)buf, len);
 	  if (got < len) break;
 	  len += len;
