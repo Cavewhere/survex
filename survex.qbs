@@ -22,10 +22,10 @@ Project {
 //            condition: qbs.targetOS.contains("osx") ||
 //                        qbs.targetOS.contains("linux")
             qbs.install: true
-            qbs.installDir: project.installDir
+            qbs.installDir: project.installDir + "/share/survex"
 
             files: [
-                "share"
+                "share/survex/*"
             ]
         }
 
