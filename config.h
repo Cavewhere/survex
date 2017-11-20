@@ -280,7 +280,7 @@
 #if defined(strcasecmp) || defined(HAVE_STRCASECMP)
 # define my_strcasecmp strcasecmp
 #else
-#include <cctype>
+#include <ctype.h>
 static int my_strcasecmp(const char *s1, const char *s2) {
    unsigned char c1, c2;
    do {

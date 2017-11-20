@@ -19,8 +19,6 @@ Project {
 
         Group {
             name: "Shared Files"
-//            condition: qbs.targetOS.contains("osx") ||
-//                        qbs.targetOS.contains("linux")
             qbs.install: true
             qbs.installDir: project.installDir + "/share/survex"
 
@@ -28,16 +26,6 @@ Project {
                 "share/survex/*"
             ]
         }
-
-//        Group {
-//            name: "Windows Shared Files"
-//            qbs.install: true
-//            qbs.installDir: project.installDir
-//            condition: qbs.targetOS.contains("windows")
-//            files: [
-//                "share/survex/*"
-//            ]
-//        }
 
         Group {
             name: "src"
@@ -63,7 +51,6 @@ Project {
                 "src/osdepend.c",
                 "src/cmdline.c",
                 "src/getopt.c"
-//                "src/getopt1.c"
             ]
         }
 
@@ -103,6 +90,7 @@ Project {
         cpp.defines: ["IMG_API_VERSION=1", "IMG_HOSTED"]
         cpp.includePaths: ["src", "."]
         cpp.warningLevel: "none"
+        cpp.minimumMacosVersion: "10.7"
 
         Export {
             Depends { name: "cpp" }
