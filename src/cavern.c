@@ -301,7 +301,7 @@ main(int argc, char **argv)
 
    if (!fMute) {
       const char *p = COPYRIGHT_MSG;
-      puts(PRETTYPACKAGE" "VERSION);
+      puts(PRETTYPACKAGE " " VERSION);
       while (1) {
 	  const char *q = p;
 	  p = strstr(p, "(C)");

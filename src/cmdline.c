@@ -158,7 +158,7 @@ cmdline_help(void)
 void
 cmdline_version(void)
 {
-   printf("%s - "PRETTYPACKAGE" "VERSION"\n", msg_appname());
+   printf("%s - " PRETTYPACKAGE " " VERSION "\n", msg_appname());
 }
 
 void
