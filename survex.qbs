@@ -11,6 +11,8 @@ Project {
 
         cpp.warningLevel: "none"
 
+        qbs.installPrefix: ""
+
         Properties {
             condition: qbs.targetOS.contains("windows")
             cpp.defines: ["HAVE_CONFIG_H"]
