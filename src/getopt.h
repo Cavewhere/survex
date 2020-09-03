@@ -31,7 +31,7 @@
    if it's from glibc.  (Why ctype.h?  It's guaranteed to exist and it
    doesn't flood the namespace with stuff the way some other headers do.)  */
 #if !defined __GNU_LIBRARY__
-# include <ctype.h>
+//# include <ctype.h>
 #endif
 
 #ifdef	__cplusplus
