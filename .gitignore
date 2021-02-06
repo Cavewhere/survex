@@ -87,3 +87,5 @@ tests/Makefile
 tests/Makefile.in
 vim/Makefile
 vim/Makefile.in
+Makefile.am.user
+CMakeLists.txt.user
