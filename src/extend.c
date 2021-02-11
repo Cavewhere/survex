@@ -567,9 +567,9 @@ main(int argc, char **argv)
 	    break;
       }
    }
-   fnm_in = argv[svx_optind++];
-   if (argv[svx_optind]) {
-      fnm_out = argv[svx_optind];
+   fnm_in = argv[optind++];
+   if (argv[optind]) {
+      fnm_out = argv[optind];
    } else {
       char * base_in = base_from_fnm(fnm_in);
       char * base_out = osmalloc(strlen(base_in) + 8);

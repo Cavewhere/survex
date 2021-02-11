@@ -273,12 +273,12 @@ main(int argc, char **argv)
       char *fnm;
       if (!fnm_output_base) {
 	 char *p;
-     p = baseleaf_from_fnm(argv[svx_optind]);
+     p = baseleaf_from_fnm(argv[optind]);
 	 fnm = add_ext(p, EXT_LOG);
 	 osfree(p);
       } else if (fnm_output_base_is_dir) {
 	 char *p;
-     fnm = baseleaf_from_fnm(argv[svx_optind]);
+     fnm = baseleaf_from_fnm(argv[optind]);
 	 p = use_path(fnm_output_base, fnm);
 	 osfree(fnm);
 	 fnm = add_ext(p, EXT_LOG);
@@ -312,8 +312,8 @@ main(int argc, char **argv)
    atexit(delete_output_on_error);
 
    /* end of options, now process data files */
-   while (argv[svx_optind]) {
-      const char *fnm = argv[svx_optind];
+   while (argv[optind]) {
+      const char *fnm = argv[optind];
 
       if (!fExplicitTitle) {
 	 char *lf;
@@ -327,7 +327,7 @@ main(int argc, char **argv)
       default_all(pcs);
       data_file(NULL, fnm); /* first argument is current path */
 
-      svx_optind++;
+      optind++;
    }
 
    validate();

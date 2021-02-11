@@ -58,7 +58,7 @@ extern char *optarg;
    Otherwise, `svx_optind' communicates from one call to the next
    how much of ARGV has been scanned so far.  */
 
-extern int svx_optind;
+extern int optind;
 
 /* Callers store zero here to inhibit the error message `getopt' prints
    for unrecognized options.  */

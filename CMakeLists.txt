@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.12)
 
 # set the project name
 project(Survex VERSION 1.0)
@@ -21,6 +21,8 @@ check_type_size("int"   SIZEOF_INT)
 
 check_symbol_exists("getc_unlocked" "stdio.h" HAVE_GETC_UNLOCKED)
 check_symbol_exists("putc_unlocked" "stdio.h" HAVE_PUTC_UNLOCKED)
+check_function_exists("strcasecmp" HAVE_STRCASECMP)
+check_function_exists("stricmp" HAVE_STRICMP)
 
 set(PACKAGE survex)
 set(PACKAGE_STRING survex)
@@ -54,8 +56,12 @@ conan_add_remote(NAME bincrafters
 conan_cmake_run(REQUIRES proj/6.3.1
                 REQUIRES wxwidgets/3.1.4@bincrafters/stable
                 REQUIRES glew/2.1.0@bincrafters/stable
-                BASIC_SETUP)
+                OPTIONS wxwidgets:webview=False
+                BASIC_SETUP CMAKE_TARGETS
+                BUILD missing)
 
+find_package (Python3 COMPONENTS Interpreter)
+find_package (Perl)
 
 SET(CMAKE_REQUIRED_INCLUDES ${CONAN_INCLUDE_DIRS})
 check_include_file("proj.h" HAVE_PROJ_H)
@@ -65,12 +71,62 @@ check_type_size("wxChar" SIZEOF_WXCHAR)
 SET(CMAKE_EXTRA_INCLUDE_FILES)
 
 configure_file ("${PROJECT_SOURCE_DIR}/src/config.h.in"
-                "${PROJECT_BINARY_DIR}/config.h" )
+    "${PROJECT_BINARY_DIR}/config.h" )
 
-add_custom_target(messageFiles ALL
-    COMMAND cpan Locale::PO
-    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/lib/en_US.po
+if(NOT ${Python3_FOUND})
+    message( FATAL_ERROR "Missing python3 please install it." )
+endif()
+
+if(NOT ${PERL_FOUND})
+    message( FATAL_ERROR "Missing perl please install it.")
+endif()
+
+execute_process(COMMAND ${PERL_EXECUTABLE} -MLocale::PO -e 1
+    ERROR_QUIET RESULT_VARIABLE missing_perl_localPO)
+
+if(${missing_perl_localPO})
+    message( FATAL_ERROR "Missing perl package \"Locale::PO\". Please run \"cpan Locale::PO\" to install it" )
+endif()
+
+set(MESSAGE_OUTPUTS
+    ${PROJECT_BINARY_DIR}/bin/en.msg
+    ${PROJECT_BINARY_DIR}/bin/en_US.msg
+)
+
+include(messages.cmake)
+svx_add_messages(messageFiles
+    ${SRC_LIB_DIR}/bg.po
+    ${SRC_LIB_DIR}/de_CH.po
+    ${SRC_LIB_DIR}/el.po
+    ${SRC_LIB_DIR}/es.po
+    ${SRC_LIB_DIR}/hu.po
+    ${SRC_LIB_DIR}/it.po
+    ${SRC_LIB_DIR}/pt_BR.po
+    ${SRC_LIB_DIR}/ro.po
+    ${SRC_LIB_DIR}/sk.po
+    ${SRC_LIB_DIR}/ca.po
+    ${SRC_LIB_DIR}/de.po
+    ${SRC_LIB_DIR}/en_US.po
+    ${SRC_LIB_DIR}/fr.po
+    ${SRC_LIB_DIR}/id.po
+    ${SRC_LIB_DIR}/pl.po
+    ${SRC_LIB_DIR}/pt.po
+    ${SRC_LIB_DIR}/ru.po
+    ${SRC_LIB_DIR}/zh_CN.po
     )
+
+add_custom_command(
+    OUTPUT
+    ${PROJECT_BINARY_DIR}/thgeomagdata.h
+
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf2c.py ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf13coeffs.txt
+    COMMAND ${CMAKE_COMMAND} -E rename ${PROJECT_BINARY_DIR}/../thgeomagdata.h ${PROJECT_BINARY_DIR}/thgeomagdata.h
+
+    DEPENDS
+    ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf2c.py
+    ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf13coeffs.txt
+    )
+add_custom_target(thgeomagdata DEPENDS ${PROJECT_BINARY_DIR}/thgeomagdata.h)
 
 add_library(survex_utils STATIC
     ${SRC_DIR}/message.c
@@ -88,6 +144,7 @@ add_library(survex_utils STATIC
 target_compile_definitions(survex_utils PUBLIC
     HAVE_CONFIG_H
     )
+target_link_libraries(survex_utils CONAN_PKG::proj)
 
 # add the executable
 add_executable(cavern
@@ -107,10 +164,13 @@ add_executable(cavern
     ${SRC_DIR}/thgeomag.c
 )
 
-add_dependencies(cavern messageFiles)
+add_dependencies(cavern
+    messageFiles
+    thgeomagdata
+    )
 
-target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
-target_link_libraries(cavern ${CONAN_LIBS} survex_utils)
+target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
+target_link_libraries(cavern CONAN_PKG::proj survex_utils)
 target_compile_definitions(cavern PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -160,9 +220,13 @@ target_compile_definitions(extend PUBLIC
     _CRT_SECURE_NO_WARNINGS
     )
 
-add_custom_target(img2aven ALL
-    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gen_img2aven > img2aven.h
+
+add_custom_command(
+    OUTPUT ${PROJECT_BINARY_DIR}/img2aven.h
+    COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gen_img2aven > img2aven.h
+    DEPENDS ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gen_img2aven
     )
+add_custom_target(img2aven DEPENDS ${PROJECT_BINARY_DIR}/img2aven.h)
 
 add_executable(survexport
     ${SRC_DIR}/survexport.cc
@@ -177,27 +241,43 @@ add_executable(survexport
     ${SRC_DIR}/vector3.cc
     )
 target_include_directories(survexport PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
-target_link_libraries(survexport ${CONAN_LIBS} survex_utils)
+target_link_libraries(survexport
+    CONAN_PKG::wxwidgets
+    CONAN_PKG::glew
+    survex_utils)
 target_compile_definitions(survexport PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
     )
-
 add_dependencies(survexport img2aven)
 
-#unifont.hex path is hard coded into perl script
-if(NOT EXISTS "/usr/share/unifont/unifont.hex")
-    file(COPY ${CMAKE_SOURCE_DIR}/${SRC_LIB_DIR}/unifont.hex
-        DESTINATION ${CMAKE_BINARY_DIR})
-endif()
-
-add_custom_target(make-pixel-font
-    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/make-pixel-font
+set(FONT_FILES
+    ${PROJECT_BINARY_DIR}/unifont.hex
+    ${PROJECT_BINARY_DIR}/unifont.pixelfont
+    ${PROJECT_BINARY_DIR}/preload_font.h
     )
 
-add_custom_target(gdtconvert
-    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gdtconvert < ${CMAKE_SOURCE_DIR}/${SRC_DIR}/gradient.pov > avenpal.h
+add_custom_command(
+    OUTPUT ${FONT_FILES}
+
+    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/unifont.hex ${PROJECT_BINARY_DIR}/unifont.hex
+    COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/make-pixel-font
+
+    DEPENDS
+    ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/make-pixel-font ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/unifont.hex
     )
+add_custom_target(make-pixel-font DEPENDS ${FONT_FILES})
+
+add_custom_command(
+    OUTPUT ${PROJECT_BINARY_DIR}/avenpal.h
+
+    COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gdtconvert < ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gradient.pov > avenpal.h
+
+    DEPENDS
+    ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gradient.pov
+    ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gdtconvert
+    )
+add_custom_target(gdtconvert DEPENDS ${PROJECT_BINARY_DIR}/avenpal.h)
 
 add_executable(aven WIN32
     ${SRC_DIR}/aven.cc
@@ -232,10 +312,16 @@ add_executable(aven WIN32
 add_dependencies(aven
     make-pixel-font
     gdtconvert
+    messageFiles
+    img2aven
     )
 
 target_include_directories(aven PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
-target_link_libraries(aven ${CONAN_LIBS} survex_utils)
+target_link_libraries(aven
+    CONAN_PKG::wxwidgets
+    CONAN_PKG::glew
+    CONAN_PKG::proj
+    survex_utils)
 target_compile_definitions(aven PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS

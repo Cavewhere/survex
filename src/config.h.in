@@ -38,7 +38,7 @@
 /* #undef size_t */
 
 /* Define if you have the ANSI C header files.  */
-#define STDC_HEADERS
+//#define STDC_HEADERS
 
 /* Define if your <sys/time.h> declares struct tm.  */
 #undef TM_IN_SYS_TIME
@@ -71,7 +71,17 @@ typedef __int32 int32_t;
 #endif
 
 /* strcasecmp define for systems which call it something else */
+#if @HAVE_STRCASECMP@
+//POSIX systems
+#define strcasecmp strcasecmp
+#elif @HAVE_STRICMP@
+//Usually Windows
 #define strcasecmp stricmp
+#else
+#define strcasecmp UNKNOWN_string_compare
+#endif
+
+//#define strcasecmp stricmp
 
 /* Define if you have the difftime function.  */
 #define HAVE_DIFFTIME 1
@@ -105,9 +115,6 @@ typedef __int32 int32_t;
 
 /* Define if you have the <limits.h> header file.  */
 #define HAVE_LIMITS_H 1
-
-/* Define if you have the <string.h> header file.  */
-#define HAVE_STRING_H 1
 
 /* Define if you have the m library (-lm).  */
 #undef HAVE_LIBM

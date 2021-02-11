@@ -43,7 +43,7 @@ struct option {
 };
 
 extern char *optarg;
-extern int svx_optind;
+extern int optind;
 extern int svx_opterr;
 extern int svx_optopt;
 #endif

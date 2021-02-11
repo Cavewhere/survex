@@ -139,8 +139,8 @@ main(int argc, char **argv)
       }
    }
 
-   fnm = argv[svx_optind++];
-   if (argv[svx_optind]) howmany = atoi(argv[svx_optind]);
+   fnm = argv[optind++];
+   if (argv[optind]) howmany = atoi(argv[optind]);
 
    fh = fopen(fnm, "rb");
    if (!fh) fatalerror(/*Couldn’t open file “%s”*/24, fnm);
