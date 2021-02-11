@@ -55,7 +55,7 @@ extern char *optarg;
    When `getopt' returns -1, this is the index of the first of the
    non-option elements that the caller should itself scan.
 
-   Otherwise, `svx_optind' communicates from one call to the next
+   Otherwise, `optind' communicates from one call to the next
    how much of ARGV has been scanned so far.  */
 
 extern int optind;

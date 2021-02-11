@@ -131,13 +131,13 @@ char *optarg;
    When `getopt' returns -1, this is the index of the first of the
    non-option elements that the caller should itself scan.
 
-   Otherwise, `svx_optind' communicates from one call to the next
+   Otherwise, `optind' communicates from one call to the next
    how much of ARGV has been scanned so far.  */
 
 /* 1003.2 says this must be 1 before any call.  */
-int svx_optind = 1;
+int optind = 1;
 
-/* Formerly, initialization of getopt depended on svx_optind==0, which
+/* Formerly, initialization of getopt depended on optind==0, which
    causes problems with re-calling getopt as programs generally don't
    know that. */
 
@@ -190,7 +190,7 @@ int svx_optopt = '?';
 
    The special argument `--' forces an end of option-scanning regardless
    of the value of `ordering'.  In the case of RETURN_IN_ORDER, only
-   `--' can cause `getopt' to return -1 with `svx_optind' != ARGC.  */
+   `--' can cause `getopt' to return -1 with `optind' != ARGC.  */
 
 static enum
 {
@@ -298,7 +298,7 @@ static int nonoption_flags_len;
 /* Exchange two adjacent subsequences of ARGV.
    One subsequence is elements [first_nonopt,last_nonopt)
    which contains all the non-options that have been skipped so far.
-   The other is elements [last_nonopt,svx_optind), which contains all
+   The other is elements [last_nonopt,optind), which contains all
    the options processed since those non-options were skipped.
 
    `first_nonopt' and `last_nonopt' are relocated so that they describe
@@ -314,7 +314,7 @@ exchange (argv)
 {
   int bottom = first_nonopt;
   int middle = last_nonopt;
-  int top = svx_optind;
+  int top = optind;
   char *tem;
 
   /* Exchange the shorter segment with the far end of the longer segment.
@@ -384,8 +384,8 @@ exchange (argv)
 
   /* Update records for the slots the non-options now occupy.  */
 
-  first_nonopt += (svx_optind - last_nonopt);
-  last_nonopt = svx_optind;
+  first_nonopt += (optind - last_nonopt);
+  last_nonopt = optind;
 }
 
 /* Initialize the internal data when the first call is made.  */
@@ -403,7 +403,7 @@ _getopt_initialize (argc, argv, optstring)
      is the program name); the sequence of previously skipped
      non-option ARGV-elements is empty.  */
 
-  first_nonopt = last_nonopt = svx_optind;
+  first_nonopt = last_nonopt = optind;
 
   nextchar = NULL;
 
@@ -469,11 +469,11 @@ _getopt_initialize (argc, argv, optstring)
    from each of the option elements.
 
    If `getopt' finds another option character, it returns that character,
-   updating `svx_optind' and `nextchar' so that the next call to `getopt' can
+   updating `optind' and `nextchar' so that the next call to `getopt' can
    resume the scan with the following option character or ARGV-element.
 
    If there are no more option characters, `getopt' returns -1.
-   Then `svx_optind' is the index in ARGV of the first ARGV-element
+   Then `optind' is the index in ARGV of the first ARGV-element
    that is not an option.  (The ARGV-elements have been permuted
    so that those that are not options now come last.)
 
@@ -533,53 +533,53 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 
   optarg = NULL;
 
-  if (svx_optind == 0 || !__getopt_initialized)
+  if (optind == 0 || !__getopt_initialized)
     {
-      if (svx_optind == 0)
-    svx_optind = 1;	/* Don't scan ARGV[0], the program name.  */
+      if (optind == 0)
+    optind = 1;	/* Don't scan ARGV[0], the program name.  */
       optstring = _getopt_initialize (argc, argv, optstring);
       __getopt_initialized = 1;
     }
 
-  /* Test whether ARGV[svx_optind] points to a non-option argument.
+  /* Test whether ARGV[optind] points to a non-option argument.
      Either it does not have option syntax, or there is an environment flag
      from the shell indicating it is not an option.  The later information
      is only used when the used in the GNU libc.  */
 #if defined _LIBC && defined USE_NONOPTION_FLAGS
-# define NONOPTION_P (argv[svx_optind][0] != '-' || argv[svx_optind][1] == '\0'	      \
-              || (svx_optind < nonoption_flags_len			      \
-              && __getopt_nonoption_flags[svx_optind] == '1'))
+# define NONOPTION_P (argv[optind][0] != '-' || argv[optind][1] == '\0'	      \
+              || (optind < nonoption_flags_len			      \
+              && __getopt_nonoption_flags[optind] == '1'))
 #else
-# define NONOPTION_P (argv[svx_optind][0] != '-' || argv[svx_optind][1] == '\0')
+# define NONOPTION_P (argv[optind][0] != '-' || argv[optind][1] == '\0')
 #endif
 
   if (nextchar == NULL || *nextchar == '\0')
     {
       /* Advance to the next ARGV-element.  */
 
-      /* Give FIRST_NONOPT & LAST_NONOPT rational values if svx_optind has been
+      /* Give FIRST_NONOPT & LAST_NONOPT rational values if optind has been
 	 moved back by the user (who may also have changed the arguments).  */
-      if (last_nonopt > svx_optind)
-    last_nonopt = svx_optind;
-      if (first_nonopt > svx_optind)
-    first_nonopt = svx_optind;
+      if (last_nonopt > optind)
+    last_nonopt = optind;
+      if (first_nonopt > optind)
+    first_nonopt = optind;
 
       if (ordering == PERMUTE)
 	{
 	  /* If we have just processed some options following some non-options,
 	     exchange them so that the options come first.  */
 
-      if (first_nonopt != last_nonopt && last_nonopt != svx_optind)
+      if (first_nonopt != last_nonopt && last_nonopt != optind)
 	    exchange ((char **) argv);
-      else if (last_nonopt != svx_optind)
-        first_nonopt = svx_optind;
+      else if (last_nonopt != optind)
+        first_nonopt = optind;
 
 	  /* Skip any additional non-options
 	     and extend the range of non-options previously skipped.  */
 
-      while (svx_optind < argc && NONOPTION_P)
-        svx_optind++;
-      last_nonopt = svx_optind;
+      while (optind < argc && NONOPTION_P)
+        optind++;
+      last_nonopt = optind;
 	}
 
       /* The special ARGV-element `--' means premature end of options.
@@ -587,28 +587,28 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	 then exchange with previous non-options as if it were an option,
 	 then skip everything else like a non-option.  */
 
-      if (svx_optind != argc && !strcmp (argv[svx_optind], "--"))
+      if (optind != argc && !strcmp (argv[optind], "--"))
 	{
-      svx_optind++;
+      optind++;
 
-      if (first_nonopt != last_nonopt && last_nonopt != svx_optind)
+      if (first_nonopt != last_nonopt && last_nonopt != optind)
 	    exchange ((char **) argv);
 	  else if (first_nonopt == last_nonopt)
-        first_nonopt = svx_optind;
+        first_nonopt = optind;
 	  last_nonopt = argc;
 
-      svx_optind = argc;
+      optind = argc;
 	}
 
       /* If we have done all the ARGV-elements, stop the scan
 	 and back over any non-options that we skipped and permuted.  */
 
-      if (svx_optind == argc)
+      if (optind == argc)
 	{
 	  /* Set the next-arg-index to point at the non-options
 	     that we previously skipped, so the caller will digest them.  */
 	  if (first_nonopt != last_nonopt)
-        svx_optind = first_nonopt;
+        optind = first_nonopt;
 	  return -1;
 	}
 
@@ -619,15 +619,15 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	{
 	  if (ordering == REQUIRE_ORDER)
 	    return -1;
-      optarg = argv[svx_optind++];
+      optarg = argv[optind++];
 	  return 1;
 	}
 
       /* We have found another option-ARGV-element.
 	 Skip the initial punctuation.  */
 
-      nextchar = (argv[svx_optind] + 1
-          + (longopts != NULL && argv[svx_optind][1] == '-'));
+      nextchar = (argv[optind] + 1
+          + (longopts != NULL && argv[optind][1] == '-'));
     }
 
   /* Decode the current option-ARGV-element.  */
@@ -646,8 +646,8 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
      This distinction seems to be the most useful approach.  */
 
   if (longopts != NULL
-      && (argv[svx_optind][1] == '-'
-      || (long_only && (argv[svx_optind][2] || !my_index (optstring, argv[svx_optind][1])))))
+      && (argv[optind][1] == '-'
+      || (long_only && (argv[optind][2] || !my_index (optstring, argv[optind][1])))))
     {
       char *nameend;
       const struct option *p;
@@ -696,7 +696,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	      char *buf;
 
 	      if (__asprintf (&buf, _("%s: option `%s' is ambiguous\n"),
-                  argv[0], argv[svx_optind]) >= 0)
+                  argv[0], argv[optind]) >= 0)
 		{
 
 		  if (_IO_fwide (stderr, 0) > 0)
@@ -708,11 +708,11 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 		}
 #else
 	      fprintf (stderr, _("%s: option `%s' is ambiguous\n"),
-               argv[0], argv[svx_optind]);
+               argv[0], argv[optind]);
 #endif
 	    }
 	  nextchar += strlen (nextchar);
-      svx_optind++;
+      optind++;
       svx_optopt = 0;
 	  return '?';
 	}
@@ -720,7 +720,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
       if (pfound != NULL)
 	{
 	  option_index = indfound;
-      svx_optind++;
+      optind++;
 	  if (*nameend)
 	    {
 	      /* Don't test has_arg with >, because some C compilers don't
@@ -736,7 +736,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 		      int n;
 #endif
 
-              if (argv[svx_optind - 1][1] == '-')
+              if (argv[optind - 1][1] == '-')
 			{
 			  /* --option */
 #if defined _LIBC && defined USE_IN_LIBIO
@@ -755,12 +755,12 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 #if defined _LIBC && defined USE_IN_LIBIO
 			  n = __asprintf (&buf, _("\
 %s: option `%c%s' doesn't allow an argument\n"),
-                      argv[0], argv[svx_optind - 1][0],
+                      argv[0], argv[optind - 1][0],
 					  pfound->name);
 #else
 			  fprintf (stderr, _("\
 %s: option `%c%s' doesn't allow an argument\n"),
-                   argv[0], argv[svx_optind - 1][0], pfound->name);
+                   argv[0], argv[optind - 1][0], pfound->name);
 #endif
 			}
 
@@ -785,8 +785,8 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	    }
 	  else if (pfound->has_arg == 1)
 	    {
-          if (svx_optind < argc)
-        optarg = argv[svx_optind++];
+          if (optind < argc)
+        optarg = argv[optind++];
 	      else
 		{
 		  if (print_errors)
@@ -796,7 +796,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 
 		      if (__asprintf (&buf, _("\
 %s: option `%s' requires an argument\n"),
-                      argv[0], argv[svx_optind - 1]) >= 0)
+                      argv[0], argv[optind - 1]) >= 0)
 			{
 			  if (_IO_fwide (stderr, 0) > 0)
 			    __fwprintf (stderr, L"%s", buf);
@@ -808,7 +808,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 #else
 		      fprintf (stderr,
 			       _("%s: option `%s' requires an argument\n"),
-                   argv[0], argv[svx_optind - 1]);
+                   argv[0], argv[optind - 1]);
 #endif
 		    }
 		  nextchar += strlen (nextchar);
@@ -831,7 +831,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	 or the option starts with '--' or is not a valid short
 	 option, then it's an error.
 	 Otherwise interpret it as a short option.  */
-      if (!long_only || argv[svx_optind][1] == '-'
+      if (!long_only || argv[optind][1] == '-'
 	  || my_index (optstring, *nextchar) == NULL)
 	{
 	  if (print_errors)
@@ -841,7 +841,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	      int n;
 #endif
 
-          if (argv[svx_optind][1] == '-')
+          if (argv[optind][1] == '-')
 		{
 		  /* --option */
 #if defined _LIBC && defined USE_IN_LIBIO
@@ -857,10 +857,10 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 		  /* +option or -option */
 #if defined _LIBC && defined USE_IN_LIBIO
 		  n = __asprintf (&buf, _("%s: unrecognized option `%c%s'\n"),
-                  argv[0], argv[svx_optind][0], nextchar);
+                  argv[0], argv[optind][0], nextchar);
 #else
 		  fprintf (stderr, _("%s: unrecognized option `%c%s'\n"),
-               argv[0], argv[svx_optind][0], nextchar);
+               argv[0], argv[optind][0], nextchar);
 #endif
 		}
 
@@ -877,7 +877,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 #endif
 	    }
 	  nextchar = (char *) "";
-      svx_optind++;
+      optind++;
       svx_optopt = 0;
 	  return '?';
 	}
@@ -889,9 +889,9 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
     char c = *nextchar++;
     char *temp = my_index (optstring, c);
 
-    /* Increment `svx_optind' when we start to process its last character.  */
+    /* Increment `optind' when we start to process its last character.  */
     if (*nextchar == '\0')
-      ++svx_optind;
+      ++optind;
 
     if (temp == NULL || c == ':')
       {
@@ -957,9 +957,9 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	    optarg = nextchar;
 	    /* If we end this ARGV-element by taking the rest as an arg,
 	       we must advance to the next element now.  */
-        svx_optind++;
+        optind++;
 	  }
-    else if (svx_optind == argc)
+    else if (optind == argc)
 	  {
 	    if (print_errors)
 	      {
@@ -991,9 +991,9 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	    return c;
 	  }
 	else
-      /* We already incremented `svx_optind' once;
+      /* We already incremented `optind' once;
 	     increment it again when taking next ARGV-elt as argument.  */
-      optarg = argv[svx_optind++];
+      optarg = argv[optind++];
 
 	/* optarg is now the argument, see if it's in the
 	   table of longopts.  */
@@ -1032,7 +1032,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 		char *buf;
 
 		if (__asprintf (&buf, _("%s: option `-W %s' is ambiguous\n"),
-                argv[0], argv[svx_optind]) >= 0)
+                argv[0], argv[optind]) >= 0)
 		  {
 		    if (_IO_fwide (stderr, 0) > 0)
 		      __fwprintf (stderr, L"%s", buf);
@@ -1043,11 +1043,11 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 		  }
 #else
 		fprintf (stderr, _("%s: option `-W %s' is ambiguous\n"),
-             argv[0], argv[svx_optind]);
+             argv[0], argv[optind]);
 #endif
 	      }
 	    nextchar += strlen (nextchar);
-        svx_optind++;
+        optind++;
 	    return '?';
 	  }
 	if (pfound != NULL)
@@ -1090,8 +1090,8 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	      }
 	    else if (pfound->has_arg == 1)
 	      {
-        if (svx_optind < argc)
-          optarg = argv[svx_optind++];
+        if (optind < argc)
+          optarg = argv[optind++];
 		else
 		  {
 		    if (print_errors)
@@ -1101,7 +1101,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 
 			if (__asprintf (&buf, _("\
 %s: option `%s' requires an argument\n"),
-                    argv[0], argv[svx_optind - 1]) >= 0)
+                    argv[0], argv[optind - 1]) >= 0)
 			  {
 			    if (_IO_fwide (stderr, 0) > 0)
 			      __fwprintf (stderr, L"%s", buf);
@@ -1113,7 +1113,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 #else
 			fprintf (stderr,
 				 _("%s: option `%s' requires an argument\n"),
-                 argv[0], argv[svx_optind - 1]);
+                 argv[0], argv[optind - 1]);
 #endif
 		      }
 		    nextchar += strlen (nextchar);
@@ -1142,7 +1142,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 	    if (*nextchar != '\0')
 	      {
 		optarg = nextchar;
-        svx_optind++;
+        optind++;
 	      }
 	    else
 	      optarg = NULL;
@@ -1156,9 +1156,9 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 		optarg = nextchar;
 		/* If we end this ARGV-element by taking the rest as an arg,
 		   we must advance to the next element now.  */
-        svx_optind++;
+        optind++;
 	      }
-        else if (svx_optind == argc)
+        else if (optind == argc)
 	      {
 		if (print_errors)
 		  {
@@ -1190,9 +1190,9 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 		  c = '?';
 	      }
 	    else
-          /* We already incremented `svx_optind' once;
+          /* We already incremented `optind' once;
 		 increment it again when taking next ARGV-elt as argument.  */
-          optarg = argv[svx_optind++];
+          optarg = argv[optind++];
 	    nextchar = NULL;
 	  }
       }
@@ -1225,11 +1225,11 @@ main (argc, argv)
      char **argv;
 {
   int c;
-  int digit_svx_optind = 0;
+  int digit_optind = 0;
 
   while (1)
     {
-      int this_option_svx_optind = svx_optind ? svx_optind : 1;
+      int this_option_optind = optind ? optind : 1;
 
       c = getopt (argc, argv, "abc:d:0123456789");
       if (c == -1)
@@ -1247,9 +1247,9 @@ main (argc, argv)
 	case '7':
 	case '8':
 	case '9':
-      if (digit_svx_optind != 0 && digit_svx_optind != this_option_svx_optind)
+      if (digit_optind != 0 && digit_optind != this_option_optind)
 	    printf ("digits occur in two different argv-elements.\n");
-      digit_svx_optind = this_option_svx_optind;
+      digit_optind = this_option_optind;
 	  printf ("option %c\n", c);
 	  break;
 
@@ -1273,11 +1273,11 @@ main (argc, argv)
 	}
     }
 
-  if (svx_optind < argc)
+  if (optind < argc)
     {
       printf ("non-option ARGV-elements: ");
-      while (svx_optind < argc)
-    printf ("%s ", argv[svx_optind++]);
+      while (optind < argc)
+    printf ("%s ", argv[optind++]);
       printf ("\n");
     }
 
