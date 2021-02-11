@@ -103,11 +103,11 @@ main (argc, argv)
      char **argv;
 {
   int c;
-  int digit_optind = 0;
+  int digit_svx_optind = 0;
 
   while (1)
     {
-      int this_option_optind = optind ? optind : 1;
+      int this_option_svx_optind = svx_optind ? svx_optind : 1;
       int option_index = 0;
       static struct option long_options[] =
       {
@@ -144,9 +144,9 @@ main (argc, argv)
 	case '7':
 	case '8':
 	case '9':
-	  if (digit_optind != 0 && digit_optind != this_option_optind)
+      if (digit_svx_optind != 0 && digit_svx_optind != this_option_svx_optind)
 	    printf ("digits occur in two different argv-elements.\n");
-	  digit_optind = this_option_optind;
+      digit_svx_optind = this_option_svx_optind;
 	  printf ("option %c\n", c);
 	  break;
 
@@ -174,11 +174,11 @@ main (argc, argv)
 	}
     }
 
-  if (optind < argc)
+  if (svx_optind < argc)
     {
       printf ("non-option ARGV-elements: ");
-      while (optind < argc)
-	printf ("%s ", argv[optind++]);
+      while (svx_optind < argc)
+    printf ("%s ", argv[svx_optind++]);
       printf ("\n");
     }
 

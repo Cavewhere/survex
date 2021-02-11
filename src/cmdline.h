@@ -43,9 +43,9 @@ struct option {
 };
 
 extern char *optarg;
-extern int optind;
-extern int opterr;
-extern int optopt;
+extern int svx_optind;
+extern int svx_opterr;
+extern int svx_optopt;
 #endif
 
 struct help_msg {

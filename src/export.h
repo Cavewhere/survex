@@ -23,6 +23,7 @@
 #ifndef SURVEX_INCLUDED_EXPORT_H
 #define SURVEX_INCLUDED_EXPORT_H
 
+#include <GL/glew.h>
 #include "wx.h"
 
 class Model;

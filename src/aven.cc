@@ -275,15 +275,15 @@ bool Aven::OnInit()
 	}
     }
 
-    if (print_and_exit && !utf8_argv[optind]) {
+    if (print_and_exit && !utf8_argv[svx_optind]) {
 	cmdline_syntax(); // FIXME : not a helpful error...
 	exit(1);
     }
 
     wxString fnm;
-    if (utf8_argv[optind]) {
-	fnm = wxString(utf8_argv[optind], wxConvUTF8);
-	if (fnm.empty() && *(utf8_argv[optind])) {
+    if (utf8_argv[svx_optind]) {
+    fnm = wxString(utf8_argv[svx_optind], wxConvUTF8);
+    if (fnm.empty() && *(utf8_argv[svx_optind])) {
 	    ReportError(wxT("File argument's filename has bad encoding"));
 	    return false;
 	}
@@ -354,7 +354,7 @@ bool Aven::OnInit()
 	m_Frame->Maximize();
     }
 
-    if (utf8_argv[optind]) {
+    if (utf8_argv[svx_optind]) {
 	if (!opt_survey) opt_survey = "";
 	m_Frame->OpenFile(fnm, wxString(opt_survey, wxConvUTF8));
     }

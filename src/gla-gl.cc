@@ -36,17 +36,18 @@
 #include "message.h"
 #include "useful.h"
 
-#ifdef HAVE_GL_GL_H
-# include <GL/gl.h>
-#elif defined HAVE_OPENGL_GL_H
-# include <OpenGL/gl.h>
-#endif
 
-#ifdef HAVE_GL_GLEXT_H
-# include <GL/glext.h>
-#elif defined HAVE_OPENGL_GLEXT_H
-# include <OpenGL/glext.h>
-#endif
+//#ifdef HAVE_GL_GL_H
+//# include <GL/gl.h>
+//#elif defined HAVE_OPENGL_GL_H
+//# include <OpenGL/gl.h>
+//#endif
+
+//#ifdef HAVE_GL_GLEXT_H
+//# include <GL/glext.h>
+//#elif defined HAVE_OPENGL_GLEXT_H
+//# include <OpenGL/glext.h>
+//#endif
 
 #ifndef GL_POINT_SIZE_MAX
 #define GL_POINT_SIZE_MAX 0x8127
@@ -432,12 +433,23 @@ GLACanvas::~GLACanvas()
 
 void GLACanvas::FirstShow()
 {
+
+
     // Update our record of the client area size and centre.
     GetClientSize(&x_size, &y_size);
     if (x_size < 1) x_size = 1;
     if (y_size < 1) y_size = 1;
 
     ctx.SetCurrent(*this);
+
+    GLenum err = glewInit();
+    if (GLEW_OK != err)
+    {
+        /* Problem: glewInit failed, something is seriously wrong. */
+        fprintf(stderr, "GLEW Error: %s\n", glewGetErrorString(err));
+        exit(1);
+    }
+
     opengl_initialised = true;
 
     // Set the background colour of the canvas to black.

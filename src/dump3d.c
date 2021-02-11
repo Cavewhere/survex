@@ -74,7 +74,7 @@ main(int argc, char **argv)
       if (opt == 'r') fRewind = fTrue;
       if (opt == 'd') show_dates = fTrue;
    }
-   fnm = argv[optind];
+   fnm = argv[svx_optind];
 
    pimg = img_open_survey(fnm, survey);
    if (!pimg) fatalerror(img_error2msg(img_error()), fnm);

@@ -5,31 +5,34 @@ project(Survex VERSION 1.0)
 
 # In this file we are doing all of our 'configure' checks. Things like checking
 # for headers, functions, libraries, types and size of types.
-INCLUDE (${CMAKE_ROOT}/Modules/CheckIncludeFile.cmake)
-INCLUDE (${CMAKE_ROOT}/Modules/CheckTypeSize.cmake)
-INCLUDE (${CMAKE_ROOT}/Modules/CheckFunctionExists.cmake)
-INCLUDE (${CMAKE_ROOT}/Modules/CheckCXXSourceCompiles.cmake)
-INCLUDE (${CMAKE_ROOT}/Modules/TestBigEndian.cmake)
-INCLUDE (${CMAKE_ROOT}/Modules/CheckSymbolExists.cmake)
+include (${CMAKE_ROOT}/Modules/CheckIncludeFile.cmake)
+include (${CMAKE_ROOT}/Modules/CheckTypeSize.cmake)
+include (${CMAKE_ROOT}/Modules/CheckFunctionExists.cmake)
+include (${CMAKE_ROOT}/Modules/CheckCXXSourceCompiles.cmake)
+include (${CMAKE_ROOT}/Modules/TestBigEndian.cmake)
+include (${CMAKE_ROOT}/Modules/CheckSymbolExists.cmake)
 
 # To check for an include file you do this:
-CHECK_INCLUDE_FILE("stdint.h" HAVE_STDINT_H)
+check_include_file("stdint.h" HAVE_STDINT_H)
 check_include_file("string.h" HAVE_STRING_H)
 
 # To check the size of a primitive type:
-CHECK_TYPE_SIZE("int"   SIZEOF_INT)
+check_type_size("int"   SIZEOF_INT)
 
 check_symbol_exists("getc_unlocked" "stdio.h" HAVE_GETC_UNLOCKED)
 check_symbol_exists("putc_unlocked" "stdio.h" HAVE_PUTC_UNLOCKED)
 
 set(PACKAGE survex)
+set(PACKAGE_STRING survex)
 set(VERSION 1.0)
 set(PRETTYPACKAGE Survex-1.0)
 set(COMMAVERSION 1,0,0)
-set(SOURCE_DIR src)
-
-configure_file ("${PROJECT_SOURCE_DIR}/src/msvc/config.h.in"
-                "${PROJECT_BINARY_DIR}/config.h" )
+set(SRC_DIR src)
+set(SRC_LIB_DIR lib)
+set(COPYRIGHT_MSG copyright-undefined)
+set(AVEN_COPYRIGHT_MSG copyright-message-undefined)
+set(COPYRIGHT_MSG_UTF8 copyright-message_undefined)
+set(AVEN_COPYRIGHT_MSG_UTF8 copyright-message_undefined)
 
 include_directories(${PROJECT_BINARY_DIR})
 
@@ -43,47 +46,197 @@ endif()
 
 include(${CMAKE_BINARY_DIR}/conan.cmake)
 
+conan_add_remote(NAME bincrafters
+                 INDEX 1
+                 URL https://api.bintray.com/conan/bincrafters/public-conan
+                 VERIFY_SSL True)
+
 conan_cmake_run(REQUIRES proj/6.3.1
+                REQUIRES wxwidgets/3.1.4@bincrafters/stable
+                REQUIRES glew/2.1.0@bincrafters/stable
                 BASIC_SETUP)
 
-add_custom_target(thgeomag ALL
-    COMMAND python ${PROJECT_SOURCE_DIR}/${SOURCE_DIR}/igrf2c.py ${PROJECT_SOURCE_DIR}/${SOURCE_DIR}/igrf12coeffs.txt
-    COMMAND ${CMAKE_COMMAND} -E rename ${PROJECT_BINARY_DIR}/../thgeomagdata.h ${PROJECT_BINARY_DIR}/thgeomagdata.h
+
+SET(CMAKE_REQUIRED_INCLUDES ${CONAN_INCLUDE_DIRS})
+check_include_file("proj.h" HAVE_PROJ_H)
+
+SET(CMAKE_EXTRA_INCLUDE_FILES "wx/chartype.h")
+check_type_size("wxChar" SIZEOF_WXCHAR)
+SET(CMAKE_EXTRA_INCLUDE_FILES)
+
+configure_file ("${PROJECT_SOURCE_DIR}/src/config.h.in"
+                "${PROJECT_BINARY_DIR}/config.h" )
+
+add_custom_target(messageFiles ALL
+    COMMAND cpan Locale::PO
+    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/lib/en_US.po
+    )
+
+add_library(survex_utils STATIC
+    ${SRC_DIR}/message.c
+    ${SRC_DIR}/cmdline.c
+    ${SRC_DIR}/osdepend.c
+    ${SRC_DIR}/filename.c
+    ${SRC_DIR}/str.c
+    ${SRC_DIR}/useful.c
+    ${SRC_DIR}/getopt.c
+    ${SRC_DIR}/getopt1.c
+    ${SRC_DIR}/img_hosted.c
+    ${SRC_DIR}/hash.c
+)
+
+target_compile_definitions(survex_utils PUBLIC
+    HAVE_CONFIG_H
     )
 
 # add the executable
 add_executable(cavern
-    ${SOURCE_DIR}/cavern.c
-    ${SOURCE_DIR}/date.c
-    ${SOURCE_DIR}/listpos.c
-    ${SOURCE_DIR}/commands.c
-    ${SOURCE_DIR}/datain.c
-    ${SOURCE_DIR}/netskel.c
-    ${SOURCE_DIR}/network.c
-    ${SOURCE_DIR}/readval.c
-    ${SOURCE_DIR}/matrix.c
-    ${SOURCE_DIR}/img_hosted.c
-    ${SOURCE_DIR}/netbits.c
-    ${SOURCE_DIR}/useful.c
-    ${SOURCE_DIR}/validate.c
-    ${SOURCE_DIR}/netartic.c
-    ${SOURCE_DIR}/thgeomag.c
+    ${SRC_DIR}/cavern.c
+    ${SRC_DIR}/date.c
+    ${SRC_DIR}/listpos.c
+    ${SRC_DIR}/commands.c
+    ${SRC_DIR}/datain.c
+    ${SRC_DIR}/netskel.c
+    ${SRC_DIR}/network.c
+    ${SRC_DIR}/readval.c
+    ${SRC_DIR}/matrix.c
+    ${SRC_DIR}/netbits.c
+    ${SRC_DIR}/useful.c
+    ${SRC_DIR}/validate.c
+    ${SRC_DIR}/netartic.c
+    ${SRC_DIR}/thgeomag.c
+)
 
-    #Shared sources?
-    ${SOURCE_DIR}/message.c
-    ${SOURCE_DIR}/cmdline.c
-    ${SOURCE_DIR}/osdepend.c
-    ${SOURCE_DIR}/filename.c
-    ${SOURCE_DIR}/str.c
-    ${SOURCE_DIR}/useful.c
-    ${SOURCE_DIR}/getopt.c
-    ${SOURCE_DIR}/getopt1.c
-    )
-add_dependencies(cavern thgeomag)
+add_dependencies(cavern messageFiles)
 
-target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/src)
-target_link_libraries(cavern ${CONAN_LIBS})
+target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+target_link_libraries(cavern ${CONAN_LIBS} survex_utils)
 target_compile_definitions(cavern PUBLIC
-#    ACCEPT_USE_OF_DEPRECATED_PROJ_API_H #Because we use deperecated proj api
-    HAVE_CONFIG_H #Yea, cavern doesn't build without it
+    HAVE_CONFIG_H
+    _CRT_SECURE_NO_WARNINGS
+    )
+
+add_executable(dump3d
+    ${SRC_DIR}/dump3d.c
+    ${SRC_DIR}/date.c
+    ${SRC_DIR}/useful.c
+    )
+target_include_directories(dump3d PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+target_link_libraries(dump3d survex_utils)
+target_compile_definitions(dump3d PUBLIC
+    HAVE_CONFIG_H
+    _CRT_SECURE_NO_WARNINGS
+    )
+
+add_executable(diffpos
+    ${SRC_DIR}/diffpos.c
+    ${SRC_DIR}/namecmp.c
+    ${SRC_DIR}/hash.c
+    )
+target_include_directories(diffpos PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+target_link_libraries(diffpos survex_utils)
+target_compile_definitions(diffpos PUBLIC
+    HAVE_CONFIG_H
+    _CRT_SECURE_NO_WARNINGS
+    )
+
+add_executable(sorterr
+    ${SRC_DIR}/sorterr.c
+    )
+target_include_directories(sorterr PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+target_link_libraries(sorterr survex_utils)
+target_compile_definitions(sorterr PUBLIC
+    HAVE_CONFIG_H
+    _CRT_SECURE_NO_WARNINGS
+    )
+
+add_executable(extend
+    ${SRC_DIR}/extend.c
+    )
+target_include_directories(extend PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+target_link_libraries(extend survex_utils)
+target_compile_definitions(extend PUBLIC
+    HAVE_CONFIG_H
+    _CRT_SECURE_NO_WARNINGS
+    )
+
+add_custom_target(img2aven ALL
+    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gen_img2aven > img2aven.h
+    )
+
+add_executable(survexport
+    ${SRC_DIR}/survexport.cc
+    ${SRC_DIR}/model.cc
+    ${SRC_DIR}/export.cc
+    ${SRC_DIR}/namecompare.cc
+    ${SRC_DIR}/gpx.cc
+    ${SRC_DIR}/hpgl.cc
+    ${SRC_DIR}/json.cc
+    ${SRC_DIR}/kml.cc
+    ${SRC_DIR}/pos.cc
+    ${SRC_DIR}/vector3.cc
+    )
+target_include_directories(survexport PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+target_link_libraries(survexport ${CONAN_LIBS} survex_utils)
+target_compile_definitions(survexport PUBLIC
+    HAVE_CONFIG_H
+    _CRT_SECURE_NO_WARNINGS
+    )
+
+add_dependencies(survexport img2aven)
+
+#unifont.hex path is hard coded into perl script
+if(NOT EXISTS "/usr/share/unifont/unifont.hex")
+    file(COPY ${CMAKE_SOURCE_DIR}/${SRC_LIB_DIR}/unifont.hex
+        DESTINATION ${CMAKE_BINARY_DIR})
+endif()
+
+add_custom_target(make-pixel-font
+    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/make-pixel-font
+    )
+
+add_custom_target(gdtconvert
+    COMMAND perl ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gdtconvert < ${CMAKE_SOURCE_DIR}/${SRC_DIR}/gradient.pov > avenpal.h
+    )
+
+add_executable(aven WIN32
+    ${SRC_DIR}/aven.cc
+    ${SRC_DIR}/gfxcore.cc
+    ${SRC_DIR}/mainfrm.cc
+    ${SRC_DIR}/model.cc
+    ${SRC_DIR}/vector3.cc
+    ${SRC_DIR}/aboutdlg.cc
+    ${SRC_DIR}/namecompare.cc
+    ${SRC_DIR}/aventreectrl.cc
+    ${SRC_DIR}/export.cc
+    ${SRC_DIR}/guicontrol.cc
+    ${SRC_DIR}/gla-gl.cc
+    ${SRC_DIR}/glbitmapfont.cc
+    ${SRC_DIR}/gpx.cc
+    ${SRC_DIR}/json.cc
+    ${SRC_DIR}/kml.cc
+    ${SRC_DIR}/log.cc
+    ${SRC_DIR}/moviemaker.cc
+    ${SRC_DIR}/hpgl.cc
+    ${SRC_DIR}/cavernlog.cc
+    ${SRC_DIR}/avenprcore.cc
+    ${SRC_DIR}/printing.cc
+    ${SRC_DIR}/buttontaghandler.cc
+    ${SRC_DIR}/pos.cc
+    ${SRC_DIR}/date.c
+    ${SRC_DIR}/img_hosted.c
+    ${SRC_DIR}/useful.c
+    ${SRC_DIR}/hash.c
+)
+
+add_dependencies(aven
+    make-pixel-font
+    gdtconvert
+    )
+
+target_include_directories(aven PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+target_link_libraries(aven ${CONAN_LIBS} survex_utils)
+target_compile_definitions(aven PUBLIC
+    HAVE_CONFIG_H
+    _CRT_SECURE_NO_WARNINGS
     )

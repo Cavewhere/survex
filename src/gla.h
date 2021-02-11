@@ -29,11 +29,12 @@
 
 using namespace std;
 
+#include "glbitmapfont.h"
+
+#include <GL/glew.h>
 #include "wx.h"
 #include "aventypes.h"
 #include "vector3.h"
-
-#include "glbitmapfont.h"
 
 class GfxCore;
 

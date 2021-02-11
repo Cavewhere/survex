@@ -38,6 +38,7 @@
  * Copyright (C) Brian Paul
  */
 
+#include <GL/glew.h>
 
 #include <assert.h>
 #include <math.h>
@@ -46,8 +47,8 @@
 #ifdef WIN32
 #include <windows.h>
 #endif
-#include <GL/gl.h>
-#include <GL/glu.h>
+//#include <GL/gl.h>
+//#include <GL/glu.h>
 #include "tr.h"
 
 

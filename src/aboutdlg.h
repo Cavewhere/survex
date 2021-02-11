@@ -24,6 +24,7 @@
 #ifndef aboutdlg_h
 #define aboutdlg_h
 
+#include <GL/glew.h>
 #include "wx.h"
 
 enum {

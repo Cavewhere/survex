@@ -24,6 +24,7 @@
 #define SURVEX_EXPORTFILTER_H
 
 #include <stdio.h>
+#include <GL/glew.h>
 #include "wx.h"
 
 #include "img_hosted.h"

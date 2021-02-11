@@ -24,6 +24,7 @@
 #ifndef mainfrm_h
 #define mainfrm_h
 
+#include <GL/glew.h>
 #include "wx.h"
 #include <wx/docview.h> // for m_FileHistory
 #include <wx/listctrl.h>

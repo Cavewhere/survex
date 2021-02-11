@@ -36,9 +36,9 @@
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
 #endif
-#include <sys/time.h>
+//#include <sys/time.h>
 #include <sys/types.h>
-#include <unistd.h>
+//#include <unistd.h>
 
 #include <wx/process.h>
 

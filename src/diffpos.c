@@ -272,10 +272,10 @@ main(int argc, char **argv)
       if (opt == EOF) break;
       if (opt == 's') survey = optarg;
    }
-   fnm1 = argv[optind++];
-   fnm2 = argv[optind++];
-   if (argv[optind]) {
-      optarg = argv[optind];
+   fnm1 = argv[svx_optind++];
+   fnm2 = argv[svx_optind++];
+   if (argv[svx_optind]) {
+      optarg = argv[svx_optind];
       threshold = cmdline_double_arg();
    }
 

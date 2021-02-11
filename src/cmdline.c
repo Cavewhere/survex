@@ -290,9 +290,9 @@ cmdline_getopt(void)
    switch (opt) {
     case EOF:
       /* check valid # of args given - if not give syntax message */
-      if (argc - optind < min_args) {
+      if (argc - svx_optind < min_args) {
 	 cmdline_too_few_args();
-      } else if (max_args >= 0 && argc - optind > max_args) {
+      } else if (max_args >= 0 && argc - svx_optind > max_args) {
 	 cmdline_too_many_args();
       }
       break;

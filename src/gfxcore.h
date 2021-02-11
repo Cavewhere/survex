@@ -25,6 +25,8 @@
 #ifndef gfxcore_h
 #define gfxcore_h
 
+#include <GL/glew.h>
+
 #include <float.h>
 #include <limits.h>
 #include <time.h>

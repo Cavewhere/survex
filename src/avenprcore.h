@@ -21,6 +21,7 @@
 #ifndef survex_included_avenprcore_h
 #define survex_included_avenprcore_h
 
+#include <GL/glew.h>
 #include <wx.h>
 #include "export.h"
 

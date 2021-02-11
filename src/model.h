@@ -24,6 +24,7 @@
 #ifndef model_h
 #define model_h
 
+#include <GL/glew.h>
 #include "wx.h"
 
 #include "labelinfo.h"

@@ -355,7 +355,7 @@ main(int argc, char **argv)
 	      optmap[i] += '-';
 	      optmap[i] += char(opt);
 	      if (optarg) {
-		  if (optarg == argv[optind - 1]) {
+		  if (optarg == argv[svx_optind - 1]) {
 		      optmap[i] += ' ';
 		  }
 		  optmap[i] += optarg;
@@ -364,7 +364,7 @@ main(int argc, char **argv)
 	      optmap[i] += "--";
 	      optmap[i] += long_opts[long_index].name;
 	      if (optarg) {
-		  if (optarg == argv[optind - 1]) {
+		  if (optarg == argv[svx_optind - 1]) {
 		      optmap[i] += ' ';
 		  } else {
 		      optmap[i] += '=';
@@ -379,8 +379,8 @@ main(int argc, char **argv)
    // handled via a SurveyFilter at export time.
    if (filter) survey = NULL;
 
-   const char* fnm_in = argv[optind++];
-   const char* fnm_out = argv[optind];
+   const char* fnm_in = argv[svx_optind++];
+   const char* fnm_out = argv[svx_optind];
    if (fnm_out) {
       if (format == FMT_MAX_PLUS_ONE_) {
 	 // Select format based on extension.

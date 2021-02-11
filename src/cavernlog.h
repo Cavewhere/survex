@@ -21,6 +21,7 @@
 #ifndef SURVEX_CAVERNLOG_H
 #define SURVEX_CAVERNLOG_H
 
+#include <GL/glew.h>
 #include "wx.h"
 #include <wx/html/htmlwin.h>
 #include <wx/process.h>

@@ -165,8 +165,12 @@ main(int argc, char **argv)
        current_days_since_1900 = days_since_1900(y, t->tm_mon + 1, t->tm_mday);
    }
 
+   //https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/setvbuf?view=msvc-160
+   //setvbuf must be 2 <= size, all other platforms can be 0
+#ifndef _MSC_VER
    /* Always buffer by line for aven's benefit. */
    setvbuf(stdout, NULL, _IOLBF, 0);
+#endif
 
    msg_init(argv);
 
@@ -269,12 +273,12 @@ main(int argc, char **argv)
       char *fnm;
       if (!fnm_output_base) {
 	 char *p;
-	 p = baseleaf_from_fnm(argv[optind]);
+     p = baseleaf_from_fnm(argv[svx_optind]);
 	 fnm = add_ext(p, EXT_LOG);
 	 osfree(p);
       } else if (fnm_output_base_is_dir) {
 	 char *p;
-	 fnm = baseleaf_from_fnm(argv[optind]);
+     fnm = baseleaf_from_fnm(argv[svx_optind]);
 	 p = use_path(fnm_output_base, fnm);
 	 osfree(fnm);
 	 fnm = add_ext(p, EXT_LOG);
@@ -308,8 +312,8 @@ main(int argc, char **argv)
    atexit(delete_output_on_error);
 
    /* end of options, now process data files */
-   while (argv[optind]) {
-      const char *fnm = argv[optind];
+   while (argv[svx_optind]) {
+      const char *fnm = argv[svx_optind];
 
       if (!fExplicitTitle) {
 	 char *lf;
@@ -323,7 +327,7 @@ main(int argc, char **argv)
       default_all(pcs);
       data_file(NULL, fnm); /* first argument is current path */
 
-      optind++;
+      svx_optind++;
    }
 
    validate();

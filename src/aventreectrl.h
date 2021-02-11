@@ -25,6 +25,7 @@
 #ifndef aventreectrl_h
 #define aventreectrl_h
 
+#include <GL/glew.h>
 #include "wx.h"
 
 #include "model.h"

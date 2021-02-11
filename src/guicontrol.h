@@ -24,6 +24,7 @@
 #ifndef guicontrol_h
 #define guicontrol_h
 
+#include <GL/glew.h>
 #include "wx.h"
 
 class GfxCore;

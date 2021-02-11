@@ -68,8 +68,9 @@
 #ifndef TR_H
 #define TR_H
 
+#include <GL/glew.h>
 
-#include <GL/gl.h>
+//#include <GL/gl.h>
 
 
 #ifdef __cplusplus

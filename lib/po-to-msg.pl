@@ -124,6 +124,10 @@ foreach $lang (@langs) {
    $fnm =~ s/(_.*)$/\U$1/;
    open OUT, ">$fnm.msg" or die $!;
 
+   #This is need for generating msg file on windows perl because of CRLF instead
+   #of just LF on unix systems
+   binmode(OUT);
+
    my $aref = $msgs{$lang};
 
    my $parentaref;

@@ -35,12 +35,12 @@
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #else
-#include <unistd.h>
+//#include <unistd.h>
 #endif
 
 using namespace std;
 
-#include "../lib/preload_font.h"
+#include "preload_font.h"
 
 BitmapFont::~BitmapFont() {
     if (!gllist_base) return;

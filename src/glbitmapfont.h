@@ -23,13 +23,14 @@
 #ifndef GLBITMAPFONT_H_INCLUDED
 #define GLBITMAPFONT_H_INCLUDED
 
+#include "GL/glew.h"
 #include "wx.h"
 
-#ifdef HAVE_GL_GL_H
-# include <GL/gl.h>
-#elif defined HAVE_OPENGL_GL_H
-# include <OpenGL/gl.h>
-#endif
+//#ifdef HAVE_GL_GL_H
+//# include <GL/gl.h>
+//#elif defined HAVE_OPENGL_GL_H
+//# include <OpenGL/gl.h>
+//#endif
 
 class BitmapFont {
     enum {

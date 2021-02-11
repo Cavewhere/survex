@@ -40,6 +40,7 @@ void aven_v_report(int severity, const char *fnm, int line, int en,
 
 #ifdef __cplusplus
 
+#include <GL/glew.h>
 #include "message.h"
 #include "wx.h"
 

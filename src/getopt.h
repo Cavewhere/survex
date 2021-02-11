@@ -55,19 +55,19 @@ extern char *optarg;
    When `getopt' returns -1, this is the index of the first of the
    non-option elements that the caller should itself scan.
 
-   Otherwise, `optind' communicates from one call to the next
+   Otherwise, `svx_optind' communicates from one call to the next
    how much of ARGV has been scanned so far.  */
 
-extern int optind;
+extern int svx_optind;
 
 /* Callers store zero here to inhibit the error message `getopt' prints
    for unrecognized options.  */
 
-extern int opterr;
+extern int svx_opterr;
 
 /* Set to an option character which was unrecognized.  */
 
-extern int optopt;
+extern int svx_optopt;
 
 #ifndef __need_getopt
 /* Describe the long-named options requested by the application.
@@ -119,7 +119,7 @@ struct option
 
    Return the option character from OPTS just read.  Return -1 when
    there are no more options.  For unrecognized options, or options
-   missing arguments, `optopt' is set to the option letter, and '?' is
+   missing arguments, `svx_optopt' is set to the option letter, and '?' is
    returned.
 
    The OPTS string is a list of characters which are recognized option
@@ -144,7 +144,7 @@ struct option
    errors, only prototype getopt for the GNU C library.  */
 extern int getopt (int ___argc, char *const *___argv, const char *__shortopts);
 # else /* not __GNU_LIBRARY__ */
-extern int getopt ();
+extern int svx_getopt ();
 # endif /* __GNU_LIBRARY__ */
 
 # ifndef __need_getopt
