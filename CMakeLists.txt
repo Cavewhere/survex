@@ -24,11 +24,23 @@ check_symbol_exists("putc_unlocked" "stdio.h" HAVE_PUTC_UNLOCKED)
 check_function_exists("strcasecmp" HAVE_STRCASECMP)
 check_function_exists("_stricmp" HAVE_STRICMP)
 
+find_program(GIT_EXEC git REQUIRED)
+
+execute_process(
+    COMMAND ${GIT_EXEC} describe --tags
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_TAG
+    )
+string(REGEX REPLACE "\n$" "" GIT_TAG "${GIT_TAG}")
+
+message(STATUS "Survex version: \"${GIT_TAG}\"")
+
+string(REGEX REPLACE "([0-9]+)\.([0-9]+)\.([0-9]+).*" "\\1,\\2,\\3" COMMAVERSION "${GIT_TAG}")
+
 set(PACKAGE survex)
 set(PACKAGE_STRING survex)
-set(VERSION 1.0)
-set(PRETTYPACKAGE Survex-1.0)
-set(COMMAVERSION 1,0,0)
+set(VERSION ${GIT_TAG})
+set(PRETTYPACKAGE Survex-${GIT_TAG})
 set(SRC_DIR src)
 set(SRC_LIB_DIR lib)
 set(COPYRIGHT_MSG copyright-undefined)
