@@ -50,20 +50,21 @@ set(AVEN_COPYRIGHT_MSG_UTF8 copyright-message_undefined)
 
 include_directories(${PROJECT_BINARY_DIR})
 
-# CONAN download proj
-# Download automatically, you can also just copy the conan.cmake file
-if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
-   message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
-   file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/master/conan.cmake"
-                  "${CMAKE_BINARY_DIR}/conan.cmake")
-endif()
-
 if(CONAN_EXPORTED) # in conan local cache
     # standard conan installation, deps will be defined in conanfile.py
     # and not necessary to call conan again, conan is already running
-    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    include(${PROJECT_BINARY_DIR}/conanbuildinfo.cmake)
     conan_basic_setup()
+    conan_define_targets()
 else() #in user space
+    # CONAN download proj
+    # Download automatically, you can also just copy the conan.cmake file
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
+       message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
+       file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/master/conan.cmake"
+                      "${CMAKE_BINARY_DIR}/conan.cmake")
+    endif()
+
     include(${CMAKE_BINARY_DIR}/conan.cmake)
 
     conan_add_remote(NAME bincrafters
@@ -149,7 +150,7 @@ add_custom_command(
     )
 add_custom_target(thgeomagdata DEPENDS ${PROJECT_BINARY_DIR}/thgeomagdata.h)
 
-add_library(survex_utils STATIC
+add_library(survex_core STATIC
     ${SRC_DIR}/message.c
     ${SRC_DIR}/cmdline.c
     ${SRC_DIR}/osdepend.c
@@ -162,10 +163,10 @@ add_library(survex_utils STATIC
     ${SRC_DIR}/hash.c
 )
 
-target_compile_definitions(survex_utils PUBLIC
+target_compile_definitions(survex_core PUBLIC
     HAVE_CONFIG_H
     )
-target_link_libraries(survex_utils CONAN_PKG::proj)
+target_link_libraries(survex_core CONAN_PKG::proj)
 
 # add the executable
 add_executable(cavern
@@ -191,7 +192,7 @@ add_dependencies(cavern
     )
 
 target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
-target_link_libraries(cavern CONAN_PKG::proj survex_utils)
+target_link_libraries(cavern CONAN_PKG::proj survex_core)
 target_compile_definitions(cavern PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -203,7 +204,7 @@ add_executable(dump3d
     ${SRC_DIR}/useful.c
     )
 target_include_directories(dump3d PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
-target_link_libraries(dump3d survex_utils)
+target_link_libraries(dump3d survex_core)
 target_compile_definitions(dump3d PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -215,7 +216,7 @@ add_executable(diffpos
     ${SRC_DIR}/hash.c
     )
 target_include_directories(diffpos PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
-target_link_libraries(diffpos survex_utils)
+target_link_libraries(diffpos survex_core)
 target_compile_definitions(diffpos PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -225,7 +226,7 @@ add_executable(sorterr
     ${SRC_DIR}/sorterr.c
     )
 target_include_directories(sorterr PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
-target_link_libraries(sorterr survex_utils)
+target_link_libraries(sorterr survex_core)
 target_compile_definitions(sorterr PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -235,7 +236,7 @@ add_executable(extend
     ${SRC_DIR}/extend.c
     )
 target_include_directories(extend PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
-target_link_libraries(extend survex_utils)
+target_link_libraries(extend survex_core)
 target_compile_definitions(extend PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -265,7 +266,7 @@ target_include_directories(survexport PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(survexport
     CONAN_PKG::wxwidgets
     CONAN_PKG::glew
-    survex_utils)
+    survex_core)
 target_compile_definitions(survexport PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -342,7 +343,7 @@ target_link_libraries(aven
     CONAN_PKG::wxwidgets
     CONAN_PKG::glew
     CONAN_PKG::proj
-    survex_utils)
+    survex_core)
 target_compile_definitions(aven PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
