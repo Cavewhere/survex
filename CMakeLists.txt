@@ -22,7 +22,7 @@ check_type_size("int"   SIZEOF_INT)
 check_symbol_exists("getc_unlocked" "stdio.h" HAVE_GETC_UNLOCKED)
 check_symbol_exists("putc_unlocked" "stdio.h" HAVE_PUTC_UNLOCKED)
 check_function_exists("strcasecmp" HAVE_STRCASECMP)
-check_function_exists("stricmp" HAVE_STRICMP)
+check_function_exists("_stricmp" HAVE_STRICMP)
 
 set(PACKAGE survex)
 set(PACKAGE_STRING survex)

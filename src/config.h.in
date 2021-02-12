@@ -53,7 +53,7 @@ typedef __int32 int32_t;
 #define strcasecmp strcasecmp
 #elif HAVE_STRICMP
 //Usually Windows
-#define strcasecmp stricmp
+#define strcasecmp _stricmp
 #else
 #define strcasecmp UNKNOWN_string_compare
 #endif
