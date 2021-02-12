@@ -58,19 +58,28 @@ if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
                   "${CMAKE_BINARY_DIR}/conan.cmake")
 endif()
 
-include(${CMAKE_BINARY_DIR}/conan.cmake)
+if(CONAN_EXPORTED) # in conan local cache
+    # standard conan installation, deps will be defined in conanfile.py
+    # and not necessary to call conan again, conan is already running
+    include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+    conan_basic_setup()
+else() #in user space
+    include(${CMAKE_BINARY_DIR}/conan.cmake)
 
-conan_add_remote(NAME bincrafters
-                 INDEX 1
-                 URL https://api.bintray.com/conan/bincrafters/public-conan
-                 VERIFY_SSL True)
+    conan_add_remote(NAME bincrafters
+        INDEX 1
+        URL https://api.bintray.com/conan/bincrafters/public-conan
+        VERIFY_SSL True)
 
-conan_cmake_run(REQUIRES proj/6.3.1
-                REQUIRES wxwidgets/3.1.4@bincrafters/stable
-                REQUIRES glew/2.1.0@bincrafters/stable
-                OPTIONS wxwidgets:webview=False
-                BASIC_SETUP CMAKE_TARGETS
-                BUILD missing)
+
+
+    conan_cmake_run(REQUIRES proj/6.3.1
+        REQUIRES wxwidgets/3.1.4@bincrafters/stable
+        REQUIRES glew/2.1.0@bincrafters/stable
+        #OPTIONS wxwidgets:webview=False
+        BASIC_SETUP CMAKE_TARGETS
+        BUILD missing)
+endif()
 
 find_package (Python3 COMPONENTS Interpreter)
 find_package (Perl)
