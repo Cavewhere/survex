@@ -224,8 +224,8 @@ class svxPrintout : public wxPrintout {
 
 BEGIN_EVENT_TABLE(svxPrintDlg, wxDialog)
     EVT_CHOICE(svx_FORMAT, svxPrintDlg::OnChange)
-    EVT_TEXT(svx_SCALE, svxPrintDlg::OnChange)
-    EVT_COMBOBOX(svx_SCALE, svxPrintDlg::OnChange)
+    EVT_TEXT(svx_SCALE, svxPrintDlg::OnChangeScale)
+    EVT_COMBOBOX(svx_SCALE, svxPrintDlg::OnChangeScale)
     EVT_SPINCTRLDOUBLE(svx_BEARING, svxPrintDlg::OnChangeSpin)
     EVT_SPINCTRLDOUBLE(svx_TILT, svxPrintDlg::OnChangeSpin)
     EVT_BUTTON(wxID_PRINT, svxPrintDlg::OnPrint)
@@ -261,12 +261,14 @@ static wxString scales[] = {
     wxT("10000"),
     wxT("25000"),
     wxT("50000"),
-    wxT("100000")
+    wxT("100000"),
+    wxT("...")
 };
 
 // The order of these arrays must match export_format in export.h.
 
 static wxString formats[] = {
+    wxT("Survex 3d"),
     wxT("CSV"),
     wxT("DXF"),
     wxT("EPS"),
@@ -283,7 +285,7 @@ static wxString formats[] = {
 static_assert(sizeof(formats) == FMT_MAX_PLUS_ONE_ * sizeof(formats[0]),
 	      "formats[] matches enum export_format");
 
-// We discriminate as "One Page" isn't valid for exporting.
+// We discriminate as "One page" isn't valid for exporting.
 static wxString default_scale_print;
 static wxString default_scale_export;
 
@@ -440,7 +442,9 @@ svxPrintDlg::svxPrintDlg(MainFrm* mainfrm_, const wxString & filename,
 	/* TRANSLATORS: Used in the print dialog: */
 	tilt_label = new wxStaticText(this, -1, wmsg(/*Tilt angle*/263));
 	anglebox->Add(tilt_label, 0, wxALIGN_CENTRE_VERTICAL|wxALIGN_LEFT|wxALL, 5);
-	m_tilt = new wxSpinCtrlDouble(this, svx_TILT);
+	m_tilt = new wxSpinCtrlDouble(this, svx_TILT, wxEmptyString,
+		wxDefaultPosition, wxDefaultSize,
+		wxSP_ARROW_KEYS|wxALIGN_RIGHT);
 	m_tilt->SetRange(-90.0, 90.0);
 	m_tilt->SetDigits(ANGLE_DP);
 	anglebox->Add(m_tilt, 0, wxALIGN_CENTRE|wxALL, 5);
@@ -733,10 +737,21 @@ svxPrintDlg::OnChangeSpin(wxSpinDoubleEvent& e) {
 
 void
 svxPrintDlg::OnChange(wxCommandEvent& e) {
-    if (e.GetId() == svx_SCALE && m_scale) {
-	default_scale_print = m_scale->GetValue();
+    SomethingChanged(e.GetId());
+}
+
+void
+svxPrintDlg::OnChangeScale(wxCommandEvent& e) {
+    // Seems to be needed on macOS.
+    if (!m_scale) return;
+    wxString value = m_scale->GetValue();
+    if (value == "...") {
+	m_scale->SetValue("");
+	m_scale->SetFocus();
+    } else {
+	default_scale_print = value;
 	if (default_scale_print != scales[0]) {
-	    // Don't store "One Page" for use when exporting.
+	    // Don't store "One page" for use when exporting.
 	    default_scale_export = default_scale_print;
 	}
     }
@@ -781,6 +796,8 @@ svxPrintDlg::SomethingChanged(int control_id) {
 	    m_scalebox->Show(bool(mask & SCALE));
 	    m_viewbox->Show(bool(mask & ORIENTABLE));
 	    GetSizer()->Layout();
+	    // Force the window to resize to match the updated layout.
+	    if (control_id) SetSizerAndFit(GetSizer());
 	    if (control_id == svx_FORMAT) {
 		wxConfigBase * cfg = wxConfigBase::Get();
 		cfg->Write(wxT("export_format"), formats[new_filter_idx]);

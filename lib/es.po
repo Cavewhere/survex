@@ -93,6 +93,13 @@ msgstr "Memória insuficiente intentando leer el archivo: “%s”"
 msgid "Survex version %s or greater required to process this survey data."
 msgstr "Para procesar estos datos topográficos se requiere la versión %s de Survex (o superior)."
 
+#. TRANSLATORS: Indicates a informational message e.g.:
+#. "spoon.svx:12: info: Declination: [...]"
+#: ../src/message.c:1221
+#: n:485
+msgid "info"
+msgstr "info"
+
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
 #: ../src/aven.cc:467
@@ -100,7 +107,7 @@ msgstr "Para procesar estos datos topográficos se requiere la versión %s de Su
 #: ../src/message.c:1234
 #: n:4
 msgid "warning"
-msgstr "alerta"
+msgstr "aviso"
 
 #. TRANSLATORS: Indicates an error message e.g.:
 #. "spoon.svx:13:4: error: Field may not be omitted"
@@ -409,6 +416,18 @@ msgstr "Numero esperado o “AUTO”"
 msgid "No survey date specified - using 0 for magnetic declination"
 msgstr "No especificada la fecha en los datos de la topografia - usando 0 para la declinación magnética"
 
+#. TRANSLATORS: This message gives information about the range of
+#. declination values and the grid convergence value calculated for
+#. each "*declination auto ..." command.
+#.
+#. The first %s will be replaced by the declination range (or single
+#. value), and %.1f%s by the grid convergence angle.
+#: ../src/commands.c:743
+#: n:484
+#, c-format
+msgid "Declination: %s, grid convergence: %.1f%s"
+msgstr ""
+
 #. TRANSLATORS: Used when a BEGIN command has no survey, but the
 #. END command does, e.g.:
 #.
@@ -555,8 +574,8 @@ msgstr "Comando FIX sin coordenades - se fijará en (0,0,0)"
 msgid "Station already fixed at the same coordinates"
 msgstr "Estación fijada previamente en las mismas coordenadas"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX command with
-#. no coordinates - fixing at (0,0,0)" warnings.
+#. TRANSLATORS: Emitted after second and subsequent "FIX" command
+#. with no coordinates.
 #: ../src/commands.c:871
 #: n:441
 #, c-format
@@ -1399,6 +1418,15 @@ msgstr "Esperando “NOT”, “DUPLICATE”, “SPLAY”, o “SURFACE”"
 #: n:103
 msgid "Expecting “F” or “M”"
 msgstr "Esperando “F” o “M”"
+
+#: readval.c:421
+#: readval.c:443
+#: readval.c:453
+#: readval.c:465
+#: n:483
+#, c-format
+msgid "Expecting quadrant bearing, found “%s”"
+msgstr ""
 
 #: ../src/listpos.c:82
 #: n:190
@@ -3240,6 +3268,11 @@ msgstr "rebobinar el archivo y leerlo una segunda vez"
 msgid "show survey date information (if present)"
 msgstr "mostrar la fecha de la topografia (si esta presente)"
 
+#: ../src/dump3d.c:54
+#: n:486
+msgid "convert MOVE and LINE into LEG"
+msgstr ""
+
 #: ../src/gfxcore.cc:3043
 #: ../src/gpx.cc:71
 #: ../src/kml.cc:70
@@ -3282,6 +3315,11 @@ msgstr "altura del texto de las etiquetas (por defecto %s)"
 #, c-format
 msgid "station marker size (default %s)"
 msgstr "tamaño de la marca de la estación (%s por defecto)"
+
+#: ../src/survexport.cc:159
+#: n:487
+msgid "produce Survex 3d output"
+msgstr "producir salida Survex 3d"
 
 #: ../src/survexport.cc:155
 #: n:102

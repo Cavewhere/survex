@@ -1,6 +1,6 @@
 /* cavern.h
  * SURVEX Cave surveying software - header file
- * Copyright (C) 1991-2003,2005,2006,2010,2013,2014,2015,2016,2019,2021 Olly Betts
+ * Copyright (C) 1991-2022 Olly Betts
  * Copyright (C) 2004 Simeon Warner
  *
  * This program is free software; you can redistribute it and/or modify
@@ -33,16 +33,7 @@
 #include <math.h>
 #include <float.h>
 
-#ifdef HAVE_PROJ_H
-/* Work around broken check in proj.h:
- * https://github.com/OSGeo/PROJ/issues/1523
- */
-# ifndef PROJ_H
-#  include <proj.h>
-# endif
-#endif
-#define ACCEPT_USE_OF_DEPRECATED_PROJ_API_H 1
-#include <proj_api.h>
+#include <proj.h>
 
 #include "img_hosted.h"
 #include "useful.h"
@@ -338,15 +329,25 @@ typedef struct Settings {
    const reading *ordering;
    int begin_lineno; /* 0 means no block started in this file */
    int flags;
-   projPJ proj;
+   char* proj_str;
    /* Location at which we calculate the declination if
-    * z[Q_DECLINATION] == HUGE_REAL. */
-   real dec_x, dec_y, dec_z;
-   /* Cached auto-declination, or HUGE_REAL for no cached value.  Only
-    * meaningful if date1 != -1.
+    * z[Q_DECLINATION] == HUGE_REAL.
+    *
+    * Latitude and longitude are in radians; altitude is in metres above the
+    * ellipsoid.
+    */
+   real dec_lat, dec_lon, dec_alt;
+   /* Cached auto-declination in radians, or HUGE_REAL for no cached value.
+    * Only meaningful if date1 != -1.
     */
    real declination;
-   /* Grid convergence. */
+   double min_declination, max_declination;
+   int min_declination_days, max_declination_days;
+   const char* dec_filename;
+   int dec_line;
+   /* Copy of the text of the `*declination auto ...` line (malloced). */
+   char* dec_context;
+   /* Grid convergence in radians. */
    real convergence;
    meta_data * meta;
 } settings;
@@ -357,8 +358,8 @@ extern prefix *root;
 extern prefix *anon_list;
 extern node *stnlist;
 extern unsigned long optimize;
-extern projPJ proj_out;
 extern char * proj_str_out;
+extern PJ * pj_cached;
 
 extern char *survey_title;
 extern int survey_title_len;
@@ -368,8 +369,8 @@ extern long cLegs, cStns, cComponents;
 extern FILE *fhErrStat;
 extern img *pimg;
 extern real totadj, total, totplan, totvert;
-extern real min[3], max[3];
-extern prefix *pfxHi[3], *pfxLo[3];
+extern real min[6], max[6];
+extern prefix *pfxHi[6], *pfxLo[6];
 extern bool fQuiet; /* just show brief summary + errors */
 extern bool fMute; /* just show errors */
 extern bool fSuppress; /* only output 3d file */

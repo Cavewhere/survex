@@ -47,7 +47,7 @@ testdir=`(cd "$testdir" && pwd)`
  begin_no_end end_no_begin end_no_begin_nest require_fail\
  exporterr1 exporterr2 exporterr3 exporterr4 exporterr5\
  exporterr1b exporterr2b exporterr3b exporterr6 exporterr6b\
- hanging_cpt badinc badinc2 badinc3 badinc4 nonexistent_file ONELEG\
+ hanging_cpt badinc badinc2 badinc3 badinc4 badinc5.mak nonexistent_file ONELEG\
  stnsurvey1 stnsurvey2\
  tapelessthandepth longname chinabug chinabug2\
  multinormal multinormignall multidiving multicylpolar multicartesian\
@@ -72,6 +72,7 @@ testdir=`(cd "$testdir" && pwd)`
  cs csbad csbadsdfix csfeet cslonglat omitfixaroundsolve repeatreading\
  mixedeols utf8bom nonewlineateof suspectreadings cmd_data_default\
  quadrant_bearing bad_quadrant_bearing\
+ gpxexport jsonexport kmlexport\
 "}}
 
 # Test file stnsurvey3.svx missing: pos=fail # We exit before the error count.
@@ -86,6 +87,11 @@ export SURVEXLANG
 # memory on exit.
 LSAN_OPTIONS=leak_check_at_exit=0
 export LSAN_OPTIONS
+
+# Allow datestamps in 3d files (we normalise the expected output for GPX
+# etc) to allow for the datestamp not being fixed, but under SOURCE_DATE_EPOCH
+# the datestamp is omitted entirely which would break those testcases.
+unset SOURCE_DATE_EPOCH
 
 vg_error=123
 vg_log=$testdir/vg.log
@@ -102,8 +108,8 @@ for file in $TESTS ; do
       # ONELEG tests that we don't apply special handling to command line
       # arguments, only those in *include.
       realfile= ;;
-    *.*) realfile=$file ;;
-    *) realfile=$file.svx ;;
+    *.*) realfile=$srcdir/$file ;;
+    *) realfile=$srcdir/$file.svx ;;
   esac
 
   if [ x"$file" = xONELEG ] && [ -f "ONELEG.SVX" ] ; then
@@ -112,8 +118,8 @@ for file in $TESTS ; do
   fi
 
   if [ -n "$realfile" ] && [ ! -r "$realfile" ] ; then
-    echo "Warning: don't know how to run test '$file' - skipping it"
-    continue
+    echo "Don't know how to run test '$file'"
+    exit 1
   fi
 
   echo "$file"
@@ -129,6 +135,9 @@ for file in $TESTS ; do
   # no : Check that a 3D file is produced, but not positions in it
   # fail : Check that a 3D file is NOT produced
   # dxf : Convert to DXF with survexport and compare with <testcase_name>.dxf
+  # gpx : Convert to GPX with survexport and compare with <testcase_name>.gpx
+  # json : Convert to JSON with survexport and compare with <testcase_name>.json
+  # kml : Convert to KML with survexport and compare with <testcase_name>.kml
   pos=
 
   case $file in
@@ -138,8 +147,13 @@ for file in $TESTS ; do
       pos=yes
       warn=0
       ;;
+    badinc5.mak)
+      pos=fail
+      warn=1
+      error=1
+      ;;
     *.mak)
-      # All the current .mak tests have the same settings.
+      # All the other .mak tests have the same settings.
       pos=yes
       warn=0
       ;;
@@ -148,6 +162,7 @@ for file in $TESTS ; do
       pos=fail
       ;;
     *)
+      survexportopts=
       read header < "$realfile"
       set dummy $header
       while shift && [ -n "$1" ] ; do
@@ -155,6 +170,9 @@ for file in $TESTS ; do
 	  pos=*) pos=`expr "$1" : 'pos=\(.*\)'` ;;
 	  warn=*) warn=`expr "$1" : 'warn=\(.*\)'` ;;
 	  error=*) error=`expr "$1" : 'error=\(.*\)'` ;;
+	  survexportopt=*)
+	    survexportopts="$survexportopts "`expr "$1" : 'survexportopt=\(.*\)'`
+	    ;;
 	esac
       done
       ;;
@@ -169,8 +187,8 @@ for file in $TESTS ; do
     input="./$file.svx" ;;
   esac
   outfile=$basefile.out
+  outfile2=$basefile.altout
   posfile=$basefile.pos
-  dxffile=$basefile.dxf
   rm -f tmp.*
   pwd=`pwd`
   cd "$srcdir"
@@ -193,15 +211,15 @@ for file in $TESTS ; do
     test $exitcode = 0 || exit 1
   fi
   if test -n "$warn" ; then
-    w=`sed '$!d;s/^There were \([0-9]*\).*/\1/;s/^[^0-9].*$/0/' tmp.out`
-    if test x"$w" != x"$warn" ; then
+    w=`sed '$!d;s/^There were \([0-9]*\).*/\1/p;d' tmp.out`
+    if test x"${w:-0}" != x"$warn" ; then
       test -n "$VERBOSE" && echo "Got $w warnings, expected $warn"
       exit 1
     fi
   fi
   if test -n "$error" ; then
-    e=`sed '$!d;s/^There were .* and \([0-9][0-9]*\).*/\1/;s/^[^0-9].*$/0/' tmp.out`
-    if test x"$e" != x"$error" ; then
+    e=`sed '$!d;s/^There were .* and \([0-9][0-9]*\).*/\1/p;d' tmp.out`
+    if test x"${e:-0}" != x"$error" ; then
       test -n "$VERBOSE" && echo "Got $e errors, expected $error"
       exit 1
     fi
@@ -232,12 +250,15 @@ for file in $TESTS ; do
     fi
     [ "$exitcode" = 0 ] || exit 1
     ;;
-  dxf)
+  dxf|gpx|json|kml)
+    # $pos gives us the file extension here.
+    expectedfile=$basefile.$pos
+    tmpfile=tmp.$pos
     if test -n "$VERBOSE" ; then
-      $SURVEXPORT --defaults --surface-legs tmp.3d tmp.dxf
+      $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile"
       exitcode=$?
     else
-      $SURVEXPORT --defaults --surface-legs tmp.3d tmp.dxf > /dev/null
+      $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile" > /dev/null
       exitcode=$?
     fi
     if [ -n "$VALGRIND" ] ; then
@@ -249,11 +270,21 @@ for file in $TESTS ; do
       rm "$vg_log"
     fi
     [ "$exitcode" = 0 ] || exit 1
+
+    # Normalise exported file if required.
+    case $pos in
+      gpx)
+	sed 's,<time>[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z</time>,<time>REDACTED</time>,;s,survex [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*,survex REDACTED,' < "$tmpfile" > tmp.tmp
+	mv tmp.tmp "$tmpfile"
+	;;
+    esac
+
     if test -n "$VERBOSE" ; then
-      diff "$dxffile" tmp.dxf || exit 1
+      diff "$expectedfile" "$tmpfile" || exit 1
     else
-      cmp -s "$dxffile" tmp.dxf || exit 1
-    fi ;;
+      cmp -s "$expectedfile" "$tmpfile" || exit 1
+    fi
+    ;;
   no)
     test -f tmp.3d || exit 1 ;;
   fail)
@@ -267,11 +298,18 @@ for file in $TESTS ; do
   esac
 
   if test -f "$outfile" ; then
-    # Check output is as expected, working around Apple's stone-age sed.
-    if test -n "$VERBOSE" ; then
-      sed '1,/^Copyright/d;/^\(CPU \)*[Tt]ime used  *[0-9][0-9.]*s$/d;s!.*/src/\(cavern: \)!\1!' tmp.out|diff "$outfile" - || exit 1
+    # Version and time used info from output, working around Apple's stone-age
+    # sed.
+    sed '1,/^Copyright/d;/^\(CPU \)*[Tt]ime used  *[0-9][0-9.]*s$/d;s!.*/src/\(cavern: \)!\1!' tmp.out > tmp.out2
+    mv tmp.out2 tmp.out
+    # Check output is as expected.
+    if cmp -s "$outfile" tmp.out ; then
+      : # Matches.
+    elif [ -f "$outfile2" ] && cmp -s "$outfile2" tmp.out ; then
+      : # Matches alternative output (e.g. due to older PROJ).
     else
-      sed '1,/^Copyright/d;/^\(CPU \)*[Tt]ime used  *[0-9][0-9.]*s$/d;s!.*/src/\(cavern: \)!\1!' tmp.out|cmp -s "$outfile" - || exit 1
+      test -z "$VERBOSE" || diff "$outfile" tmp.out
+      exit 1
     fi
   fi
   rm -f tmp.*

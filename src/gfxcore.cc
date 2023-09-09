@@ -4,7 +4,7 @@
 //  Core drawing code for Aven.
 //
 //  Copyright (C) 2000-2003,2005,2006 Mark R. Shinwell
-//  Copyright (C) 2001-2003,2004,2005,2006,2007,2010,2011,2012,2014,2015,2016,2017,2018 Olly Betts
+//  Copyright (C) 2001-2022 Olly Betts
 //  Copyright (C) 2005 Martin Green
 //
 //  This program is free software; you can redistribute it and/or modify
@@ -47,8 +47,7 @@
 #include <wx/image.h>
 #include <wx/zipstrm.h>
 
-#define ACCEPT_USE_OF_DEPRECATED_PROJ_API_H 1
-#include <proj_api.h>
+#include <proj.h>
 
 const unsigned long DEFAULT_HGT_DIM = 3601;
 const unsigned long DEFAULT_HGT_SIZE = sqrd(DEFAULT_HGT_DIM) * 2;
@@ -74,7 +73,7 @@ const unsigned int QUANTISE_FACTOR = 2;
 #include "avenpal.h"
 
 static const int INDICATOR_BOX_SIZE = 60;
-static const int INDICATOR_GAP = 2;
+static const int INDICATOR_GAP = 8;
 static const int INDICATOR_MARGIN = 5;
 static const int INDICATOR_OFFSET_X = 15;
 static const int INDICATOR_OFFSET_Y = 15;
@@ -86,7 +85,7 @@ static const int KEY_BLOCK_WIDTH = 20;
 static const int KEY_BLOCK_HEIGHT = 16;
 static const int TICK_LENGTH = 4;
 static const int SCALE_BAR_OFFSET_X = 15;
-static const int SCALE_BAR_OFFSET_Y = 12;
+static const int SCALE_BAR_OFFSET_Y = 8;
 static const int SCALE_BAR_HEIGHT = 12;
 
 static const gla_colour TEXT_COLOUR = col_GREEN;
@@ -558,8 +557,17 @@ void GfxCore::OnPaint(wxPaintEvent&)
 
 	FinishDrawing();
     } else {
+#ifdef __WXMAC__
+	if (!m_DoneFirstShow) {
+	    FirstShow();
+	}
+	StartDrawing();
+	ClearNative();
+	FinishDrawing();
+#else
 	dc.SetBackground(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWFRAME));
 	dc.Clear();
+#endif
     }
 }
 
@@ -666,35 +674,56 @@ void GfxCore::DrawGrid()
 
 int GfxCore::GetClinoOffset() const
 {
-    int result = INDICATOR_OFFSET_X;
+    auto f = GetContentScaleFactor();
+    int result = INDICATOR_OFFSET_X * f;
     if (m_Compass) {
-	result += 6 + GetCompassWidth() + INDICATOR_GAP;
+	result += GetCompassWidth() + INDICATOR_GAP * f;
     }
     return result;
 }
 
 void GfxCore::DrawTick(int angle_cw)
 {
+    auto f = GetContentScaleFactor();
+    auto length0 = (INDICATOR_RADIUS + TICK_LENGTH) * f;
+    auto length1 = INDICATOR_RADIUS * f;
     const Double theta = rad(angle_cw);
-    const wxCoord length1 = INDICATOR_RADIUS;
-    const wxCoord length0 = length1 + TICK_LENGTH;
-    wxCoord x0 = wxCoord(length0 * sin(theta));
-    wxCoord y0 = wxCoord(length0 * cos(theta));
-    wxCoord x1 = wxCoord(length1 * sin(theta));
-    wxCoord y1 = wxCoord(length1 * cos(theta));
+    auto s = sin(theta);
+    auto c = cos(theta);
+    wxCoord x0 = wxCoord(length0 * s);
+    wxCoord y0 = wxCoord(length0 * c);
+    wxCoord x1 = wxCoord(length1 * s);
+    wxCoord y1 = wxCoord(length1 * c);
 
     PlaceIndicatorVertex(x0, y0);
     PlaceIndicatorVertex(x1, y1);
 }
 
 void GfxCore::DrawArrow(gla_colour col1, gla_colour col2) {
-    Vector3 p1(0, INDICATOR_RADIUS, 0);
-    Vector3 p2(INDICATOR_RADIUS/2, INDICATOR_RADIUS*-.866025404, 0); // 150deg
-    Vector3 p3(-INDICATOR_RADIUS/2, INDICATOR_RADIUS*-.866025404, 0); // 210deg
-    Vector3 pc(0, 0, 0);
+    auto f = GetContentScaleFactor();
+    glaCoord r = INDICATOR_RADIUS * f;
+    glaCoord x = r * .5;
+    glaCoord y = r * -.866025404;
 
-    DrawTriangle(col_LIGHT_GREY, col1, p2, p1, pc);
-    DrawTriangle(col_LIGHT_GREY, col2, p3, p1, pc);
+    BeginTriangles();
+    SetColour(col1);
+    PlaceIndicatorVertex(x, y);
+    PlaceIndicatorVertex(0, r);
+    PlaceIndicatorVertex(0, 0);
+    SetColour(col2);
+    PlaceIndicatorVertex(-x, y);
+    PlaceIndicatorVertex(0, r);
+    PlaceIndicatorVertex(0, 0);
+    EndTriangles();
+    BeginPolyline();
+    glBegin(GL_LINE_STRIP);
+    PlaceIndicatorVertex(0, 0);
+    PlaceIndicatorVertex(x, y);
+    PlaceIndicatorVertex(0, r);
+    PlaceIndicatorVertex(0, 0);
+    PlaceIndicatorVertex(-x, y);
+    PlaceIndicatorVertex(0, r);
+    EndPolyline();
 }
 
 void GfxCore::DrawCompass() {
@@ -708,7 +737,8 @@ void GfxCore::DrawCompass() {
     EndLines();
 
     // Compass background.
-    DrawCircle(col_LIGHT_GREY_2, col_GREY, 0, 0, INDICATOR_RADIUS);
+    DrawCircle(col_LIGHT_GREY_2, col_GREY, 0, 0,
+	       INDICATOR_RADIUS * GetContentScaleFactor());
 
     // Compass arrow.
     DrawArrow(col_INDICATOR_1, col_INDICATOR_2);
@@ -722,10 +752,11 @@ void GfxCore::DrawClinoBack() {
     }
 
     SetColour(col_GREY);
-    PlaceIndicatorVertex(0, INDICATOR_RADIUS);
-    PlaceIndicatorVertex(0, -INDICATOR_RADIUS);
+    glaCoord r = INDICATOR_RADIUS * GetContentScaleFactor();
+    PlaceIndicatorVertex(0, r);
+    PlaceIndicatorVertex(0, -r);
     PlaceIndicatorVertex(0, 0);
-    PlaceIndicatorVertex(INDICATOR_RADIUS, 0);
+    PlaceIndicatorVertex(r, 0);
 
     EndLines();
 }
@@ -738,7 +769,7 @@ void GfxCore::DrawClino() {
     EndLines();
 
     // Clino background.
-    DrawSemicircle(col_LIGHT_GREY_2, col_GREY, 0, 0, INDICATOR_RADIUS, 0);
+    DrawSemicircle(col_LIGHT_GREY_2, col_GREY, 0, 0, INDICATOR_RADIUS * GetContentScaleFactor(), 0);
 
     // Elevation arrow.
     DrawArrow(col_INDICATOR_2, col_INDICATOR_1);
@@ -748,7 +779,8 @@ void GfxCore::Draw2dIndicators()
 {
     // Draw the compass and elevation indicators.
 
-    const int centre_y = INDICATOR_BOX_SIZE / 2 + INDICATOR_OFFSET_Y;
+    auto f = GetContentScaleFactor();
+    const int centre_y = (INDICATOR_BOX_SIZE / 2 + INDICATOR_OFFSET_Y) * f;
 
     const int comp_centre_x = GetCompassXPosition();
 
@@ -776,7 +808,7 @@ void GfxCore::Draw2dIndicators()
     if (!triple_zero_width) {
 	GetTextExtent(wxT("000"), &triple_zero_width, &height);
     }
-    const int y_off = INDICATOR_OFFSET_Y + INDICATOR_BOX_SIZE + height / 2;
+    const int y_off = (INDICATOR_OFFSET_Y + INDICATOR_BOX_SIZE) * f + height / 2;
 
     if (m_Compass && !m_Parent->IsExtendedElevation()) {
 	wxString str;
@@ -1034,10 +1066,13 @@ void GfxCore::SimpleDrawNames()
 
 void GfxCore::DrawColourKey(int num_bands, const wxString & other, const wxString & units)
 {
+    auto f = GetContentScaleFactor();
+    int key_block_height = KEY_BLOCK_HEIGHT * f;
+    int key_block_width = KEY_BLOCK_WIDTH * f;
     int total_block_height =
-	KEY_BLOCK_HEIGHT * (num_bands == 1 ? num_bands : num_bands - 1);
-    if (!other.empty()) total_block_height += KEY_BLOCK_HEIGHT * 2;
-    if (!units.empty()) total_block_height += KEY_BLOCK_HEIGHT;
+	key_block_height * (num_bands == 1 ? num_bands : num_bands - 1);
+    if (!other.empty()) total_block_height += key_block_height * 2;
+    if (!units.empty()) total_block_height += key_block_height;
 
     const int bottom = -total_block_height;
 
@@ -1050,9 +1085,9 @@ void GfxCore::DrawColourKey(int num_bands, const wxString & other, const wxStrin
 	if (x > size) size = x;
     }
 
-    int left = -KEY_BLOCK_WIDTH - size;
+    int left = -key_block_width - size;
 
-    key_lowerleft[m_ColourBy].x = left - KEY_EXTRA_LEFT_MARGIN;
+    key_lowerleft[m_ColourBy].x = left - KEY_EXTRA_LEFT_MARGIN * f;
     key_lowerleft[m_ColourBy].y = bottom;
     switch (m_ColourBy) {
 	case COLOUR_BY_ERROR:
@@ -1064,33 +1099,33 @@ void GfxCore::DrawColourKey(int num_bands, const wxString & other, const wxStrin
     }
 
     int y = bottom;
-    if (!units.empty()) y += KEY_BLOCK_HEIGHT;
+    if (!units.empty()) y += key_block_height;
 
     if (!other.empty()) {
 	DrawRectangle(NODATA_COLOUR, col_BLACK,
 		      left, y,
-		      KEY_BLOCK_WIDTH, KEY_BLOCK_HEIGHT);
-	y += KEY_BLOCK_HEIGHT * 2;
+		      key_block_height, key_block_height);
+	y += key_block_height * 2;
     }
 
     int start = y;
     if (num_bands == 1) {
 	DrawShadedRectangle(GetPen(0), GetPen(0), left, y,
-			    KEY_BLOCK_WIDTH, KEY_BLOCK_HEIGHT);
-	y += KEY_BLOCK_HEIGHT;
+			    key_block_width, key_block_height);
+	y += key_block_height;
     } else {
 	for (band = 0; band < num_bands - 1; ++band) {
 	    DrawShadedRectangle(GetPen(band), GetPen(band + 1), left, y,
-				KEY_BLOCK_WIDTH, KEY_BLOCK_HEIGHT);
-	    y += KEY_BLOCK_HEIGHT;
+				key_block_width, key_block_height);
+	    y += key_block_height;
 	}
     }
 
     SetColour(col_BLACK);
     BeginPolyline();
     PlaceIndicatorVertex(left, y);
-    PlaceIndicatorVertex(left + KEY_BLOCK_WIDTH, y);
-    PlaceIndicatorVertex(left + KEY_BLOCK_WIDTH, start);
+    PlaceIndicatorVertex(left + key_block_width, y);
+    PlaceIndicatorVertex(left + key_block_width, start);
     PlaceIndicatorVertex(left, start);
     PlaceIndicatorVertex(left, y);
     EndPolyline();
@@ -1100,25 +1135,25 @@ void GfxCore::DrawColourKey(int num_bands, const wxString & other, const wxStrin
     y = bottom;
     if (!units.empty()) {
 	GetTextExtent(units, &size, NULL);
-	DrawIndicatorText(left + (KEY_BLOCK_WIDTH - size) / 2, y, units);
-	y += KEY_BLOCK_HEIGHT;
+	DrawIndicatorText(left + (key_block_width - size) / 2, y, units);
+	y += key_block_height;
     }
     y -= GetFontSize() / 2;
-    left += KEY_BLOCK_WIDTH + 5;
+    left += key_block_width + 5;
 
     if (!other.empty()) {
-	y += KEY_BLOCK_HEIGHT / 2;
+	y += key_block_height / 2;
 	DrawIndicatorText(left, y, other);
-	y += KEY_BLOCK_HEIGHT * 2 - KEY_BLOCK_HEIGHT / 2;
+	y += key_block_height * 2 - key_block_height / 2;
     }
 
     if (num_bands == 1) {
-	y += KEY_BLOCK_HEIGHT / 2;
+	y += key_block_height / 2;
 	DrawIndicatorText(left, y, key_legends[0]);
     } else {
 	for (band = 0; band < num_bands; ++band) {
 	    DrawIndicatorText(left, y, key_legends[band]);
-	    y += KEY_BLOCK_HEIGHT;
+	    y += key_block_height;
 	}
     }
 }
@@ -1263,8 +1298,11 @@ static const char* style_names[] = {
 
 void GfxCore::DrawStyleKey()
 {
+    auto f = GetContentScaleFactor();
+    int key_block_height = KEY_BLOCK_HEIGHT * f;
+    int key_block_width = KEY_BLOCK_WIDTH * f;
     int num_bands = sizeof(style_names) / sizeof(style_names[0]);
-    int total_block_height = KEY_BLOCK_HEIGHT * (2 * num_bands - 1);
+    int total_block_height = key_block_height * (2 * num_bands - 1);
 
     const int bottom = -total_block_height;
 
@@ -1275,27 +1313,27 @@ void GfxCore::DrawStyleKey()
 	if (x > size) size = x;
     }
 
-    int left = -KEY_BLOCK_WIDTH - size;
+    int left = -key_block_width - size;
 
-    key_lowerleft[m_ColourBy].x = left - KEY_EXTRA_LEFT_MARGIN;
+    key_lowerleft[m_ColourBy].x = left - KEY_EXTRA_LEFT_MARGIN * f;
     key_lowerleft[m_ColourBy].y = bottom;
 
     int y = bottom;
     for (int band = 0; band < num_bands; ++band) {
 	DrawRectangle(style_colours[band], col_BLACK,
 		      left, y,
-		      KEY_BLOCK_WIDTH, KEY_BLOCK_HEIGHT);
-	y += KEY_BLOCK_HEIGHT * 2;
+		      key_block_width, key_block_height);
+	y += key_block_height * 2;
     }
 
     SetColour(TEXT_COLOUR);
 
     y = bottom;
-    left += KEY_BLOCK_WIDTH + 5;
+    left += key_block_width + 5;
 
     for (int band = 0; band < num_bands; ++band) {
 	DrawIndicatorText(left, y, style_names[band]);
-	y += KEY_BLOCK_HEIGHT * 2;
+	y += key_block_height * 2;
     }
 }
 
@@ -1305,7 +1343,7 @@ void GfxCore::DrawScaleBar()
     // screen.
     Double across_screen = SurveyUnitsAcrossViewport();
 
-    double f = double(GetClinoXPosition() - INDICATOR_BOX_SIZE / 2 - SCALE_BAR_OFFSET_X) / GetXSize();
+    double f = double(GetClinoXPosition() - (INDICATOR_BOX_SIZE / 2 + SCALE_BAR_OFFSET_X) * GetContentScaleFactor()) / GetXSize();
     if (f > 0.75) {
 	f = 0.75;
     } else if (f < 0.5) {
@@ -1342,14 +1380,14 @@ void GfxCore::DrawScaleBar()
     m_ScaleBarWidth = size;
 
     // Draw it...
-    const int end_y = SCALE_BAR_OFFSET_Y + SCALE_BAR_HEIGHT;
+    const int end_y = SCALE_BAR_OFFSET_Y * GetContentScaleFactor() + GetFontSize();
     int interval = size / 10;
 
     gla_colour col = col_WHITE;
     for (int ix = 0; ix < 10; ix++) {
-	int x = SCALE_BAR_OFFSET_X + int(ix * ((Double) size / 10.0));
+	int x = SCALE_BAR_OFFSET_X * GetContentScaleFactor() + int(ix * ((Double) size / 10.0));
 
-	DrawRectangle(col, col, x, end_y, interval + 2, SCALE_BAR_HEIGHT);
+	DrawRectangle(col, col, x, end_y, interval + 2, SCALE_BAR_HEIGHT * GetContentScaleFactor());
 
 	col = (col == col_WHITE) ? col_GREY : col_WHITE;
     }
@@ -1431,8 +1469,8 @@ void GfxCore::DrawScaleBar()
     GetTextExtent(str, &text_width, &text_height);
     const int text_y = end_y - text_height + 1;
     SetColour(TEXT_COLOUR);
-    DrawIndicatorText(SCALE_BAR_OFFSET_X, text_y, wxT("0"));
-    DrawIndicatorText(SCALE_BAR_OFFSET_X + size - text_width, text_y, str);
+    DrawIndicatorText(SCALE_BAR_OFFSET_X * GetContentScaleFactor(), text_y, wxT("0"));
+    DrawIndicatorText(SCALE_BAR_OFFSET_X * GetContentScaleFactor() + size - text_width, text_y, str);
 }
 
 bool GfxCore::CheckHitTestGrid(const wxPoint& point, bool centre)
@@ -1484,7 +1522,9 @@ bool GfxCore::CheckHitTestGrid(const wxPoint& point, bool centre)
 	if (centre) {
 	    // FIXME: allow Ctrl-Click to not set there or something?
 	    CentreOn(*best);
-	    WarpPointer(GetXSize() / 2, GetYSize() / 2);
+	    int w, h;
+	    GetClientSize(&w, &h);
+	    WarpPointer(w / 2, h / 2);
 	    SetThere(best);
 	    m_Parent->SelectTreeItem(best);
 	}
@@ -2133,7 +2173,7 @@ int GfxCore::GetCompassWidth() const
 {
     static int result = 0;
     if (result == 0) {
-	result = INDICATOR_BOX_SIZE;
+	result = INDICATOR_BOX_SIZE * GetContentScaleFactor();
 	int width;
 	const wxString & msg = wmsg(/*Facing*/203);
 	GetTextExtent(msg, &width, NULL);
@@ -2146,7 +2186,7 @@ int GfxCore::GetClinoWidth() const
 {
     static int result = 0;
     if (result == 0) {
-	result = INDICATOR_BOX_SIZE;
+	result = INDICATOR_BOX_SIZE * GetContentScaleFactor();
 	int width;
 	const wxString & msg1 = wmsg(/*Plan*/432);
 	GetTextExtent(msg1, &width, NULL);
@@ -2165,7 +2205,7 @@ int GfxCore::GetCompassXPosition() const
 {
     // Return the x-coordinate of the centre of the compass in window
     // coordinates.
-    return GetXSize() - INDICATOR_OFFSET_X - GetCompassWidth() / 2;
+    return GetXSize() - INDICATOR_OFFSET_X * GetContentScaleFactor() - GetCompassWidth() / 2;
 }
 
 int GfxCore::GetClinoXPosition() const
@@ -2179,13 +2219,13 @@ int GfxCore::GetIndicatorYPosition() const
 {
     // Return the y-coordinate of the centre of the indicators in window
     // coordinates.
-    return GetYSize() - INDICATOR_OFFSET_Y - INDICATOR_BOX_SIZE / 2;
+    return GetYSize() - (INDICATOR_OFFSET_Y + INDICATOR_BOX_SIZE / 2) * GetContentScaleFactor();
 }
 
 int GfxCore::GetIndicatorRadius() const
 {
     // Return the radius of each indicator.
-    return (INDICATOR_BOX_SIZE - INDICATOR_MARGIN * 2) / 2;
+    return (INDICATOR_BOX_SIZE - INDICATOR_MARGIN * 2) / 2 * GetContentScaleFactor();
 }
 
 bool GfxCore::PointWithinCompass(wxPoint point) const
@@ -2219,17 +2259,21 @@ bool GfxCore::PointWithinScaleBar(wxPoint point) const
     // bar.
     if (!ShowingScaleBar()) return false;
 
-    return (point.x >= SCALE_BAR_OFFSET_X &&
-	    point.x <= SCALE_BAR_OFFSET_X + m_ScaleBarWidth &&
-	    point.y <= GetYSize() - SCALE_BAR_OFFSET_Y - SCALE_BAR_HEIGHT &&
-	    point.y >= GetYSize() - SCALE_BAR_OFFSET_Y - SCALE_BAR_HEIGHT*2);
+    auto f = GetContentScaleFactor();
+    wxCoord y = (GetYSize() - SCALE_BAR_OFFSET_Y * f - GetFontSize()) - point.y;
+    if (y > SCALE_BAR_HEIGHT * f || y < 0) return false;
+
+    wxCoord x = point.x - SCALE_BAR_OFFSET_X * f;
+    if (x > m_ScaleBarWidth || x < 0) return false;
+
+    return true;
 }
 
 bool GfxCore::PointWithinColourKey(wxPoint point) const
 {
     // Determine whether a point (in window coordinates) lies within the key.
-    point.x -= GetXSize() - KEY_OFFSET_X;
-    point.y = KEY_OFFSET_Y - point.y;
+    point.x -= GetXSize() - KEY_OFFSET_X * GetContentScaleFactor();
+    point.y = KEY_OFFSET_Y * GetContentScaleFactor() - point.y;
     return (point.x >= key_lowerleft[m_ColourBy].x && point.x <= 0 &&
 	    point.y >= key_lowerleft[m_ColourBy].y && point.y <= 0);
 }
@@ -2269,10 +2313,10 @@ void GfxCore::SetClinoFromPoint(wxPoint point)
     if (dx >= 0 && dx * dx + dy * dy <= radius * radius) {
 	TiltCave(-deg(atan2(double(dy), double(dx))) - m_TiltAngle);
 	m_MouseOutsideElev = false;
-    } else if (dy >= INDICATOR_MARGIN) {
+    } else if (dy >= INDICATOR_MARGIN * GetContentScaleFactor()) {
 	TiltCave(-90.0 - m_TiltAngle);
 	m_MouseOutsideElev = true;
-    } else if (dy <= -INDICATOR_MARGIN) {
+    } else if (dy <= -INDICATOR_MARGIN * GetContentScaleFactor()) {
 	TiltCave(90.0 - m_TiltAngle);
 	m_MouseOutsideElev = true;
     } else {
@@ -2296,11 +2340,11 @@ void GfxCore::RedrawIndicators()
 {
     // Redraw the compass and clino indicators.
 
-    int total_width = GetCompassWidth() + INDICATOR_GAP + GetClinoWidth();
-    RefreshRect(wxRect(GetXSize() - INDICATOR_OFFSET_X - total_width,
-		       GetYSize() - INDICATOR_OFFSET_Y - INDICATOR_BOX_SIZE,
+    int total_width = GetCompassWidth() + INDICATOR_GAP * GetContentScaleFactor() + GetClinoWidth();
+    RefreshRect(wxRect(GetXSize() - INDICATOR_OFFSET_X * GetContentScaleFactor() - total_width,
+		       GetYSize() - (INDICATOR_OFFSET_Y + INDICATOR_BOX_SIZE) * GetContentScaleFactor(),
 		       total_width,
-		       INDICATOR_BOX_SIZE), false);
+		       INDICATOR_BOX_SIZE * GetContentScaleFactor()), false);
 }
 
 void GfxCore::StartRotation()
@@ -3025,6 +3069,8 @@ class AvenBusyCursor {
     }
 };
 
+static void discarding_proj_logger(void *, int, const char *) { }
+
 void GfxCore::DrawTerrain()
 {
     if (!dem) return;
@@ -3033,18 +3079,26 @@ void GfxCore::DrawTerrain()
 
     // Draw terrain to twice the extent, or at least 1km.
     double r_sqrd = sqrd(max(m_Parent->GetExtent().magnitude(), 1000.0));
-#define WGS84_DATUM_STRING "+proj=longlat +ellps=WGS84 +datum=WGS84"
-    static projPJ pj_in = pj_init_plus(WGS84_DATUM_STRING);
-    if (!pj_in) {
-	ToggleTerrain();
-	delete [] dem;
-	dem = NULL;
-	hourglass.stop();
-	error(/*Failed to initialise input coordinate system “%s”*/287, WGS84_DATUM_STRING);
-	return;
+
+    /* Prevent stderr spew from PROJ. */
+    proj_log_func(PJ_DEFAULT_CTX, nullptr, discarding_proj_logger);
+
+#define WGS84_DATUM_STRING "EPSG:4326"
+
+    PJ* pj = proj_create_crs_to_crs(PJ_DEFAULT_CTX,
+				    WGS84_DATUM_STRING,
+				    m_Parent->GetCSProj().c_str(),
+				    NULL);
+
+    if (pj) {
+	// Normalise the output order so x is longitude and y latitude - by default
+	// new PROJ has them switched for EPSG:4326 which just seems confusing.
+	PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX, pj);
+	proj_destroy(pj);
+	pj = pj_norm;
     }
-    static projPJ pj_out = pj_init_plus(m_Parent->GetCSProj().c_str());
-    if (!pj_out) {
+
+    if (!pj) {
 	ToggleTerrain();
 	delete [] dem;
 	dem = NULL;
@@ -3058,7 +3112,7 @@ void GfxCore::DrawTerrain()
     const Vector3 & off = m_Parent->GetOffset();
     vector<Vector3> prevcol(dem_height + 1);
     for (size_t x = 0; x < dem_width; ++x) {
-	double X_ = (o_x + x * step_x) * DEG_TO_RAD;
+	PJ_COORD coord = {o_x + x * step_x, 0.0, 0.0, HUGE_VAL};
 	Vector3 prev;
 	for (size_t y = 0; y < dem_height; ++y) {
 	    unsigned short elev = dem[x + y * dem_width];
@@ -3079,13 +3133,20 @@ void GfxCore::DrawTerrain()
 	    if (Z == nodata_value) {
 		pt = Vector3(DBL_MAX, DBL_MAX, DBL_MAX);
 	    } else {
-		double X = X_;
-		double Y = (o_y - y * step_y) * DEG_TO_RAD;
-		pj_transform(pj_in, pj_out, 1, 1, &X, &Y, &Z);
-		pt = Vector3(X, Y, Z) - off;
-		double dist_2 = sqrd(pt.GetX()) + sqrd(pt.GetY());
-		if (dist_2 > r_sqrd) {
+		coord.xyzt.y = o_y - y * step_y;
+		coord.xyzt.z = Z;
+		PJ_COORD r = proj_trans(pj, PJ_FWD, coord);
+		if (r.xyzt.x == HUGE_VAL ||
+		    r.xyzt.y == HUGE_VAL ||
+		    r.xyzt.z == HUGE_VAL) {
 		    pt = Vector3(DBL_MAX, DBL_MAX, DBL_MAX);
+		    // FIXME report?
+		} else {
+		    pt = Vector3(r.xyzt.x, r.xyzt.y, r.xyzt.z) - off;
+		    double dist_2 = sqrd(pt.GetX()) + sqrd(pt.GetY());
+		    if (dist_2 > r_sqrd) {
+			pt = Vector3(DBL_MAX, DBL_MAX, DBL_MAX);
+		    }
 		}
 	    }
 	    if (x > 0 && y > 0) {
@@ -3163,6 +3224,8 @@ void GfxCore::DrawTerrain()
 	 */
 	error(/*No terrain data near area of survey*/161);
     }
+
+    proj_destroy(pj);
 }
 
 // Plot blobs.
@@ -3249,8 +3312,8 @@ void GfxCore::DrawIndicators()
 		key_list = LIST_STYLE_KEY; break;
 	}
 	if (key_list != LIST_LIMIT_) {
-	    DrawList2D(key_list, GetXSize() - KEY_OFFSET_X,
-		       GetYSize() - KEY_OFFSET_Y, 0);
+	    DrawList2D(key_list, GetXSize() - KEY_OFFSET_X * GetContentScaleFactor(),
+		       GetYSize() - KEY_OFFSET_Y * GetContentScaleFactor(), 0);
 	}
     }
 
@@ -4205,9 +4268,8 @@ bool GfxCore::ExportMovie(const wxString & fnm)
     wxString ext;
     wxFileName::SplitPath(fnm, NULL, NULL, NULL, &ext, wxPATH_NATIVE);
 
-    int width;
-    int height;
-    GetSize(&width, &height);
+    int width = GetXSize();
+    int height = GetYSize();
     // Round up to next multiple of 2 (required by ffmpeg).
     width += (width & 1);
     height += (height & 1);

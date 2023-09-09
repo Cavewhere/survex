@@ -93,6 +93,13 @@ msgstr "Возникла нехватка памяти при чтении фа�
 msgid "Survex version %s or greater required to process this survey data."
 msgstr "Для обработки данных этой топо-съемки требуется Survex версии %s и старше."
 
+#. TRANSLATORS: Indicates a informational message e.g.:
+#. "spoon.svx:12: info: Declination: [...]"
+#: ../src/message.c:1221
+#: n:485
+msgid "info"
+msgstr "инфо"
+
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
 #: ../src/aven.cc:467
@@ -409,6 +416,18 @@ msgstr "Ожидается число или “AUTO”"
 msgid "No survey date specified - using 0 for magnetic declination"
 msgstr "Дата съёмки не указана - использовано магнитное склонение 0"
 
+#. TRANSLATORS: This message gives information about the range of
+#. declination values and the grid convergence value calculated for
+#. each "*declination auto ..." command.
+#.
+#. The first %s will be replaced by the declination range (or single
+#. value), and %.1f%s by the grid convergence angle.
+#: ../src/commands.c:743
+#: n:484
+#, c-format
+msgid "Declination: %s, grid convergence: %.1f%s"
+msgstr "Магнитное склонение: %s, сближение меридианов: %.1f%s"
+
 #. TRANSLATORS: Used when a BEGIN command has no survey, but the
 #. END command does, e.g.:
 #.
@@ -555,8 +574,8 @@ msgstr "Команда FIX без указания координат - выпо
 msgid "Station already fixed at the same coordinates"
 msgstr "Пикет с таким именем уже зафиксирован с такими же координатами"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX command with
-#. no coordinates - fixing at (0,0,0)" warnings.
+#. TRANSLATORS: Emitted after second and subsequent "FIX" command
+#. with no coordinates.
 #: ../src/commands.c:871
 #: n:441
 #, c-format
@@ -1399,6 +1418,15 @@ msgstr "Ожидается “NOT”, “DUPLICATE”, “SPLAY” или “SUR
 #: n:103
 msgid "Expecting “F” or “M”"
 msgstr "Ожидается “F” или “M”"
+
+#: readval.c:421
+#: readval.c:443
+#: readval.c:453
+#: readval.c:465
+#: n:483
+#, c-format
+msgid "Expecting quadrant bearing, found “%s”"
+msgstr "Ожидается румб (quadrant), получено “%s”"
 
 #: ../src/listpos.c:82
 #: n:190
@@ -3240,6 +3268,11 @@ msgstr "повторно перечитать файл"
 msgid "show survey date information (if present)"
 msgstr "отображать информацию о датах топо-съемок (если она присутствует)"
 
+#: ../src/dump3d.c:54
+#: n:486
+msgid "convert MOVE and LINE into LEG"
+msgstr ""
+
 #: ../src/gfxcore.cc:3043
 #: ../src/gpx.cc:71
 #: ../src/kml.cc:70
@@ -3282,6 +3315,11 @@ msgstr "высота текста для подписей имен пикето�
 #, c-format
 msgid "station marker size (default %s)"
 msgstr "размер значка пикета (по умолчанию %s)"
+
+#: ../src/survexport.cc:159
+#: n:487
+msgid "produce Survex 3d output"
+msgstr "создавать Survex 3d"
 
 #: ../src/survexport.cc:155
 #: n:102

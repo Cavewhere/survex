@@ -93,6 +93,13 @@ msgstr "Mémoire insuffisante lors de la lecture du fichier « %s »"
 msgid "Survex version %s or greater required to process this survey data."
 msgstr "Une version %s ou supérieure de Survex est nécessaire pour traiter ces données."
 
+#. TRANSLATORS: Indicates a informational message e.g.:
+#. "spoon.svx:12: info: Declination: [...]"
+#: ../src/message.c:1221
+#: n:485
+msgid "info"
+msgstr "info"
+
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
 #: ../src/aven.cc:467
@@ -409,6 +416,18 @@ msgstr "Nombre ou « AUTO » attendu"
 msgid "No survey date specified - using 0 for magnetic declination"
 msgstr "La date de topographie n'est pas spécifiée - utilise 0 pour la déclinaison magnétique"
 
+#. TRANSLATORS: This message gives information about the range of
+#. declination values and the grid convergence value calculated for
+#. each "*declination auto ..." command.
+#.
+#. The first %s will be replaced by the declination range (or single
+#. value), and %.1f%s by the grid convergence angle.
+#: ../src/commands.c:743
+#: n:484
+#, c-format
+msgid "Declination: %s, grid convergence: %.1f%s"
+msgstr "Déclinaison : %s, convergence méridienne : %.1f%s"
+
 #. TRANSLATORS: Used when a BEGIN command has no survey, but the
 #. END command does, e.g.:
 #.
@@ -555,8 +574,8 @@ msgstr "Commande FIX sans coordonnées - fixée à (0,0,0)"
 msgid "Station already fixed at the same coordinates"
 msgstr "Station déjà fixée aux même coordonnées"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX command with
-#. no coordinates - fixing at (0,0,0)" warnings.
+#. TRANSLATORS: Emitted after second and subsequent "FIX" command
+#. with no coordinates.
 #: ../src/commands.c:871
 #: n:441
 #, c-format
@@ -1399,6 +1418,15 @@ msgstr "On attendait « NOT », « DUPLICATE », « SPLAY » ou « SURFACE »"
 #: n:103
 msgid "Expecting “F” or “M”"
 msgstr "On attendait « F » ou « M »"
+
+#: readval.c:421
+#: readval.c:443
+#: readval.c:453
+#: readval.c:465
+#: n:483
+#, c-format
+msgid "Expecting quadrant bearing, found “%s”"
+msgstr ""
 
 #: ../src/listpos.c:82
 #: n:190
@@ -3240,6 +3268,11 @@ msgstr "rembobiner le fichier et le lire une seconde fois"
 msgid "show survey date information (if present)"
 msgstr "afficher la date de la topographie (si présente)"
 
+#: ../src/dump3d.c:54
+#: n:486
+msgid "convert MOVE and LINE into LEG"
+msgstr ""
+
 #: ../src/gfxcore.cc:3043
 #: ../src/gpx.cc:71
 #: ../src/kml.cc:70
@@ -3282,6 +3315,11 @@ msgstr "hauteur du texte dans les étiquettes station (%s par défaut)"
 #, c-format
 msgid "station marker size (default %s)"
 msgstr "taille des marqueurs station (%s par défaut)"
+
+#: ../src/survexport.cc:159
+#: n:487
+msgid "produce Survex 3d output"
+msgstr "produire une sortie 3d Survex"
 
 #: ../src/survexport.cc:155
 #: n:102

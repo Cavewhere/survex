@@ -33,6 +33,7 @@ badinc.out badinc.svx\
 badinc2.out badinc2.svx\
 badinc3.out badinc3.svx\
 badinc4.out badinc4.svx\
+badinc5.mak badinc5.out\
 export.svx export2.svx\
 singlefix.svx singlefix.out singlefix.pos singlereffix.svx singlereffix.pos\
 singlefixerr.svx singlefixerr.pos singlereffixerr.svx singlereffixerr.pos\
@@ -123,8 +124,8 @@ cmd_prefix_bad.out cmd_prefix_bad.svx\
 doubleinc.out doubleinc.svx\
 reenterlots.out reenterlots.svx\
 cs.out cs.pos cs.svx\
-csbad.out csbad.svx\
-csbadsdfix.out csbadsdfix.svx\
+csbad.altout csbad.out csbad.svx\
+csbadsdfix.altout csbadsdfix.out csbadsdfix.svx\
 csfeet.out csfeet.pos csfeet.svx\
 cslonglat.out cslonglat.svx\
 omitfixaroundsolve.out omitfixaroundsolve.svx\
@@ -133,7 +134,10 @@ mixedeols.out mixedeols.svx\
 utf8bom.out utf8bom.svx\
 nonewlineateof.out nonewlineateof.svx\
 suspectreadings.out suspectreadings.svx\
-cmd_data_default.svx
+cmd_data_default.svx\
+gpxexport.gpx gpxexport.svx\
+jsonexport.json jsonexport.svx\
+kmlexport.kml kmlexport.svx
 
 EXTRA_DIST +=\
 imgtest_simple.svx\

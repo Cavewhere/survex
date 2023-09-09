@@ -144,14 +144,29 @@ class GLACanvas : public wxGLCanvas {
     int x_size;
     int y_size;
 
+    // wxHAS_DPI_INDEPENDENT_PIXELS is new in 3.1.6.  In older versions we just
+    // always do the scaling which is slightly less efficient for platforms
+    // where pixel coordinates don't scale with DPI.
+#if defined wxHAS_DPI_INDEPENDENT_PIXELS || \
+    !wxCHECK_VERSION(3,1,6)
+# define HAS_DPI_INDEPENDENT_PIXELS
+#endif
+
+#ifdef HAS_DPI_INDEPENDENT_PIXELS
+    double content_scale_factor = 1.0;
+#else
+    static constexpr unsigned content_scale_factor = 1;
+#endif
+
     vector<GLAList> drawing_lists;
 
     enum {
 	INVALIDATE_ON_SCALE = 1,
 	INVALIDATE_ON_X_RESIZE = 2,
 	INVALIDATE_ON_Y_RESIZE = 4,
-	NEVER_CACHE = 8,
-	CACHED = 16
+	INVALIDATE_ON_HIDPI = 8,
+	NEVER_CACHE = 16,
+	CACHED = 32
     };
     mutable unsigned int list_flags;
 
@@ -168,6 +183,7 @@ public:
     void FirstShow();
 
     void Clear();
+    void ClearNative();
     void StartDrawing();
     void FinishDrawing();
 
@@ -222,8 +238,6 @@ public:
 			     glaCoord x0, glaCoord y0, glaCoord w, glaCoord h);
     void DrawCircle(gla_colour edge, gla_colour fill, glaCoord cx, glaCoord cy, glaCoord radius);
     void DrawSemicircle(gla_colour edge, gla_colour fill, glaCoord cx, glaCoord cy, glaCoord radius, glaCoord start);
-    void DrawTriangle(gla_colour edge, gla_colour fill,
-		      const Vector3 &p0, const Vector3 &p1, const Vector3 &p2);
 
     void DrawBlob(glaCoord x, glaCoord y, glaCoord z);
     void DrawBlob(glaCoord x, glaCoord y);
@@ -293,12 +307,42 @@ public:
 
     void PolygonOffset(bool on) const;
 
-    int GetXSize() const { list_flags |= INVALIDATE_ON_X_RESIZE; return x_size; }
-    int GetYSize() const { list_flags |= INVALIDATE_ON_Y_RESIZE; return y_size; }
+    int GetXSize() const {
+	list_flags |= INVALIDATE_ON_X_RESIZE;
+	return x_size;
+    }
+
+    int GetYSize() const {
+	list_flags |= INVALIDATE_ON_Y_RESIZE;
+	return y_size;
+    }
+
+#ifdef HAS_DPI_INDEPENDENT_PIXELS
+    double GetContentScaleFactor() const {
+	list_flags |= INVALIDATE_ON_HIDPI;
+	return content_scale_factor;
+    }
+
+    void UpdateContentScaleFactor();
+    void OnMove(wxMoveEvent & event);
+#else
+    // wxWindow::GetContentScaleFactor() will always return 1.0, so arrange
+    // things so it's a compile-time constant the compiler can optimise away.
+    //
+    // Dummy parameter here avoids an error due to mismatched return type
+    // compared to the wxWidgets method.
+    unsigned GetContentScaleFactor(bool = false) const { return 1; }
+    void UpdateContentScaleFactor() { }
+#endif
 
     void OnSize(wxSizeEvent & event);
 
     glaCoord GetVolumeDiameter() const { return m_VolumeDiameter; }
+
+    void ScaleMouseEvent(wxMouseEvent& e) const {
+	e.SetX(e.GetX() * content_scale_factor);
+	e.SetY(e.GetY() * content_scale_factor);
+    }
 
 private:
     DECLARE_EVENT_TABLE()

@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.2.45], [https://trac.survex.com/])
+AC_INIT([survex], [1.4.5], [https://trac.survex.com/])
 AM_INIT_AUTOMAKE([1.5 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
@@ -200,25 +200,24 @@ PKG_CHECK_MODULES([LIBAV], [libavcodec libavformat libswscale libavutil], [
 AC_SUBST([LIBAV_LIBS])
 AC_SUBST([LIBAV_CFLAGS])
 
-dnl Check for PROJ4
-PKG_CHECK_MODULES([PROJ], [proj], [
+dnl Check for PROJ.
+PKG_CHECK_MODULES([PROJ], [proj >= 6.2.0], [
 ], [
   dnl pkg-config support in proj seems quite new, so probe directly if not
-  dnl found.
-  AC_CHECK_LIB([proj], [pj_init_plus], [
+  dnl found.  We need proj_create_crs_to_crs_from_pj() which was added in
+  dnl 6.2.0.
+  AC_CHECK_LIB([proj], [proj_create_crs_to_crs_from_pj], [
       PROJ_LIBS=-lproj
       PROJ_CFLAGS=
     ], [
-      AC_MSG_ERROR([PROJ4 required for coordinate transformations])
+      AC_MSG_ERROR([PROJ required for coordinate transformations])
     ])
 ])
 AC_SUBST([PROJ_LIBS])
 AC_SUBST([PROJ_CFLAGS])
-dnl Check for new-style PROJ header.
-AC_CHECK_HEADERS([proj.h])
 
 dnl Checks for header files.
-AC_HEADER_STDC
+
 dnl don't use AC_CHECK_FUNCS for setjmp - mingw #define-s it to _setjmp
 AC_CHECK_HEADERS(limits.h string.h setjmp.h sys/select.h)
 

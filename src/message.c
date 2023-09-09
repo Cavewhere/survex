@@ -1,6 +1,6 @@
 /* message.c
  * Fairly general purpose message and error routines
- * Copyright (C) 1993-2003,2004,2005,2006,2007,2010,2011,2012,2014,2015,2016,2017,2019 Olly Betts
+ * Copyright (C) 1993-2022 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -509,7 +509,7 @@ add_unicode(int charset, unsigned char *p, int value)
        case 0x0160: value = 0x8a; break; /* Scaron */
        case 0x0152: value = 0x8c; break; /* OElig */
        case 0x017d: value = 0x8e; break; /* Zcaron */
-       case 0x2019: value = 0x92; break; /* lsquo */
+       case 0x2019: value = 0x92; break; /* rsquo */
        case 0x201c: value = 0x93; break; /* ldquo */
        case 0x201d: value = 0x94; break; /* rdquo */
        case 0x0161: value = 0x9a; break; /* scaron */
@@ -517,23 +517,23 @@ add_unicode(int charset, unsigned char *p, int value)
        case 0x017e: value = 0x9e; break; /* zcaron */
 #if 0
        /* there are a few other obscure ones we don't currently need */
-       case 0x20ac: value = 0x80; break;
-       case 0x201a: value = 0x82; break;
-       case 0x0192: value = 0x83; break;
-       case 0x201e: value = 0x84; break;
-       case 0x2020: value = 0x86; break;
-       case 0x2021: value = 0x87; break;
-       case 0x02c6: value = 0x88; break;
-       case 0x2030: value = 0x89; break;
-       case 0x2039: value = 0x8b; break;
-       case 0x2018: value = 0x91; break;
-       case 0x2022: value = 0x95; break;
-       case 0x2013: value = 0x96; break;
-       case 0x2014: value = 0x97; break;
-       case 0x02dc: value = 0x98; break;
-       case 0x2122: value = 0x99; break;
-       case 0x203a: value = 0x9b; break;
-       case 0x0178: value = 0x9f; break;
+       case 0x20ac: value = 0x80; break; /* euro */
+       case 0x201a: value = 0x82; break; /* sbquo */
+       case 0x0192: value = 0x83; break; /* fnof */
+       case 0x201e: value = 0x84; break; /* bdquo */
+       case 0x2020: value = 0x86; break; /* dagger */
+       case 0x2021: value = 0x87; break; /* Dagger */
+       case 0x02c6: value = 0x88; break; /* circ */
+       case 0x2030: value = 0x89; break; /* permil */
+       case 0x2039: value = 0x8b; break; /* lsaquo */
+       case 0x2018: value = 0x91; break; /* lsquo */
+       case 0x2022: value = 0x95; break; /* bull */
+       case 0x2013: value = 0x96; break; /* ndash */
+       case 0x2014: value = 0x97; break; /* mdash */
+       case 0x02dc: value = 0x98; break; /* tilde */
+       case 0x2122: value = 0x99; break; /* trade */
+       case 0x203a: value = 0x9b; break; /* rsaquo */
+       case 0x0178: value = 0x9f; break; /* Yuml */
 #endif
       }
       if (value < 0x100) {
@@ -890,7 +890,7 @@ msg_appname(void)
 }
 
 void
-msg_init_(char * const *argv)
+(msg_init)(char * const *argv)
 {
    char *p;
 #if OS_UNIX_MACOS
@@ -1029,20 +1029,9 @@ macos_got_msg:
 #endif
 #if OS_WIN32
 	 /* GetUserDefaultUILanguage() requires Microsoft Windows 2000 or
-	  * newer.  For older versions, we use GetUserDefaultLCID().
+	  * newer, but we don't support anything earlier than Vista.
 	  */
-	 {
-	    HMODULE win32 = GetModuleHandle(TEXT("kernel32.dll"));
-	    FARPROC f = GetProcAddress(win32, "GetUserDefaultUILanguage");
-	    if (f) {
-	       typedef LANGID (WINAPI *func_GetUserDefaultUILanguage)(void);
-	       func_GetUserDefaultUILanguage g;
-	       g = (func_GetUserDefaultUILanguage)f;
-	       locid = g();
-	    } else {
-	       locid = GetUserDefaultLCID();
-	    }
-	 }
+	 locid = GetUserDefaultUILanguage();
 	 if (locid) {
 	    WORD langid = LANGIDFROMLCID(locid);
 	    switch (PRIMARYLANGID(langid)) {
@@ -1151,20 +1140,6 @@ macos_got_msg:
    select_charset(default_charset());
 }
 
-const char *
-msg_proj_finder_(const char * file)
-{
-    struct stat sb;
-    static char * r = NULL;
-    static int r_len = 0;
-    s_zero(&r);
-    s_cat(&r, &r_len, pth_cfg_files);
-    s_cat(&r, &r_len, "/proj/");
-    s_cat(&r, &r_len, file);
-    if (stat(r, &sb) < 0) return NULL;
-    return r;
-}
-
 #ifndef AVEN
 /* Return message if messages available, else a fallback value. */
 static const char *
@@ -1228,14 +1203,22 @@ v_report(int severity, const char *fnm, int line, int col, int en, va_list ap)
    }
    fputs(": ", STDERR);
 
-   if (severity == 0) {
+   switch (severity) {
+    case DIAG_INFO:
+      /* TRANSLATORS: Indicates a informational message e.g.:
+       * "spoon.svx:12: info: Declination: [...]" */
+      level = msg_opt(/*info*/485, "info");
+      break;
+    case DIAG_WARN:
       /* TRANSLATORS: Indicates a warning message e.g.:
        * "spoon.svx:12: warning: *prefix is deprecated" */
       level = msg_opt(/*warning*/4, "warning");
-   } else {
+      break;
+    default:
       /* TRANSLATORS: Indicates an error message e.g.:
        * "spoon.svx:13:4: error: Field may not be omitted" */
       level = msg_opt(/*error*/93, "error");
+      break;
    }
    fputs(level, STDERR);
    fputs(": ", STDERR);
@@ -1245,70 +1228,34 @@ v_report(int severity, const char *fnm, int line, int col, int en, va_list ap)
 #endif
 
    switch (severity) {
-    case 0:
+    case DIAG_WARN:
       msg_warnings++;
       break;
-    case 1:
+    case DIAG_ERR:
       msg_errors++;
       if (msg_errors == 50)
 	 fatalerror_in_file(fnm, 0, /*Too many errors - giving up*/19);
       break;
-    case 2:
+    case DIAG_FATAL:
       exit(EXIT_FAILURE);
    }
 }
 
 void
-warning(int en, ...)
+diag(int severity, int en, ...)
 {
    va_list ap;
    va_start(ap, en);
-   v_report(0, NULL, 0, 0, en, ap);
+   v_report(severity, NULL, 0, 0, en, ap);
    va_end(ap);
 }
 
 void
-error(int en, ...)
+diag_in_file(int severity, const char *fnm, int line, int en, ...)
 {
    va_list ap;
    va_start(ap, en);
-   v_report(1, NULL, 0, 0, en, ap);
-   va_end(ap);
-}
-
-void
-fatalerror(int en, ...)
-{
-   va_list ap;
-   va_start(ap, en);
-   v_report(2, NULL, 0, 0, en, ap);
-   va_end(ap);
-}
-
-void
-warning_in_file(const char *fnm, int line, int en, ...)
-{
-   va_list ap;
-   va_start(ap, en);
-   v_report(0, fnm, line, 0, en, ap);
-   va_end(ap);
-}
-
-void
-error_in_file(const char *fnm, int line, int en, ...)
-{
-   va_list ap;
-   va_start(ap, en);
-   v_report(1, fnm, line, 0, en, ap);
-   va_end(ap);
-}
-
-void
-fatalerror_in_file(const char *fnm, int line, int en, ...)
-{
-   va_list ap;
-   va_start(ap, en);
-   v_report(2, fnm, line, 0, en, ap);
+   v_report(severity, fnm, line, 0, en, ap);
    va_end(ap);
 }
 

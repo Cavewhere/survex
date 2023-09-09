@@ -1,6 +1,6 @@
 /* cavern.c
  * SURVEX Cave surveying software: data reduction main and related functions
- * Copyright (C) 1991-2003,2004,2005,2010,2011,2013,2014,2015,2016,2017 Olly Betts
+ * Copyright (C) 1991-2022 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -64,8 +64,8 @@ prefix *anon_list = NULL;
 long cLegs, cStns;
 long cComponents;
 bool fExportUsed = fFalse;
-projPJ proj_out = NULL;
 char * proj_str_out = NULL;
+PJ * pj_cached = NULL;
 
 FILE *fhErrStat = NULL;
 img *pimg = NULL;
@@ -78,8 +78,8 @@ static bool f_warnings_are_errors = fFalse; /* turn warnings into errors */
 nosurveylink *nosurveyhead;
 
 real totadj, total, totplan, totvert;
-real min[3], max[3];
-prefix *pfxHi[3], *pfxLo[3];
+real min[6], max[6];
+prefix *pfxHi[6], *pfxLo[6];
 
 char *survey_title = NULL;
 int survey_title_len;
@@ -152,6 +152,12 @@ pause_on_exit(void)
 
 int current_days_since_1900;
 
+static void discarding_proj_logger(void *ctx, int level, const char *message) {
+    (void)ctx;
+    (void)level;
+    (void)message;
+}
+
 extern CDECL int
 main(int argc, char **argv)
 {
@@ -172,15 +178,26 @@ main(int argc, char **argv)
    setvbuf(stdout, NULL, _IOLBF, 0);
 #endif
 
+   /* Prevent stderr spew from PROJ. */
+   proj_log_func(PJ_DEFAULT_CTX, NULL, discarding_proj_logger);
+
    msg_init(argv);
 
    pcs = osnew(settings);
    pcs->next = NULL;
    pcs->Translate = ((short*) osmalloc(ossizeof(short) * 257)) + 1;
    pcs->meta = NULL;
-   pcs->proj = NULL;
+   pcs->proj_str = NULL;
    pcs->declination = HUGE_REAL;
    pcs->convergence = 0.0;
+   pcs->dec_filename = NULL;
+   pcs->dec_line = 0;
+   pcs->dec_context = NULL;
+   pcs->dec_lat = HUGE_VAL;
+   pcs->dec_lon = HUGE_VAL;
+   pcs->dec_alt = HUGE_VAL;
+   pcs->min_declination = HUGE_VAL;
+   pcs->max_declination = -HUGE_VAL;
 
    /* Set up root of prefix hierarchy */
    root = osnew(prefix);
@@ -198,7 +215,7 @@ main(int argc, char **argv)
    cLegs = cStns = cComponents = 0;
    totadj = total = totplan = totvert = 0.0;
 
-   for (d = 0; d <= 2; d++) {
+   for (d = 0; d < 6; d++) {
       min[d] = HUGE_REAL;
       max[d] = -HUGE_REAL;
       pfxHi[d] = pfxLo[d] = NULL;
@@ -332,6 +349,8 @@ main(int argc, char **argv)
 
    validate();
 
+   report_declination(pcs);
+
    solve_network(/*stnlist*/); /* Find coordinates of all points */
    validate();
 
@@ -392,6 +411,19 @@ main(int argc, char **argv)
 static void
 do_range(int d, int msgno, real length_factor, const char * units)
 {
+   if (d < 3) {
+      /* If the bound including anonymous stations is at an anonymous station
+       * but the bound only considering named stations is the same, use the
+       * named station for the anonymous bound too.
+       */
+      if (TSTBIT(pfxHi[d]->sflags, SFLAGS_ANON) && max[d] == max[d + 3]) {
+	 pfxHi[d] = pfxHi[d + 3];
+      }
+      if (TSTBIT(pfxLo[d]->sflags, SFLAGS_ANON) && min[d] == min[d + 3]) {
+	 pfxLo[d] = pfxLo[d + 3];
+      }
+   }
+
    /* sprint_prefix uses a single buffer, so to report two stations in one
     * message we need to make a temporary copy of the string for one of them.
     */
@@ -402,6 +434,11 @@ do_range(int d, int msgno, real length_factor, const char * units)
    printf(msg(msgno), hi - lo, units, pfx_hi, hi, units, pfx_lo, lo, units);
    osfree(pfx_hi);
    putnl();
+
+   /* Range without anonymous stations at offset 3. */
+   if (d < 3 && (pfxHi[d] != pfxHi[d + 3] || pfxLo[d] != pfxLo[d + 3])) {
+      do_range(d + 3, msgno, length_factor, units);
+   }
 }
 
 static void

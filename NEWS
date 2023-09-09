@@ -1,3 +1,211 @@
+Changes in 1.4.5 (2023-06-29):
+
+* aven: Fix rendering of crosses when drawn as sprites.  Reported by echarlie.
+
+* (macOS version): aven: Fix crash in export dialog.  Fixes #133, reported by
+  rixyane.  Thanks to Wookey for testing.
+
+* manual: Expand docs on connecting to Compass data.
+
+* Minor translation updates.
+
+Changes in 1.4.4 (2023-02-03):
+
+* aven: Fix red line in clino background to be grey (this was introduced in
+  1.4.3 and was a debugging change accidentally left in).
+
+* aven: Accept weird .3d files from Therion which have empty components in
+  station names.  That's not really valid by Survex's definition of station
+  names, but it's not very helpful to reject such files, so just disable the
+  checks that were rejecting this.
+
+  The result is empty entries in the survey tree, but I don't see what we can
+  really do that's better than that.
+
+  Reported by Vasily Vl. Suhachev.
+
+* aven: Make it more obvious you can enter a custom scale by adding a "..."
+  entry to the scale combobox - selecting this clears the value and gives focus
+  to the combo box text entry. This control has always supported clicking to
+  enter a custom scale, but there wasn't really any indication that this was
+  possible before.  Partly addresses #132, reported by Eric C. Landgraf.
+
+* aven: Force export window to resize when the export format is changed as
+  different controls are shown depending on the export format.
+
+* aven: Right-align tilt spin control value in print/export dialog to match the
+  bearing spin control.
+
+* aven,survexport: Add ability to export as Survex 3d which is useful as you
+  can filter to a subset of surveys, filter out splays, convert from other
+  formats the img library can read, etc.  This feature is a bit rough and ready
+  currently but please report issues.
+
+* dump3d: Add --legs option which converts MOVE and LINE to a single LEG line
+  per leg with the from and to coordinates.  Tools which parse dump3d output
+  should find this easier to process as it avoids having to track a "current
+  position".
+
+* Update manual to have a complete list of quantities which *calibrate accepts.
+  Reported by echarlie
+
+* cavern.tst: Fix testsuite to work with SOURCE_DATE_EPOCH set.
+
+Changes in 1.4.3 (2022-05-17):
+
+* aven: Much improved support for HiDPI monitors on all platforms.
+
+* aven: When started without a file make sure the window has focus so menu
+  accelerators and shortcuts work without clicking on the window.
+
+* aven,survexport: DXF export now puts splays in a separate layer and uses a
+  dotted linetype for them.  Patch from echarlie, see #60.
+
+* Improved survexport man page to include command line options and a short
+  note about DXF export.  Patch from echarlie.
+
+* Minor translation updates.
+
+* (Unix version): aven: Fix handling of EGL-based wxGLCanvas (which wxGTK 3.1.5
+  has).  Fix a build failure and don't force X11 (as the EGL-based wxGLCanvas
+  works on Wayland).
+
+* (MacOS version): aven: Fix hang on startup without a file.  Fixes #120,
+  reported by Enrico Fratnik.
+
+* (Microsoft Windows version): Now using wxWidgets 3.1.6 (was 3.0.5).
+
+* img library: Support reproducible builds which create .3d files by not
+  embedding a timestamp if environment variable SOURCE_DATE_EPOCH is set.
+  Requested by Martin Budaj.
+
+Changes in 1.4.2 (2022-02-25):
+
+* aven: Fix to be compatible with FFmpeg 5.0.
+
+* Improve docs for *cs and *declination.
+
+* cavern: Fix "*declination auto" not to crash when built with PROJ < 8.1.0.
+  Bug introduced in 1.4.0.
+
+* cavern: For each `*declination auto` command cavern now reports an "info"
+  message showing the range of calculated declination values and the dates at
+  which the ends of the range were obtained, and also the grid convergence
+  (which doesn't vary with time).  Fixes #92, reported by Rob Eavis.
+
+* cavern: If any of the N-S, E-W or U-D ranges includes an anonymous station
+  then also report the range in that direction excluding anonymous stations.
+  Patch from Thomas Holder.
+
+* cavern: The error from a bad `*cs custom` command now highlights the quoted
+  string properly.
+
+* cavern: "FIX command with no coordinates - fixing at (0,0,0)" is now an
+  "info" rather than a "warning".  It's not really reporting a problem and the
+  ability to omit the coordinates is a deliberate feature.  It is useful for
+  the user to know where the "*fix" without coordinates is if they want to
+  change the survey to be in real coordinates, so an "info" diagnostic is a
+  good fit.  This also means aven will no longer stay on the log view after
+  processing a dataset which fixes without coordinates.
+
+* cavern: If "*fix" is used twice with no coordinates we no longer say
+  "FIX command with no coordinates - fixing at (0,0,0)" right before:
+
+  error: Already had FIX command with no coordinates for station "x"
+
+* cavern: Include errors in Compass .mak files now report the error in the line
+  where the included filename is actually specified.
+
+* cavern.tst: Add test coverage for warnings for *entrance and *export with
+  a station which doesn't exist otherwise.
+
+* aven/survexport: Change JSON export to be valid JSON.  This means the output
+  has changed incompatibly, but it wasn't valid JSON before which suggests
+  nobody was actually successfully using it. Fixes #128, reported by Pawczak.
+
+* aven.tst: Skip one testcase on macos as it seems to hang, at least when
+  running on the Continuous Integration system.
+
+* (Microsoft Windows version): The installer is now generated with a much
+  newer version of Innosetup.  Most notably, it now supports installing as a
+  non-admin user.  This also means Microsoft Windows Vista is now the minimum
+  supported version but 2000 and XP are both many years out of support anyway.
+
+* (Microsoft Windows version): The coordinate system database for PROJ is
+  now included so "*cs" now works (broken since 1.4.0).
+
+* Chinese translation updates from Qingqing Li.
+
+* Building from source now requires a compiler with support for C99.  C99
+  seems to be universally supported by compilers now so we don't expect this to
+  inconvenience anyone.
+
+Changes in 1.4.1 (2021-11-08):
+
+* This release should work with any PROJ version >= 6.2.0.
+
+* cavern.tst: Fix to actually run tests when building outside the source
+  tree.  Previously files for testcases weren't found, and tests were skipped
+  with a warning, which lead to 1.4.0 being released with two failing testcase.
+  Fix to find the files, and make not finding them an error.
+
+* cavern.tst: Fix testcases gpxexport and require_fail which were failing
+  in 1.4.0.
+
+* 3dformat.htm: Document that coordinate system can be ESRI:<number>.
+
+Changes in 1.4.0 (2021-11-06):
+
+* New release series to mark that Survex now uses the new PROJ API, and
+  requires PROJ >= 7.2.0.  Survex 1.2.x will continue to support PROJ < 8
+  (and won't support newer PROJ versions).  Fixes #102, reported by Bas
+  Couwenberg.
+
+  Due to these changes, PROJ will now convert directly between coordinate
+  systems where it knows how to, instead of always converting via WGS84.
+  This means conversions may now be more accurate in some cases, and you may
+  notice station coordinates changing - these should be for the better.
+
+  Also, the vertical datum is now taken into account automatically, and
+  terrain data now aligns much better vertically with surveys.  Fixes #56.
+
+* aven: Clicking and holding the left mouse button on the compass or clino,
+  then (while still holding) clicking the right button no longer causes a
+  wxWidgets assertion to fail.  Reported by echarlie.
+
+* img library: Rewrite certain proj strings when reading 3d files for
+  better compatibility with newer PROJ versions, where use of proj
+  strings is strongly discouraged.
+
+  `+init=epsg:` followed by a code number is rewritten to `EPSG:`.
+
+  `+init=esri:` followed by a code number is rewritten to `ESRI:`.
+
+  The proj strings which cavern used to put in 3d files for UTM zones and
+  S-MERC are rewritten to `EPSG:` follow by the appropriate code number.
+
+* Also install survex.lang for gtksourceview 4. Fixes #125, reported by Martin
+  Green.
+
+* Fix missing data style in interleaved example in manual.  Reported by
+  echarlie.
+
+* Use jw from docbook-utils instead of sgmltools-lite to process the manual.
+  The sgmltools-lite homepage says it's no longer being developed, and suggests
+  docbook-tools (which Debian packages as docbook-utils) as a replacement.
+
+* doc/HACKING.htm: Update Debian packages to install
+
+* doc/HACKING.htm: Update details of setting up mingw cross-build environment.
+
+* Add simple tests for GPX and KML export.
+
+* Expand cavern testcase csbad.
+
+* cavern.tst: Parse warning/error counts more robustly.  Previously we'd get
+  confused if the final line just contained an integer, e.g. if we end listing
+  stations not attached to a fixed point.
+
 Changes in 1.2.45 (2021-03-09):
 
 * Avoid undefined signed shifts in 3d file handling.  Survex itself is only

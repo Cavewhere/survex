@@ -43,8 +43,16 @@ already covered).
 <P>You'll need automake 1.5 or later (earlier versions don't support
 per-executable CFLAGS; 1.6 has been tested and works, but wasn't a
 very stable release - automake 1.6.1 is a better bet)
-and autoconf 2.50 or later (autoconf 2.52, 2.53 and 2.64 have all
+and autoconf 2.50 or later (autoconf 2.52, 2.53, 2.64 and 2.71 have all
 been used successfully).
+
+<p>The wxWidgets library is used for aven's UI.  Currently >= 3.0.0 is
+supported.
+
+<p>The PROJ library is used for coordinate conversions.  Currently >= 6.2.0 is
+supported.
+
+<P>The Perl Locale::PO module is used for process message translation files.
 
 <P>For building the documentation you'll need docbook-utils (also
 known as docbook-tools) and w3m.
@@ -54,7 +62,7 @@ known as docbook-tools) and w3m.
 <P>On Debian, you can install the required packages using:
 
 <pre>
-sudo apt-get install autoconf automake inkscape netpbm docbook-utils w3m unifont
+sudo apt-get install autoconf automake liblocale-po-perl libproj-dev libwxgtk3.0-gtk3-dev inkscape netpbm docbook-utils w3m unifont
 </pre>
 
 <H2>Building on Non-Unix Platforms</H2>
@@ -82,25 +90,47 @@ Then I configure, build and install with:
 </p>
 
 <pre>
-./configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --with-msw --with-opengl --enable-display --disable-shared host_alias=i686-w64-mingw32
+./configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --with-msw --with-opengl --without-libtiff --enable-display --disable-shared host_alias=i686-w64-mingw32 DOCBOOK_TO_MAN="xmlto man --skip-validation"
+make
+sudo make install
+</pre>
+
+<p>With wxWidgets 3.1.6, there's a linking problem with aven if libtiff isn't
+disabled, and Survex doesn't use it so it's simplest to just disable it:
+</p>
+
+<pre>
+/usr/bin/i686-w64-mingw32-ld: /usr/i686-w64-mingw32/lib/libwxtiff-3.1-i686-w64-mingw32.a(wxtiff_tif_dirinfo.o):tif_dirinfo.c:(.text+0x80d): undefined reference to `_TIFF_snprintf_f'
+</pre>
+
+<p>
+For sqlite (needed by PROJ):
+</p>
+
+<pre>
+wget https://www.sqlite.org/2021/sqlite-autoconf-3360000.tar.gz
+tar xvf sqlite-autoconf-3360000.tar.gz
+mkdir BUILD
+cd BUILD
+../configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --disable-shared --disable-fts4 --disable-fts5 --disable-json1 --disable-rtree host_alias=i686-w64-mingw32
 make
 sudo make install
 </pre>
 
 <p>
-For PROJ 4.8.0:
+For PROJ 8.2.0 (TIFF apparently useful for some grids, but would also need libtiff):
 </p>
 
 <pre>
 mkdir BUILD
 cd BUILD
-../configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --disable-shared host_alias=i686-w64-mingw32
+../configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --disable-shared host_alias=i686-w64-mingw32 --without-curl --disable-tiff
 make
 sudo make install
 </pre>
 
 <p>
-For libav 10.3:
+For ffmpeg 4.4.1:
 </p>
 
 <pre>
@@ -120,43 +150,23 @@ and I'll incorporate patches provided they're fairly clean.
 <H2>Microsoft Windows Installer Builder</H2>
 
 <P>We use <A HREF="http://www.jrsoftware.org/isinfo.php">InnoSetup</A> to
-build the MS Windows Installer.  Survex 1.2.23 was built using InnoSetup
-5.5.6 (non-Unicode version, which apparently produces smaller installer
-packages).
+build the MS Windows Installer.  Survex 1.4.2 was built using InnoSetup
+6.2.0.
 
 <P>Here are some random notes:
 
 <H3>Packages Needed</H3>
 
-<P>On Debian, the commands to install wine vary depending on the architecture
-you're running - to check this use:
-
-<pre>
-dpkg-architecture -qDEB_HOST_GNU_CPU
-</pre>
-
-<H4>For i386</H4>
+<P>On Debian unstable/testing:
 
 <pre>
 sudo apt-get install wine wx3.0-i18n
 </pre>
 
-<H4>For x86_64</H4>
-
-<P>You'll need to enable multi-arch and install the i386 packages of wine:
-
-<pre>
-sudo dpkg --add-architecture i386
-sudo apt-get update
-sudo apt-get install wine wine-bin:i386 wx3.0-i18n
-</pre>
-
-<H4>Common</H4>
-
 <P>And then run:
 
 <pre>
-wine ~/Downloads/isetup-5.5.3.exe
+wine ~/Downloads/innosetup-6.2.0.exe
 </pre>
 
 <H3>Translations</H3>
@@ -166,17 +176,17 @@ add these, which you can find in the <code>lib</code> subdirectory of Survex's
 source tree:
 
 <UL>
-<li>ChineseSimplified.isl (Unofficial translation; for 5.5.3+)
-<li>ChineseTraditional.isl (Candidate official translation; for 5.5.3+)
-<li>EnglishBritish.isl (Unofficial translation; for 5.5.3+)
-<li>Indonesian.isl (Unofficial translation; for 5.5.3+)
-<li>Romanian.isl (Unofficial translation; for 5.5.3+)
-<li>Slovak.isl (Unofficial translation; for 5.5.3+)
+<li>ChineseSimplified.isl (6.1.0+)
+<li>ChineseTraditional.isl (6.1.0+)
+<li>EnglishBritish.isl (6.1.0+)
+<li>Greek.isl (6.1.0+)
+<li>Hungarian.isl (6.1.0+)
+<li>Indonesian.isl (6.1.0+)
+<li>Romanian.isl (5.5.3+)
 </UL>
 
-These are taken from the innosetup repo at
-https://github.com/jrsoftware/issrc.git
-(look in the <code>Files/Languages/Unofficial</code> subdirectory).
+These are taken from the <a href="https://jrsoftware.org/files/istrans/">Inno
+Setup Translations</a> page.
 
 <H3>survex.iss</H3>
 

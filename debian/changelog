@@ -1,3 +1,69 @@
+survex (1.4.4-1) unstable; urgency=medium
+
+  * New upstream release:
+    + Drop cherry-picked patch: fix-clino-red-line.patch
+    + Drop cherry-picked patch: fix-cavern-tst.patch
+  * debian/control: Mark conformance with policy 4.6.2.
+
+ -- Olly Betts <olly@survex.com>  Fri, 03 Feb 2023 16:02:13 +1300
+
+survex (1.4.3-2) unstable; urgency=medium
+
+  * debian/control: Switch to use wxwidgets3.2.
+
+ -- Olly Betts <olly@survex.com>  Mon, 12 Sep 2022 10:10:05 +1200
+
+survex (1.4.3-1) unstable; urgency=medium
+
+  * New upstream release.
+  * New patch cherry picked from upstream: fix-clino-red-line.patch
+  * New patch cherry picked from upstream: fix-cavern-tst.patch
+  * debian/control: Mark conformance with policy 4.6.1.
+
+ -- Olly Betts <olly@survex.com>  Wed, 18 May 2022 11:20:53 +1200
+
+survex (1.4.2-1) unstable; urgency=medium
+
+  * New upstream release.
+    + Supports FFmpeg 5.0 (Closes: #1004811)
+    + debian/control: Relax libproj-dev dependency to (>= 6.2.0) since that's
+      what this upstream release supports (just to aid backporting).
+  * debian/survex-aven.lintian-overrides: Update chasing Lintian warning
+    message format changes.
+  * debian/source/include-binaries: Remove file as only entry was for
+    "debian/upstream-signing-key.pgp" which was replaced with an ASCII
+    armoured version in 1.2.37-1.
+
+ -- Olly Betts <olly@survex.com>  Sun, 27 Feb 2022 09:15:08 +1300
+
+survex (1.4.1-1) unstable; urgency=medium
+
+  * New upstream release.
+    + Includes patch fix-testsuite.patch so drop.
+  * debian/survex.install: Install a second copy of survex.lang so
+    gtksourceview 4 can find it.
+  * debian/compat,debian/control: Update to dh compat level 12.
+    Debug information is now compressed with dwz.
+
+ -- Olly Betts <olly@survex.com>  Tue, 09 Nov 2021 15:50:13 +1300
+
+survex (1.4.0-1) unstable; urgency=medium
+
+  * New upstream release.
+    + Supports PROJ 8 (Closes: #983229)
+    + Needs new patch: fix-testsuite.patch
+  * debian/control: Mark conformance with policy 4.6.0.
+
+ -- Olly Betts <olly@survex.com>  Sun, 07 Nov 2021 11:45:43 +1300
+
+survex (1.2.45-1) unstable; urgency=medium
+
+  * New upstream release.
+    + Fixes undefined behaviour in shifts of signed values
+    + Fixes UTF-8 handling bug
+
+ -- Olly Betts <olly@survex.com>  Tue, 09 Mar 2021 16:21:35 +1300
+
 survex (1.2.44-1) unstable; urgency=medium
 
   * New upstream release.

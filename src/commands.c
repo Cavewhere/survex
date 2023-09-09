@@ -1,6 +1,6 @@
 /* commands.c
  * Code for directives
- * Copyright (C) 1991-2003,2004,2005,2006,2010,2011,2012,2013,2014,2015,2016,2019 Olly Betts
+ * Copyright (C) 1991-2022 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,16 +26,12 @@
 #include <stddef.h> /* for offsetof */
 #include <string.h>
 
-#ifdef HAVE_PROJ_H
-/* Work around broken check in proj.h:
- * https://github.com/OSGeo/PROJ/issues/1523
- */
-# ifndef PROJ_H
-#  include <proj.h>
-# endif
+#include <proj.h>
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 2)
+/* Needed for proj_factors workaround */
+# include <proj_experimental.h>
 #endif
-#define ACCEPT_USE_OF_DEPRECATED_PROJ_API_H 1
-#include <proj_api.h>
 
 #include "cavern.h"
 #include "commands.h"
@@ -50,28 +46,7 @@
 #include "readval.h"
 #include "str.h"
 
-#ifndef HAVE_PROJ_H
-/*** Extracted from PROJ 4.x projects.h (yuck, but grass also does this): */
-struct DERIVS {
-    double x_l, x_p; /* derivatives of x for lambda-phi */
-    double y_l, y_p; /* derivatives of y for lambda-phi */
-};
-
-struct FACTORS {
-    struct DERIVS der;
-    double h, k;	/* meridinal, parallel scales */
-    double omega, thetap;	/* angular distortion, theta prime */
-    double conv;	/* convergence */
-    double s;		/* areal scale factor */
-    double a, b;	/* max-min scale error */
-    int code;		/* info as to analytics, see following */
-};
-
-int pj_factors(projLP, projPJ *, double, struct FACTORS *);
-/***/
-#endif
-
-static projPJ proj_wgs84;
+#define WGS84_DATUM_STRING "EPSG:4326"
 
 static void
 default_grade(settings *s)
@@ -730,39 +705,104 @@ cmd_begin(void)
    }
 }
 
-extern void
-free_settings(settings *p) {
-   /* don't free default ordering or ordering used by parent */
-   const reading *order = p->ordering;
-   if (order != default_order && (!p->next || order != p->next->ordering))
-      osfree((reading*)order);
+static void
+invalidate_pj_cached(void)
+{
+    /* Invalidate the cached PJ. */
+    if (pj_cached) {
+	proj_destroy(pj_cached);
+	pj_cached = NULL;
+    }
+}
 
-   /* free Translate if not used by parent */
-   if (!p->next || p->Translate != p->next->Translate)
-      osfree(p->Translate - 1);
+void
+report_declination(settings *p)
+{
+    if (p->min_declination <= p->max_declination) {
+	int y, m, d;
+	char range[128];
+	const char* deg_sign = msg(/*°*/344);
+	ymd_from_days_since_1900(p->min_declination_days, &y, &m, &d);
+	snprintf(range, sizeof(range),
+		 "%.1f%s @ %04d-%02d-%02d",
+		 deg(p->min_declination), deg_sign, y, m, d);
+	if (p->min_declination_days != p->max_declination_days) {
+	    size_t len = strlen(range);
+	    ymd_from_days_since_1900(p->max_declination_days, &y, &m, &d);
+	    snprintf(range + len, sizeof(range) - len,
+		     " / %.1f%s @ %04d-%02d-%02d",
+		     deg(p->max_declination), deg_sign, y, m, d);
+	}
+	/* TRANSLATORS: This message gives information about the range of
+	 * declination values and the grid convergence value calculated for
+	 * each "*declination auto ..." command.
+	 *
+	 * The first %s will be replaced by the declination range (or single
+	 * value), and %.1f%s by the grid convergence angle.
+	 */
+	compile_diagnostic_at(DIAG_INFO|DIAG_COL, p->dec_filename, p->dec_line,
+			      /*Declination: %s, grid convergence: %.1f%s*/484,
+			      range,
+			      deg(p->convergence), deg_sign);
+	PUTC(' ', STDERR);
+	fputs(p->dec_context, STDERR);
+	fputnl(STDERR);
+	free(p->dec_context);
+	p->dec_context = NULL;
+    }
+}
 
-   /* free meta if not used by parent, or in this block */
-   if (p->meta && (!p->next || p->meta != p->next->meta) && p->meta->ref_count == 0)
-       osfree(p->meta);
+void
+pop_settings(void)
+{
+    settings * p = pcs;
+    pcs = pcs->next;
 
-   /* free proj if not used by parent, or as the output projection */
-   if (p->proj && (!p->next || p->proj != p->next->proj) && p->proj != proj_out)
-       pj_free(p->proj);
+    SVX_ASSERT(pcs);
 
-   osfree(p);
+    if (pcs->dec_lat != p->dec_lat ||
+	pcs->dec_lon != p->dec_lon ||
+	pcs->dec_alt != p->dec_alt) {
+	report_declination(p);
+    } else {
+	pcs->min_declination_days = p->min_declination_days;
+	pcs->max_declination_days = p->max_declination_days;
+	pcs->min_declination = p->min_declination;
+	pcs->max_declination = p->max_declination;
+    }
+
+    if (p->proj_str != pcs->proj_str) {
+	if (!p->proj_str || !pcs->proj_str ||
+	    strcmp(p->proj_str, pcs->proj_str) != 0) {
+	    invalidate_pj_cached();
+	}
+	/* free proj_str if not used by parent */
+	osfree(p->proj_str);
+    }
+
+    /* don't free default ordering or ordering used by parent */
+    if (p->ordering != default_order && p->ordering != pcs->ordering)
+	osfree((reading*)p->ordering);
+
+    /* free Translate if not used by parent */
+    if (p->Translate != pcs->Translate)
+	osfree(p->Translate - 1);
+
+    /* free meta if not used by parent, or in this block */
+    if (p->meta && p->meta != pcs->meta && p->meta->ref_count == 0)
+	osfree(p->meta);
+
+    osfree(p);
 }
 
 static void
 cmd_end(void)
 {
-   settings *pcsParent;
    prefix *survey, *begin_survey;
    filepos fp;
 
-   pcsParent = pcs->next;
-
    if (pcs->begin_lineno == 0) {
-      if (pcsParent == NULL) {
+      if (pcs->next == NULL) {
 	 /* more ENDs than BEGINs */
 	 compile_diagnostic(DIAG_ERR|DIAG_SKIP, /*No matching BEGIN*/192);
       } else {
@@ -773,9 +813,7 @@ cmd_end(void)
 
    begin_survey = pcs->begin_survey;
 
-   SVX_ASSERT(pcsParent);
-   free_settings(pcs);
-   pcs = pcsParent;
+   pop_settings();
 
    /* note need to read using root *before* BEGIN */
    skipblanks();
@@ -856,7 +894,7 @@ cmd_fix(void)
       if (!isEol(ch) && !isComm(ch)) x = read_numeric(fFalse);
    }
    if (x == HUGE_REAL) {
-      if (pcs->proj || proj_out) {
+      if (pcs->proj_str || proj_str_out) {
 	 compile_diagnostic(DIAG_ERR|DIAG_COL|DIAG_SKIP, /*Coordinates can't be omitted when coordinate system has been specified*/439);
 	 return;
       }
@@ -866,12 +904,9 @@ cmd_fix(void)
 	 return;
       }
 
-      /* TRANSLATORS: " *fix a " gives this message: */
-      compile_diagnostic(DIAG_WARN|DIAG_COL, /*FIX command with no coordinates - fixing at (0,0,0)*/54);
-
       if (name_omit_already) {
-	 /* TRANSLATORS: Emitted after second and subsequent "FIX command with
-	  * no coordinates - fixing at (0,0,0)" warnings.
+	 /* TRANSLATORS: Emitted after second and subsequent "FIX" command
+	  * with no coordinates.
 	  */
 	 compile_diagnostic_at(DIAG_ERR|DIAG_COL,
 			       name_omit_already_filename,
@@ -879,6 +914,9 @@ cmd_fix(void)
 			       /*Already had FIX command with no coordinates for station “%s”*/441,
 			       sprint_prefix(name_omit_already));
       } else {
+	 /* TRANSLATORS: " *fix a " gives this message: */
+	 compile_diagnostic(DIAG_INFO|DIAG_COL, /*FIX command with no coordinates - fixing at (0,0,0)*/54);
+
 	 name_omit_already = fix_name;
 	 name_omit_already_filename = file.filename;
 	 name_omit_already_line = file.line;
@@ -890,19 +928,48 @@ cmd_fix(void)
       y = read_numeric(fFalse);
       z = read_numeric(fFalse);
 
-      if (pcs->proj && proj_out) {
-	 if (pj_is_latlong(pcs->proj)) {
-	    /* PROJ expects lat and long in radians. */
+      if (pcs->proj_str && proj_str_out) {
+	 PJ *transform = pj_cached;
+	 if (!transform) {
+	     transform = proj_create_crs_to_crs(PJ_DEFAULT_CTX,
+						pcs->proj_str,
+						proj_str_out,
+						NULL);
+	     if (transform) {
+		/* Normalise the output order so x is longitude and y latitude - by
+		 * default new PROJ has them switched for EPSG:4326 which just seems
+		 * confusing.
+		 */
+		PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX,
+							       transform);
+		proj_destroy(transform);
+		transform = pj_norm;
+	     }
+
+	     pj_cached = transform;
+	 }
+
+	 if (proj_angular_input(transform, PJ_FWD)) {
+	    /* Input coordinate system expects radians. */
 	    x = rad(x);
 	    y = rad(y);
 	 }
-	 int r = pj_transform(pcs->proj, proj_out, 1, 1, &x, &y, &z);
-	 if (r != 0) {
-	    compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436, pj_strerrno(r));
+
+	 PJ_COORD coord = {{x, y, z, HUGE_VAL}};
+	 coord = proj_trans(transform, PJ_FWD, coord);
+	 x = coord.xyzt.x;
+	 y = coord.xyzt.y;
+	 z = coord.xyzt.z;
+
+	 if (x == HUGE_VAL || y == HUGE_VAL || z == HUGE_VAL) {
+	    compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
+			       proj_errno_string(proj_errno(transform)));
+	    /* Set dummy values which are finite. */
+	    x = y = z = 0;
 	 }
-      } else if (pcs->proj) {
+      } else if (pcs->proj_str) {
 	 compile_diagnostic(DIAG_ERR, /*The input projection is set but the output projection isn't*/437);
-      } else if (proj_out) {
+      } else if (proj_str_out) {
 	 compile_diagnostic(DIAG_ERR, /*The output projection is set but the input projection isn't*/438);
       }
 
@@ -1350,8 +1417,10 @@ cmd_data(void)
       if (!TSTBIT(mask_all[style], d)) {
 	 /* TRANSLATORS: a data "style" is something like NORMAL, DIVING, etc.
 	  * a "reading" is one of FROM, TO, TAPE, COMPASS, CLINO for NORMAL
-	  * neither style nor reading is a keyword in the program This error
-	  * complains about a depth gauge reading in normal style, for example
+	  * style.  Neither "style" nor "reading" is a keyword in the program.
+	  *
+	  * This error complains about a "DEPTH" gauge reading in "NORMAL"
+	  * style, for example.
 	  */
 	 compile_diagnostic(DIAG_ERR|DIAG_BUF|DIAG_SKIP,
 			    /*Reading “%s” not allowed in data style “%s”*/63,
@@ -1705,43 +1774,131 @@ cmd_declination(void)
 	real x = read_numeric(fFalse);
 	real y = read_numeric(fFalse);
 	real z = read_numeric(fFalse);
-	if (!pcs->proj) {
+	if (!pcs->proj_str) {
 	    compile_diagnostic(DIAG_ERR, /*Input coordinate system must be specified for “*DECLINATION AUTO”*/301);
 	    return;
 	}
-	if (!proj_wgs84) {
-	    proj_wgs84 = pj_init_plus("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
-	}
 	/* Convert to WGS84 lat long. */
-	if (pj_is_latlong(pcs->proj)) {
-	    /* PROJ expects lat and long in radians. */
+	PJ *transform = proj_create_crs_to_crs(PJ_DEFAULT_CTX,
+					       pcs->proj_str,
+					       WGS84_DATUM_STRING,
+					       NULL);
+	if (transform) {
+	    /* Normalise the output order so x is longitude and y latitude - by
+	     * default new PROJ has them switched for EPSG:4326 which just seems
+	     * confusing.
+	     */
+	    PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX,
+							   transform);
+	    proj_destroy(transform);
+	    transform = pj_norm;
+	}
+
+	if (proj_angular_input(transform, PJ_FWD)) {
+	    /* Input coordinate system expects radians. */
 	    x = rad(x);
 	    y = rad(y);
 	}
-	int r = pj_transform(pcs->proj, proj_wgs84, 1, 1, &x, &y, &z);
-	if (r != 0) {
-	    compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436, pj_strerrno(r));
-	    return;
+
+	PJ_COORD coord = {{x, y, z, HUGE_VAL}};
+	coord = proj_trans(transform, PJ_FWD, coord);
+	x = coord.xyzt.x;
+	y = coord.xyzt.y;
+	z = coord.xyzt.z;
+
+	if (x == HUGE_VAL || y == HUGE_VAL || z == HUGE_VAL) {
+	   compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
+			      proj_errno_string(proj_errno(transform)));
+	   /* Set dummy values which are finite. */
+	   x = y = z = 0;
 	}
+	proj_destroy(transform);
+
+	report_declination(pcs);
+
+	double lon = rad(x);
+	double lat = rad(y);
 	pcs->z[Q_DECLINATION] = HUGE_REAL;
-	pcs->dec_x = x;
-	pcs->dec_y = y;
-	pcs->dec_z = z;
+	pcs->dec_lat = lat;
+	pcs->dec_lon = lon;
+	pcs->dec_alt = z;
+	pcs->dec_filename = file.filename;
+	pcs->dec_line = file.line;
+	pcs->dec_context = grab_line();
 	/* Invalidate cached declination. */
 	pcs->declination = HUGE_REAL;
 	{
-#ifdef HAVE_PROJ_H
+	    // PJ_DEFAULT_CTX is really just NULL, but PROJ < 8.1.0
+	    // dereferences the context without a NULL check inside
+	    // proj_create_ellipsoidal_2D_cs() so create a context
+	    // temporarily to avoid a segmentation fault.
+	    PJ_CONTEXT * ctx = PJ_DEFAULT_CTX;
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 1)
+	    ctx = proj_context_create();
+#endif
+
+	    PJ *pj = proj_create(ctx, proj_str_out);
 	    PJ_COORD lp;
-	    lp.lp.lam = x;
-	    lp.lp.phi = y;
-	    PJ_FACTORS factors = proj_factors(proj_out, lp);
+	    lp.lp.lam = lon;
+	    lp.lp.phi = lat;
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 2)
+	    /* Code adapted from fix in PROJ 8.2.0 to make proj_factors() work in
+	     * cases we need (e.g. a CRS specified as "EPSG:<number>").
+	     */
+	    switch (proj_get_type(pj)) {
+		case PJ_TYPE_PROJECTED_CRS: {
+		    /* If it is a projected CRS, then compute the factors on the conversion
+		     * associated to it. We need to start from a temporary geographic CRS
+		     * using the same datum as the one of the projected CRS, and with
+		     * input coordinates being in longitude, latitude order in radian,
+		     * to be consistent with the expectations of the lp input parameter.
+		     */
+
+		    PJ * geodetic_crs = proj_get_source_crs(ctx, pj);
+		    if (!geodetic_crs)
+			break;
+		    PJ * datum = proj_crs_get_datum(ctx, geodetic_crs);
+#if PROJ_VERSION_MAJOR == 8 || \
+    (PROJ_VERSION_MAJOR == 7 && PROJ_VERSION_MINOR >= 2)
+		    /* PROJ 7.2.0 upgraded to EPSG 10.x which added the concept
+		     * of a datum ensemble, and this version of PROJ also added
+		     * an API to deal with these.
+		     *
+		     * If we're using PROJ < 7.2.0 then its EPSG database won't
+		     * have datum ensembles, so we don't need any code to handle
+		     * them.
+		     */
+		    if (!datum) {
+			datum = proj_crs_get_datum_ensemble(ctx, geodetic_crs);
+		    }
+#endif
+		    PJ * cs = proj_create_ellipsoidal_2D_cs(
+			ctx, PJ_ELLPS2D_LONGITUDE_LATITUDE, "Radian", 1.0);
+		    PJ * temp = proj_create_geographic_crs_from_datum(
+			ctx, "unnamed crs", datum, cs);
+		    proj_destroy(datum);
+		    proj_destroy(cs);
+		    proj_destroy(geodetic_crs);
+		    PJ * newOp = proj_create_crs_to_crs_from_pj(ctx, temp, pj, NULL, NULL);
+		    proj_destroy(temp);
+		    if (newOp) {
+			proj_destroy(pj);
+			pj = newOp;
+		    }
+		    break;
+		}
+		default:
+		    break;
+	    }
+#endif
+	    PJ_FACTORS factors = proj_factors(pj, lp);
 	    pcs->convergence = factors.meridian_convergence;
-#else
-	    projLP lp = { x, y };
-	    struct FACTORS factors;
-	    memset(&factors, 0, sizeof(factors));
-	    pj_factors(lp, proj_out, 0.0, &factors);
-	    pcs->convergence = factors.conv;
+	    proj_destroy(pj);
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 1)
+	    proj_context_destroy(ctx);
 #endif
 	}
     } else {
@@ -2059,7 +2216,7 @@ cmd_cs(void)
    }
    if (cs_sub == INT_MIN || isalnum(ch)) {
       set_pos(&fp);
-      compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Unknown coordinate system*/434);
+      compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Unknown coordinate system*/434);
       skipline();
       return;
    }
@@ -2072,11 +2229,11 @@ cmd_cs(void)
 	 break;
       case CS_EPSG:
 	 proj_str = osmalloc(32);
-	 sprintf(proj_str, "+init=epsg:%d +no_defs", cs_sub);
+	 sprintf(proj_str, "EPSG:%d", cs_sub);
 	 break;
       case CS_ESRI:
 	 proj_str = osmalloc(32);
-	 sprintf(proj_str, "+init=esri:%d +no_defs", cs_sub);
+	 sprintf(proj_str, "ESRI:%d", cs_sub);
 	 break;
       case CS_EUR:
 	 proj_str = osstrdup("+proj=utm +zone=30 +ellps=intl +towgs84=-86,-98,-119,0,0,0,0 +no_defs");
@@ -2110,7 +2267,7 @@ cmd_cs(void)
 	 /* FIXME: Is it useful to be able to explicitly specify this? */
 	 break;
       case CS_LONG:
-	 proj_str = osstrdup("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs");
+	 proj_str = osstrdup("EPSG:4326");
 	 break;
       case CS_OSGB: {
 	 int x = 14 - (cs_sub % 25);
@@ -2120,14 +2277,14 @@ cmd_cs(void)
 	 break;
       }
       case CS_S_MERC:
-	 proj_str = osstrdup("+proj=merc +lat_ts=0 +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +units=m +nadgrids=@null +no_defs");
+	 proj_str = osstrdup("EPSG:3857");
 	 break;
       case CS_UTM:
-	 proj_str = osmalloc(74);
+	 proj_str = osmalloc(32);
 	 if (cs_sub > 0) {
-	    sprintf(proj_str, "+proj=utm +ellps=WGS84 +datum=WGS84 +units=m +zone=%d +no_defs", cs_sub);
+	    sprintf(proj_str, "EPSG:%d", 32600 + cs_sub);
 	 } else {
-	    sprintf(proj_str, "+proj=utm +ellps=WGS84 +datum=WGS84 +units=m +zone=%d +south +no_defs", -cs_sub);
+	    sprintf(proj_str, "EPSG:%d", 32700 - cs_sub);
 	 }
 	 break;
    }
@@ -2135,7 +2292,7 @@ cmd_cs(void)
    if (!proj_str) {
       /* printf("CS %d:%d\n", (int)cs, cs_sub); */
       set_pos(&fp);
-      compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Unknown coordinate system*/434);
+      compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Unknown coordinate system*/434);
       skipline();
       return;
    }
@@ -2143,61 +2300,79 @@ cmd_cs(void)
    if (output) {
       if (ok_for_output == NO) {
 	 set_pos(&fp);
-	 compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Coordinate system unsuitable for output*/435);
+	 compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Coordinate system unsuitable for output*/435);
 	 skipline();
 	 return;
       }
 
-      /* If the output projection is already set, we still need to create the
-       * projection object for a custom projection, so we can report errors.
-       * But if the string is identical, we know it's valid.
-       */
-      if (!proj_out ||
-	  (ok_for_output == MAYBE && strcmp(proj_str, proj_str_out) != 0)) {
-	 projPJ pj = pj_init_plus(proj_str);
-	 if (!pj) {
-	    set_pos(&fp);
-	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Invalid coordinate system: %s*/443,
-			       pj_strerrno(pj_errno));
-	    skipline();
-	    return;
-	 }
-	 if (ok_for_output == MAYBE && pj_is_latlong(pj)) {
-	    set_pos(&fp);
-	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Coordinate system unsuitable for output*/435);
-	    skipline();
-	    return;
-	 }
-	 if (proj_out) {
-	    pj_free(pj);
-	    osfree(proj_str);
-	 } else {
-	    proj_out = pj;
-	    proj_str_out = proj_str;
-	 }
-      }
-   } else {
-      projPJ pj;
       if (proj_str_out && strcmp(proj_str, proj_str_out) == 0) {
-	 /* Same as the current output projection. */
-	 pj = proj_out;
-      } else {
-	 pj = pj_init_plus(proj_str);
-	 if (!pj) {
-	    set_pos(&fp);
-	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Invalid coordinate system: %s*/443,
-			       pj_strerrno(pj_errno));
-	    skipline();
-	    return;
-	 }
+	  /* Same as the output cs that's already set, so nothing to do. */
+	  osfree(proj_str);
+	  return;
       }
 
-      /* Free proj if not used by parent, or as the output projection. */
+      if (ok_for_output == MAYBE) {
+	  /* We only actually create the transformation from input to output when
+	   * we need it, but for a custom proj string or EPSG/ESRI code we need
+	   * to check that the specified coordinate system is valid and also if
+	   * it's suitable for output so we need to test creating it here.
+	   */
+	  PJ* pj = proj_create(PJ_DEFAULT_CTX, proj_str);
+	  if (!pj) {
+	      set_pos(&fp);
+	      compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Invalid coordinate system: %s*/443,
+				 proj_errno_string(proj_context_errno(PJ_DEFAULT_CTX)));
+	      skipline();
+	      osfree(proj_str);
+	      return;
+	  }
+	  int type = proj_get_type(pj);
+	  if (type == PJ_TYPE_GEOGRAPHIC_2D_CRS ||
+	      type == PJ_TYPE_GEOGRAPHIC_3D_CRS) {
+	      set_pos(&fp);
+	      compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Coordinate system unsuitable for output*/435);
+	      skipline();
+	      osfree(proj_str);
+	      return;
+	  }
+      }
+
+      if (proj_str_out) {
+	  /* If the output cs is already set, subsequent attempts to set it
+	   * are silently ignored (so you can combine two datasets and set
+	   * the output cs to use before you include either).
+	   */
+	  osfree(proj_str);
+      } else {
+	  proj_str_out = proj_str;
+      }
+   } else {
+      if (proj_str_out && strcmp(proj_str, proj_str_out) == 0) {
+	 /* Same as the current output projection, so valid for input. */
+      } else if (pcs->proj_str && strcmp(proj_str, pcs->proj_str) == 0) {
+	 /* Same as the current input projection, so nothing to do! */
+	 return;
+      } else if (ok_for_output == MAYBE) {
+	 /* (ok_for_output == MAYBE) also happens to indicate whether we need
+	  * to check that the coordinate system is valid for input.
+	  */
+	 PJ* pj = proj_create(PJ_DEFAULT_CTX, proj_str);
+	 if (!pj) {
+	    set_pos(&fp);
+	    compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Invalid coordinate system: %s*/443,
+			       proj_errno_string(proj_context_errno(PJ_DEFAULT_CTX)));
+	    skipline();
+	    return;
+	 }
+	 proj_destroy(pj);
+      }
+
+      /* Free current input proj_str if not used by parent. */
       settings * p = pcs;
-      if (p->proj && (!p->next || p->proj != p->next->proj))
-	 if (p->proj != proj_out)
-	    pj_free(p->proj);
-      p->proj = pj;
+      if (!p->next || p->proj_str != p->next->proj_str)
+	 osfree(p->proj_str);
+      p->proj_str = proj_str;
+      invalidate_pj_cached();
    }
 }
 

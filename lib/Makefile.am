@@ -23,9 +23,13 @@ msg_files = $(po_files:.po=.msg) en.msg
 
 EXTRA_DIST = survex.pot $(po_files)\
  po-to-msg.pl checkshortcut.pl extract-msgs.pl\
- Bulgarian.isl\
- ChineseSimplified.isl ChineseTraditional.isl\
- EnglishBritish.isl Indonesian.isl Romanian.isl Slovak.isl\
+ ChineseSimplified.isl\
+ ChineseTraditional.isl\
+ EnglishBritish.isl\
+ Greek.isl\
+ Hungarian.isl\
+ Indonesian.isl\
+ Romanian.isl\
  make-pixel-font preload_font.h
 
 MAINTAINERCLEANFILES = $(msg_files) unifont.pixelfont preload_font.h
@@ -35,11 +39,11 @@ dist_pkgdata_DATA = bcra3.svx bcra5.svx $(msg_files) unifont.pixelfont
 appsdir = $(datadir)/applications
 dist_apps_DATA = survex-aven.desktop
 
-gtksourceviewdir = $(datadir)/gtksourceview-3.0/language-specs
-dist_gtksourceview_DATA = survex.lang
+gtksourceview3dir = $(datadir)/gtksourceview-3.0/language-specs
+dist_gtksourceview3_DATA = survex.lang
 
-projdatadir = $(pkgdatadir)/proj
-dist_projdata_DATA = proj/esri
+gtksourceview4dir = $(datadir)/gtksourceview-4/language-specs
+dist_gtksourceview4_DATA = survex.lang
 
 $(msg_files): survex.pot $(po_files) po-to-msg.pl
 	LANG=C perl $(srcdir)/po-to-msg.pl $(po_files)
@@ -59,7 +63,7 @@ generate-todo:
 launchpad-diff:
 	rm -rf lib
 	mkdir lib
-	cd lib && tar --strip-components=1 -xf ../launchpad-export.tar.gz
+	cd lib && tar --strip-components=2 -xf ../launchpad-export.tar.gz
 	for po in $(po_files) ; do \
 	    lpo="lib/survex-$$po" ;\
 	    [ -r "$$lpo" ] || continue ;\

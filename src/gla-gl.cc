@@ -4,7 +4,7 @@
 //  OpenGL implementation for the GLA abstraction layer.
 //
 //  Copyright (C) 2002-2003,2005 Mark R. Shinwell
-//  Copyright (C) 2003,2004,2005,2006,2007,2010,2011,2012,2013,2014,2015,2017,2018 Olly Betts
+//  Copyright (C) 2003-2022 Olly Betts
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -144,7 +144,8 @@ string GetGLSystemDescription()
     info += (const char*)glGetString(GL_VENDOR);
     info += '\n';
     info += (const char*)glGetString(GL_RENDERER);
-#if defined __WXGTK__ || defined __WXX11__ || defined __WXMOTIF__
+#if !(wxUSE_GLCANVAS_EGL-0) && \
+    (defined __WXGTK__ || defined __WXX11__ || defined __WXMOTIF__)
     info += string_format("\nGLX %0.1f\n", wxGLCanvas::GetGLXVersion() * 0.1);
 #else
     info += '\n';
@@ -395,6 +396,9 @@ bool GLAList::DrawList() const {
 
 BEGIN_EVENT_TABLE(GLACanvas, wxGLCanvas)
     EVT_SIZE(GLACanvas::OnSize)
+#ifdef HAS_DPI_INDEPENDENT_PIXELS
+    EVT_MOVE(GLACanvas::OnMove)
+#endif
 END_EVENT_TABLE()
 
 // Pass wxWANTS_CHARS so that the window gets cursor keys on MS Windows.
@@ -433,10 +437,14 @@ GLACanvas::~GLACanvas()
 
 void GLACanvas::FirstShow()
 {
-
+#ifdef HAS_DPI_INDEPENDENT_PIXELS
+    content_scale_factor = wxGLCanvas::GetContentScaleFactor();
+#endif
 
     // Update our record of the client area size and centre.
     GetClientSize(&x_size, &y_size);
+    x_size *= content_scale_factor;
+    y_size *= content_scale_factor;
     if (x_size < 1) x_size = 1;
     if (y_size < 1) y_size = 1;
 
@@ -533,7 +541,7 @@ void GLACanvas::FirstShow()
     wxString path = wmsg_cfgpth();
     path += wxCONFIG_PATH_SEPARATOR;
     path += wxT("unifont.pixelfont");
-    if (!m_Font.load(path)) {
+    if (!m_Font.load(path, content_scale_factor >= 2)) {
 	// FIXME: do something better.
 	// We have this message available: Error in format of font file “%s”
 	fprintf(stderr, "Failed to parse compiled-in font data\n");
@@ -631,37 +639,73 @@ void GLACanvas::Clear()
     CHECK_GL_ERROR("Clear", "glClear");
 }
 
+void GLACanvas::ClearNative()
+{
+    // Clear the canvas to the native background colour.
+
+    wxColour background_colour = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWFRAME);
+    glClearColor(background_colour.Red() / 255.,
+		 background_colour.Green() / 255.,
+		 background_colour.Blue() / 255.,
+		 1.0);
+    CHECK_GL_ERROR("ClearNative", "glClearColor");
+    glClear(GL_COLOR_BUFFER_BIT);
+    CHECK_GL_ERROR("ClearNative", "glClear");
+    glClearColor(0.0, 0.0, 0.0, 1.0);
+    CHECK_GL_ERROR("ClearNative", "glClearColor (2)");
+}
+
 void GLACanvas::SetScale(Double scale)
 {
     if (scale != m_Scale) {
-	vector<GLAList>::iterator i;
-	for (i = drawing_lists.begin(); i != drawing_lists.end(); ++i) {
-	    i->invalidate_if(INVALIDATE_ON_SCALE);
+	for (auto & i : drawing_lists) {
+	    i.invalidate_if(INVALIDATE_ON_SCALE);
 	}
 
 	m_Scale = scale;
     }
 }
 
+#ifdef HAS_DPI_INDEPENDENT_PIXELS
+void GLACanvas::UpdateContentScaleFactor()
+{
+    double new_content_scale_factor = wxGLCanvas::GetContentScaleFactor();
+    if (new_content_scale_factor == content_scale_factor) return;
+
+    content_scale_factor = new_content_scale_factor;
+    for (auto& i : drawing_lists) {
+	i.invalidate_if(INVALIDATE_ON_HIDPI);
+    }
+}
+
+void GLACanvas::OnMove(wxMoveEvent & event)
+{
+    UpdateContentScaleFactor();
+    event.Skip();
+}
+#endif
+
 void GLACanvas::OnSize(wxSizeEvent & event)
 {
+    UpdateContentScaleFactor();
+
     wxSize size = event.GetSize();
 
+    auto new_w = size.GetWidth() * content_scale_factor;
+    auto new_h = size.GetHeight() * content_scale_factor;
+    // The width and height go to zero when the panel is dragged right
+    // across so we clamp them to be at least 1 to avoid problems.
+    if (new_w < 1) new_w = 1;
+    if (new_h < 1) new_h = 1;
     unsigned int mask = 0;
-    if (size.GetWidth() != x_size) mask |= INVALIDATE_ON_X_RESIZE;
-    if (size.GetHeight() != y_size) mask |= INVALIDATE_ON_Y_RESIZE;
+    if (new_w != x_size) mask |= INVALIDATE_ON_X_RESIZE;
+    if (new_h != y_size) mask |= INVALIDATE_ON_Y_RESIZE;
     if (mask) {
-	vector<GLAList>::iterator i;
-	for (i = drawing_lists.begin(); i != drawing_lists.end(); ++i) {
-	    i->invalidate_if(mask);
+	x_size = new_w;
+	y_size = new_h;
+	for (auto& i : drawing_lists) {
+	    i.invalidate_if(mask);
 	}
-
-	// The width and height go to zero when the panel is dragged right
-	// across so we clamp them to be at least 1 to avoid problems.
-	x_size = size.GetWidth();
-	y_size = size.GetHeight();
-	if (x_size < 1) x_size = 1;
-	if (y_size < 1) y_size = 1;
     }
 
     event.Skip();
@@ -1351,6 +1395,8 @@ void GLACanvas::BeginCrosses()
 {
     // Plot crosses.
     if (cross_method == SPRITE) {
+	list_flags |= NEVER_CACHE;
+	SetDataTransform();
 	glPushAttrib(GL_ENABLE_BIT|GL_POINT_BIT);
 	CHECK_GL_ERROR("BeginCrosses", "glPushAttrib");
 	glBindTexture(GL_TEXTURE_2D, m_CrossTexture);
@@ -1541,28 +1587,6 @@ void GLACanvas::DrawSemicircle(gla_colour edge, gla_colour fill,
     CHECK_GL_ERROR("DrawSemicircle", "gluPartialDisk (2)");
     glPopMatrix();
     CHECK_GL_ERROR("DrawSemicircle", "glPopMatrix");
-}
-
-void
-GLACanvas::DrawTriangle(gla_colour edge, gla_colour fill,
-			const Vector3 &p0, const Vector3 &p1, const Vector3 &p2)
-{
-    // Draw a filled triangle with an edge.
-
-    SetColour(fill);
-    BeginTriangles();
-    PlaceIndicatorVertex(p0.GetX(), p0.GetY());
-    PlaceIndicatorVertex(p1.GetX(), p1.GetY());
-    PlaceIndicatorVertex(p2.GetX(), p2.GetY());
-    EndTriangles();
-
-    SetColour(edge);
-    glBegin(GL_LINE_STRIP);
-    PlaceIndicatorVertex(p0.GetX(), p0.GetY());
-    PlaceIndicatorVertex(p1.GetX(), p1.GetY());
-    PlaceIndicatorVertex(p2.GetX(), p2.GetY());
-    glEnd();
-    CHECK_GL_ERROR("DrawTriangle", "glEnd GL_LINE_STRIP");
 }
 
 void GLACanvas::EnableDashedLines()

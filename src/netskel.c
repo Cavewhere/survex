@@ -99,7 +99,7 @@ solve_network(void /*node *stnlist*/)
    ptrTrail = NULL;
    dump_network();
 
-   if (first_solve && !pcs->proj && !proj_out) {
+   if (first_solve && !pcs->proj_str && !proj_str_out) {
       /* If we haven't already solved to find some station positions, and
        * there's no specified coordinate system, then check if there are any
        * fixed points, and if there aren't, invent one at (0,0,0).
@@ -937,6 +937,20 @@ replace_trailing_travs(void)
 	    if (POS(stn1, d) > max[d]) {
 	       max[d] = POS(stn1, d);
 	       pfxHi[d] = stn1->name;
+	    }
+	 }
+
+	 /* Range without anonymous stations at offset 3. */
+	 if (!TSTBIT(stn1->name->sflags, SFLAGS_ANON)) {
+	    for (d = 0; d < 3; d++) {
+	       if (POS(stn1, d) < min[d + 3]) {
+		  min[d + 3] = POS(stn1, d);
+		  pfxLo[d + 3] = stn1->name;
+	       }
+	       if (POS(stn1, d) > max[d + 3]) {
+		  max[d + 3] = POS(stn1, d);
+		  pfxHi[d + 3] = stn1->name;
+	       }
 	    }
 	 }
       }

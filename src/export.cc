@@ -2,7 +2,7 @@
  * Export to CAD-like formats (DXF, Skencil, SVG, EPS) and also Compass PLT.
  */
 
-/* Copyright (C) 1994-2004,2005,2006,2008,2010,2011,2012,2013,2014,2015,2016,2018,2019 Olly Betts
+/* Copyright (C) 1994-2022 Olly Betts
  * Copyright (C) 2004 John Pybus (SVG Output code)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,6 +28,7 @@
 
 #include "wx.h"
 #include <wx/utils.h>
+#include "export3d.h"
 #include "exportfilter.h"
 #include "gpx.h"
 #include "hpgl.h"
@@ -69,6 +70,9 @@
 // Order here needs to match order of export_format enum in export.h.
 
 const format_info export_format_info[] = {
+    { ".3d", /*Survex 3d files*/207,
+      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS, /* FIXME: expand... */
+      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS },
     { ".csv", /*CSV files*/101,
       LABELS|ENTS|FIXES|EXPORTS,
       LABELS },
@@ -251,6 +255,15 @@ DXF::header(const char *, const char *, time_t,
 	       "40\n2.5\n"
 	       "49\n1.25\n"
 	       "49\n-1.25\n"
+	       "0\nLTYPE\n" /* define DOT line type */
+	       "2\nDOT\n"
+	       "70\n64\n"
+	       "3\nDotted\n"
+	       "72\n65\n"
+	       "73\n2\n"
+	       "40\n1\n"
+	       "49\n0\n"
+	       "49\n1\n"
 	       "0\nENDTAB\n");
    fprintf(fh, "0\nTABLE\n"
 	       "2\nLAYER\n");
@@ -285,6 +298,11 @@ DXF::header(const char *, const char *, time_t,
    fprintf(fh, "70\n64\n"); /* shows layer is referenced by entities */
    fprintf(fh, "62\n7\n"); /* color */
    fprintf(fh, "6\nCONTINUOUS\n"); /* linetype */
+   /* Next Layer: Splays */
+   fprintf(fh, "0\nLAYER\n2\nSplays\n");
+   fprintf(fh, "70\n64\n"); /* shows layer is referenced by entities */
+   fprintf(fh, "62\n5\n"); /* color */
+   fprintf(fh, "6\nDOT\n"); /* linetype;  */
    if (grid > 0) {
       /* Next Layer: Grid */
       fprintf(fh, "0\nLAYER\n2\nGrid\n");
@@ -333,9 +351,16 @@ void
 DXF::line(const img_point *p1, const img_point *p, unsigned flags, bool fPendingMove)
 {
    bool fSurface = (flags & SURF);
+   bool fSplay = (flags & SPLAYS);
    (void)fPendingMove; /* unused */
    fprintf(fh, "0\nLINE\n");
-   fprintf(fh, fSurface ? "8\nSurface\n" : "8\nCentreLine\n"); /* Layer */
+   if (fSurface) { /* select layer */
+      fprintf(fh, "8\nSurface\n" );
+   } else if (fSplay) {
+      fprintf(fh, "8\nSplays\n");
+   } else {
+      fprintf(fh, "8\nCentreLine\n");
+   }
    fprintf(fh, "10\n%6.2f\n", p1->x);
    fprintf(fh, "20\n%6.2f\n", p1->y);
    fprintf(fh, "30\n%6.2f\n", p1->z);
@@ -1340,6 +1365,11 @@ Export(const wxString &fnm_out, const wxString &title,
    bool need_bounds = true;
    ExportFilter * filt;
    switch (format) {
+       case FMT_3D:
+	   filt = new Export3D(model.GetSeparator());
+	   show_mask |= FULL_COORDS;
+	   need_bounds = false;
+	   break;
        case FMT_CSV:
 	   filt = new POS(model.GetSeparator(), true);
 	   show_mask |= FULL_COORDS;

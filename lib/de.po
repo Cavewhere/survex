@@ -93,6 +93,13 @@ msgstr "Nicht genug Speicher vorhanden beim Einlesen der Datei »%s«"
 msgid "Survex version %s or greater required to process this survey data."
 msgstr "Zum Verarbeiten dieser Vermessungsdaten ist Survex-Version %s oder neuer erforderlich."
 
+#. TRANSLATORS: Indicates a informational message e.g.:
+#. "spoon.svx:12: info: Declination: [...]"
+#: ../src/message.c:1221
+#: n:485
+msgid "info"
+msgstr "Information"
+
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
 #: ../src/aven.cc:467
@@ -409,6 +416,18 @@ msgstr ""
 msgid "No survey date specified - using 0 for magnetic declination"
 msgstr ""
 
+#. TRANSLATORS: This message gives information about the range of
+#. declination values and the grid convergence value calculated for
+#. each "*declination auto ..." command.
+#.
+#. The first %s will be replaced by the declination range (or single
+#. value), and %.1f%s by the grid convergence angle.
+#: ../src/commands.c:743
+#: n:484
+#, c-format
+msgid "Declination: %s, grid convergence: %.1f%s"
+msgstr "Deklination: %s, Meridiankonvergenz: %.1f%s"
+
 #. TRANSLATORS: Used when a BEGIN command has no survey, but the
 #. END command does, e.g.:
 #.
@@ -556,8 +575,8 @@ msgstr "FIX-Befehl ohne Koordinatenwerte, wurde auf (0,0,0) gesetzt"
 msgid "Station already fixed at the same coordinates"
 msgstr "Messpunkt schon auf die gleichen Koordinaten festgelegt"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX command with
-#. no coordinates - fixing at (0,0,0)" warnings.
+#. TRANSLATORS: Emitted after second and subsequent "FIX" command
+#. with no coordinates.
 #: ../src/commands.c:871
 #: n:441
 #, fuzzy, c-format
@@ -1400,6 +1419,15 @@ msgstr "»NOT«, »DUPLICATE«, »SPLAY« oder »SURFACE« erwartet"
 #: n:103
 msgid "Expecting “F” or “M”"
 msgstr "»F« oder »M« erwartet"
+
+#: readval.c:421
+#: readval.c:443
+#: readval.c:453
+#: readval.c:465
+#: n:483
+#, c-format
+msgid "Expecting quadrant bearing, found “%s”"
+msgstr ""
 
 #: ../src/listpos.c:82
 #: n:190
@@ -3250,6 +3278,11 @@ msgstr "An den Anfang der Datei und neu einlesen"
 msgid "show survey date information (if present)"
 msgstr "Datumsangaben einer Vermessung zeigen (wenn vorhanden)"
 
+#: ../src/dump3d.c:54
+#: n:486
+msgid "convert MOVE and LINE into LEG"
+msgstr ""
+
 #: ../src/gfxcore.cc:3043
 #: ../src/gpx.cc:71
 #: ../src/kml.cc:70
@@ -3292,6 +3325,11 @@ msgstr "Texthöhe der Messpunktbezeichnungen (Vorgabe %s)"
 #, c-format
 msgid "station marker size (default %s)"
 msgstr "Messpunktmarkierungsgröße (Vorgabe %s)"
+
+#: ../src/survexport.cc:159
+#: n:487
+msgid "produce Survex 3d output"
+msgstr "Survex 3d-Ausgabe erzeugen"
 
 #: ../src/survexport.cc:155
 #: n:102

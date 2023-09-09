@@ -93,6 +93,13 @@ msgstr "Brak wolnej pamięci podczas odczytu pliku: “%s”"
 msgid "Survex version %s or greater required to process this survey data."
 msgstr "Wersja Survex'a co najmniej %s jest wymagana aby przetworzyć ten plik"
 
+#. TRANSLATORS: Indicates a informational message e.g.:
+#. "spoon.svx:12: info: Declination: [...]"
+#: ../src/message.c:1221
+#: n:485
+msgid "info"
+msgstr "info"
+
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
 #: ../src/aven.cc:467
@@ -409,6 +416,18 @@ msgstr "Spodziewałem się liczby lub “AUTO”"
 msgid "No survey date specified - using 0 for magnetic declination"
 msgstr "Brak danych o dacie pomiaru - przyjmuję 0 jako deklinację magnetyczną"
 
+#. TRANSLATORS: This message gives information about the range of
+#. declination values and the grid convergence value calculated for
+#. each "*declination auto ..." command.
+#.
+#. The first %s will be replaced by the declination range (or single
+#. value), and %.1f%s by the grid convergence angle.
+#: ../src/commands.c:743
+#: n:484
+#, c-format
+msgid "Declination: %s, grid convergence: %.1f%s"
+msgstr ""
+
 #. TRANSLATORS: Used when a BEGIN command has no survey, but the
 #. END command does, e.g.:
 #.
@@ -555,8 +574,8 @@ msgstr "Polecenie FIX bez współrzędnych - ustalam na (0,0,0)"
 msgid "Station already fixed at the same coordinates"
 msgstr "Ponowne ustalenie punktu na tych samych współrzędnych"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX command with
-#. no coordinates - fixing at (0,0,0)" warnings.
+#. TRANSLATORS: Emitted after second and subsequent "FIX" command
+#. with no coordinates.
 #: ../src/commands.c:871
 #: n:441
 #, c-format
@@ -1399,6 +1418,15 @@ msgstr "Spodziewałem się “NOT”, “DUPLICATE”, “SPLAY”, albo “SURF
 #: n:103
 msgid "Expecting “F” or “M”"
 msgstr "Spodziewałem się “F” albo “M”"
+
+#: readval.c:421
+#: readval.c:443
+#: readval.c:453
+#: readval.c:465
+#: n:483
+#, c-format
+msgid "Expecting quadrant bearing, found “%s”"
+msgstr ""
 
 #: ../src/listpos.c:82
 #: n:190
@@ -3241,6 +3269,11 @@ msgstr "przewiń plik i odczytaj go po raz drugi"
 msgid "show survey date information (if present)"
 msgstr "pokaż daty pomiarów (jeśli dostępne)"
 
+#: ../src/dump3d.c:54
+#: n:486
+msgid "convert MOVE and LINE into LEG"
+msgstr ""
+
 #: ../src/gfxcore.cc:3043
 #: ../src/gpx.cc:71
 #: ../src/kml.cc:70
@@ -3283,6 +3316,11 @@ msgstr "wysokość czcionki nazw punktów (domyślnie %s)"
 #, c-format
 msgid "station marker size (default %s)"
 msgstr "rozmiar znacznika punktu (domyślnie %s)"
+
+#: ../src/survexport.cc:159
+#: n:487
+msgid "produce Survex 3d output"
+msgstr "wyjście w formacie Survex 3d"
 
 #: ../src/survexport.cc:155
 #: n:102

@@ -66,14 +66,13 @@ mingw_iss : survex.iss
 	  a=`echo "$$f"|sed 's!^.*/\([^/]*\)/LC_MESSAGES/wxstd\.mo$$!\1!'`; \
 	  mkdir iss_tmp/$$a; \
 	  cp "$$f" iss_tmp/$$a; \
-	  echo 'Source: "'"$$a"'\wxstd.mo"; DestDir: "{app}\'"$$a"'"' ; \
+	  printf 'Source: "%s\\wxstd.mo"; DestDir: "{app}\\%s"\n' "$$a" "$$a"; \
 	done > iss_tmp/i18nfiles.iss
 	cp lib/*.isl iss_tmp
-	mkdir iss_tmp/proj
-	cp -p /usr/${host}/share/proj/epsg lib/proj/esri iss_tmp/proj
 	: # Also need to reduce colour depth it appears:
 	: # src/png2bmp lib/icons/aven_about.png iss_tmp/logo.bmp
-	DISPLAY= wine "c:/Program Files/Inno Setup 5/ISCC.exe" iss_tmp/survex.iss
+	cp /usr/i686-w64-mingw32/share/proj/proj.db iss_tmp
+	DISPLAY= wine "c:/Program Files/Inno Setup 6/ISCC.exe" iss_tmp/survex.iss
 	mv iss_tmp/Output/*.exe .
 	$(RM) -rf iss_tmp
 
