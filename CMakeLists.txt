@@ -2,13 +2,15 @@ cmake_minimum_required(VERSION 3.12)
 
 find_program(GIT_EXEC git REQUIRED)
 
+set(VERSION_REGEX "v([0-9]+)\.([0-9]+)\.([0-9]+).*")
+
 execute_process(
     COMMAND ${GIT_EXEC} describe --tags
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_TAG
     )
 string(REGEX REPLACE "\n$" "" GIT_TAG "${GIT_TAG}")
-string(REGEX REPLACE "([0-9]+)\.([0-9]+)\.([0-9]+).*" "\\1.\\2.\\3" PERIOD_VERSION "${GIT_TAG}")
+string(REGEX REPLACE ${VERSION_REGEX} "\\1.\\2.\\3" PERIOD_VERSION "${GIT_TAG}")
 
 # set the project name
 project(Survex VERSION ${PERIOD_VERSION})
@@ -38,7 +40,7 @@ check_function_exists("_stricmp" HAVE_STRICMP)
 
 message(STATUS "Survex version: \"${GIT_TAG}\"")
 
-string(REGEX REPLACE "([0-9]+)\.([0-9]+)\.([0-9]+).*" "\\1,\\2,\\3" COMMAVERSION "${GIT_TAG}")
+string(REGEX REPLACE ${VERSION_REGEX} "\\1,\\2,\\3" COMMAVERSION "${GIT_TAG}")
 
 set(PACKAGE survex)
 set(PACKAGE_STRING survex)
@@ -77,7 +79,7 @@ else() #in user space
 
     conan_cmake_run(REQUIRES proj/6.3.1
         REQUIRES wxwidgets/3.1.4@bincrafters/stable
-        REQUIRES glew/2.1.0@bincrafters/stable
+        REQUIRES glew/2.2.0
         OPTIONS wxwidgets:webview=False
         BASIC_SETUP CMAKE_TARGETS
         BUILD missing)
@@ -262,6 +264,7 @@ add_executable(survexport
     ${SRC_DIR}/kml.cc
     ${SRC_DIR}/pos.cc
     ${SRC_DIR}/vector3.cc
+    ${SRC_DIR}/export3d.cc
     )
 target_include_directories(survexport PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(survexport
@@ -330,6 +333,7 @@ add_executable(aven WIN32
     ${SRC_DIR}/img_hosted.c
     ${SRC_DIR}/useful.c
     ${SRC_DIR}/hash.c
+    ${SRC_DIR}/export3d.cc
 )
 
 add_dependencies(aven
