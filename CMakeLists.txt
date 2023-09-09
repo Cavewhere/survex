@@ -1,7 +1,17 @@
 cmake_minimum_required(VERSION 3.12)
 
+find_program(GIT_EXEC git REQUIRED)
+
+execute_process(
+    COMMAND ${GIT_EXEC} describe --tags
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_TAG
+    )
+string(REGEX REPLACE "\n$" "" GIT_TAG "${GIT_TAG}")
+string(REGEX REPLACE "([0-9]+)\.([0-9]+)\.([0-9]+).*" "\\1.\\2.\\3" PERIOD_VERSION "${GIT_TAG}")
+
 # set the project name
-project(Survex VERSION 1.0)
+project(Survex VERSION ${PERIOD_VERSION})
 
 # In this file we are doing all of our 'configure' checks. Things like checking
 # for headers, functions, libraries, types and size of types.
@@ -24,14 +34,7 @@ check_symbol_exists("putc_unlocked" "stdio.h" HAVE_PUTC_UNLOCKED)
 check_function_exists("strcasecmp" HAVE_STRCASECMP)
 check_function_exists("_stricmp" HAVE_STRICMP)
 
-find_program(GIT_EXEC git REQUIRED)
 
-execute_process(
-    COMMAND ${GIT_EXEC} describe --tags
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_TAG
-    )
-string(REGEX REPLACE "\n$" "" GIT_TAG "${GIT_TAG}")
 
 message(STATUS "Survex version: \"${GIT_TAG}\"")
 
@@ -72,12 +75,10 @@ else() #in user space
         URL https://api.bintray.com/conan/bincrafters/public-conan
         VERIFY_SSL True)
 
-
-
     conan_cmake_run(REQUIRES proj/6.3.1
         REQUIRES wxwidgets/3.1.4@bincrafters/stable
         REQUIRES glew/2.1.0@bincrafters/stable
-        #OPTIONS wxwidgets:webview=False
+        OPTIONS wxwidgets:webview=False
         BASIC_SETUP CMAKE_TARGETS
         BUILD missing)
 endif()

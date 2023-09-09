@@ -48,3 +48,26 @@ one, then you can specify this like so:
 ./configure WX_CONFIG=/opt/bin/wx-config
 
 You can use both --prefix and WX_CONFIG= if necessary.
+
+---- CMAKE ----
+Windows MSVC
+Requirments:
+Python 3
+Perl
+Conan
+CMake 3.10 or higher
+MSVC
+
+Ubuntu Linux
+Requirments:
+Python 3
+Perl
+Conan
+CMake 3.10
+
+sudo apt install python3-pip cmake libgtk2.0-dev ssh-askpass libglu1-mesa-dev libwebkitgtk-dev
+sudo pip3 install conan
+export SUDO_ASKPASS=/usr/bin/ssh-askpass
+
+MacOS
+

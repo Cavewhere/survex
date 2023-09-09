@@ -88,3 +88,4 @@ vim/Makefile.in
 Makefile.am.user
 CMakeLists.txt.user
 Makefile.am.user.*
+.qtc_clangd
