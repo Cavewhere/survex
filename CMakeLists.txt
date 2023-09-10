@@ -6,7 +6,7 @@ set(VERSION_REGEX "v([0-9]+)\.([0-9]+)\.([0-9]+).*")
 
 execute_process(
     COMMAND ${GIT_EXEC} describe --tags
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_TAG
     )
 string(REGEX REPLACE "\n$" "" GIT_TAG "${GIT_TAG}")
