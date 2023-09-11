@@ -72,10 +72,10 @@ else() #in user space
 
     include(${CMAKE_BINARY_DIR}/conan.cmake)
 
-    conan_add_remote(NAME bincrafters
-        INDEX 1
-        URL https://api.bintray.com/conan/bincrafters/public-conan
-        VERIFY_SSL True)
+#    conan_add_remote(NAME bincrafters
+#        INDEX 1
+#        URL https://bincrafters.jfrog.io/artifactory/api/conan/public-conan
+#        VERIFY_SSL True)
 
     conan_cmake_run(REQUIRES proj/6.3.1
         REQUIRES wxwidgets/3.1.4@bincrafters/stable
