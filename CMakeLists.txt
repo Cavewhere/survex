@@ -55,7 +55,8 @@ set(AVEN_COPYRIGHT_MSG_UTF8 copyright-message_undefined)
 
 include_directories(${PROJECT_BINARY_DIR})
 
-if(CONAN_EXPORTED) # in conan local cache
+if(SURVEX_CONAN_EXPORTED) # in conan local cache
+    message(STATUS "Using Conan exported from parent project")
     # standard conan installation, deps will be defined in conanfile.py
     # and not necessary to call conan again, conan is already running
     include(${PROJECT_BINARY_DIR}/conanbuildinfo.cmake)
