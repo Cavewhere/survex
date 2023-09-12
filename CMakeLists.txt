@@ -15,6 +15,8 @@ string(REGEX REPLACE ${VERSION_REGEX} "\\1.\\2.\\3" PERIOD_VERSION "${GIT_TAG}")
 # set the project name
 project(Survex VERSION ${PERIOD_VERSION})
 
+option(SURVEX_CONAN "Use Conan to manage dependencies" ON)
+
 # In this file we are doing all of our 'configure' checks. Things like checking
 # for headers, functions, libraries, types and size of types.
 include (${CMAKE_ROOT}/Modules/CheckIncludeFile.cmake)
@@ -36,7 +38,35 @@ check_symbol_exists("putc_unlocked" "stdio.h" HAVE_PUTC_UNLOCKED)
 check_function_exists("strcasecmp" HAVE_STRCASECMP)
 check_function_exists("_stricmp" HAVE_STRICMP)
 
+if(HAVE_STDINT_H)
+    set(HAVE_STDINT_H 1)
+else()
+    set(HAVE_STDINT_H 0)
+endif()
 
+if(HAVE_STRING_H)
+    set(HAVE_STRING_H 1)
+else()
+    set(HAVE_STRING_H 0)
+endif()
+
+if(HAVE_STRCASECMP)
+    set(HAVE_STRCASECMP 1)
+else()
+    set(HAVE_STRCASECMP 0)
+endif()
+
+if(HAVE_STRICMP)
+    set(HAVE_STRICMP 1)
+else()
+    set(HAVE_STRICMP 0)
+endif()
+
+if(HAVE_STDINT_H)
+    set(HAVE_STDINT_H 1)
+else()
+    set(HAVE_STDINT_H 0)
+endif()
 
 message(STATUS "Survex version: \"${GIT_TAG}\"")
 
@@ -55,43 +85,24 @@ set(AVEN_COPYRIGHT_MSG_UTF8 copyright-message_undefined)
 
 include_directories(${PROJECT_BINARY_DIR})
 
-if(SURVEX_CONAN_EXPORTED) # in conan local cache
-    message(STATUS "Using Conan exported from parent project")
-    # standard conan installation, deps will be defined in conanfile.py
-    # and not necessary to call conan again, conan is already running
-    include(${PROJECT_BINARY_DIR}/conanbuildinfo.cmake)
-    conan_basic_setup()
-    conan_define_targets()
-else() #in user space
-    # CONAN download proj
-    # Download automatically, you can also just copy the conan.cmake file
-    if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
-       message(STATUS "Downloading conan.cmake from https://github.com/conan-io/cmake-conan")
-       file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/master/conan.cmake"
-                      "${CMAKE_BINARY_DIR}/conan.cmake")
-    endif()
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_BINARY_DIR}/conan-dependencies")
 
-    include(${CMAKE_BINARY_DIR}/conan.cmake)
+find_package(Python3 COMPONENTS Interpreter)
+find_package(Perl)
+find_package(wxwidgets REQUIRED) # COMPONENTS core base adv gl)
+find_package(GLEW REQUIRED)
+find_package(proj REQUIRED)
 
-#    conan_add_remote(NAME bincrafters
-#        INDEX 1
-#        URL https://bincrafters.jfrog.io/artifactory/api/conan/public-conan
-#        VERIFY_SSL True)
-
-    conan_cmake_run(REQUIRES proj/6.3.1
-        REQUIRES wxwidgets/3.1.4@bincrafters/stable
-        REQUIRES glew/2.2.0
-        OPTIONS wxwidgets:webview=False
-        BASIC_SETUP CMAKE_TARGETS
-        BUILD missing)
-endif()
-
-find_package (Python3 COMPONENTS Interpreter)
-find_package (Perl)
-
-SET(CMAKE_REQUIRED_INCLUDES ${CONAN_INCLUDE_DIRS})
+SET(CMAKE_REQUIRED_INCLUDES ${PROJ_INCLUDE_DIRS})
 check_include_file("proj.h" HAVE_PROJ_H)
 
+if(HAVE_PROJ_H)
+    set(HAVE_PROJ_H 1)
+else()
+    set(HAVE_PROJ_H 0)
+endif()
+
+SET(CMAKE_REQUIRED_INCLUDES ${wxwidgets_INCLUDE_DIRS})
 SET(CMAKE_EXTRA_INCLUDE_FILES "wx/chartype.h")
 check_type_size("wxChar" SIZEOF_WXCHAR)
 SET(CMAKE_EXTRA_INCLUDE_FILES)
@@ -170,7 +181,7 @@ add_library(survex_core STATIC
 target_compile_definitions(survex_core PUBLIC
     HAVE_CONFIG_H
     )
-target_link_libraries(survex_core CONAN_PKG::proj)
+target_link_libraries(survex_core PROJ::PROJ)
 
 # add the executable
 add_executable(cavern
@@ -196,7 +207,10 @@ add_dependencies(cavern
     )
 
 target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
-target_link_libraries(cavern CONAN_PKG::proj survex_core)
+target_link_libraries(cavern
+    PROJ::PROJ
+    survex_core
+)
 target_compile_definitions(cavern PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
@@ -269,8 +283,8 @@ add_executable(survexport
     )
 target_include_directories(survexport PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(survexport
-    CONAN_PKG::wxwidgets
-    CONAN_PKG::glew
+    wxwidgets::wxwidgets
+    GLEW::GLEW
     survex_core)
 target_compile_definitions(survexport PUBLIC
     HAVE_CONFIG_H
@@ -346,11 +360,34 @@ add_dependencies(aven
 
 target_include_directories(aven PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(aven
-    CONAN_PKG::wxwidgets
-    CONAN_PKG::glew
-    CONAN_PKG::proj
+    wxwidgets::wxwidgets
+    GLEW::GLEW
+    PROJ::PROJ
     survex_core)
 target_compile_definitions(aven PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
     )
+
+# Copy DLLs
+set(conanbuildinfo ${CMAKE_BINARY_DIR}/conan-dependencies/conanbuildinfo.cmake)
+include(${conanbuildinfo})
+
+set(WX_VC_X64_DLL_PATH "")
+foreach(DIR ${CONAN_BIN_DIRS_WXWIDGETS})
+    string(FIND "${DIR}" "vc_x64_dll" INDEX REVERSE)
+    if(NOT "${INDEX}" EQUAL "-1")
+        set(WX_VC_X64_DLL_PATH "${DIR}")
+        break()
+    endif()
+endforeach()
+
+add_custom_command(TARGET survexport POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${WX_VC_X64_DLL_PATH}/wxmsw314u_gl_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw314u_core_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw314u_html_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxbase314u_vc_custom.dll"
+        "${CONAN_BIN_DIRS_PROJ}/proj_9_1.dll"
+        "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
+        $<TARGET_FILE_DIR:aven>)

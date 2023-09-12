@@ -8,16 +8,16 @@
 #define _CONFIGURATION_HEADER_GUARD_H_
 
 /* Define to 1 if you have the <stdint.h> header file. */
-#cmakedefine01 HAVE_STDINT_H
+#define HAVE_STDINT_H @HAVE_STDINT_H@
 
 /* The size of `long', as computed by sizeof. */
 #define SIZEOF_INT @SIZEOF_INT@
 
 /* Has string.h */
-#cmakedefine01 HAVE_STRING_H
+#define HAVE_STRING_H @HAVE_STRING_H@
 
 /* Has Proj >= 5 */
-#cmakedefine HAVE_PROJ_H
+#define HAVE_PROJ_H @HAVE_PROJ_H@
 
 /* wxChar size */
 #define SIZEOF_WXCHAR @SIZEOF_WXCHAR@
@@ -36,7 +36,7 @@
 #define AVEN_COPYRIGHT_MSG_UTF8 "@AVEN_COPYRIGHT_MSG_UTF8@"
 
 #if HAVE_STDINT_H
-# include <stdint.h>
+#include <stdint.h>
 #else
 /* signed 16 bit integer type */
 typedef __int16 int16_t;
@@ -46,8 +46,8 @@ typedef __int32 int32_t;
 #endif
 
 /* strcasecmp define for systems which call it something else */
-#cmakedefine01 HAVE_STRCASECMP
-#cmakedefine01 HAVE_STRICMP
+#define HAVE_STRCASECMP @HAVE_STRCASECMP@
+#define HAVE_STRICMP @HAVE_STRICMP@
 #if HAVE_STRCASECMP
 //POSIX systems
 #define strcasecmp strcasecmp
