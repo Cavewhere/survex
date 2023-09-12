@@ -93,7 +93,7 @@ find_package(wxwidgets REQUIRED) # COMPONENTS core base adv gl)
 find_package(GLEW REQUIRED)
 find_package(proj REQUIRED)
 
-SET(CMAKE_REQUIRED_INCLUDES ${PROJ_INCLUDE_DIRS})
+SET(CMAKE_REQUIRED_INCLUDES ${PROJ_proj_INCLUDE_DIRS})
 check_include_file("proj.h" HAVE_PROJ_H)
 
 if(HAVE_PROJ_H)
@@ -384,10 +384,10 @@ endforeach()
 
 add_custom_command(TARGET survexport POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${WX_VC_X64_DLL_PATH}/wxmsw314u_gl_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxmsw314u_core_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxmsw314u_html_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxbase314u_vc_custom.dll"
-        "${CONAN_BIN_DIRS_PROJ}/proj_9_1.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw315u_gl_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw315u_core_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw315u_html_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxbase315u_vc_custom.dll"
+        "${CONAN_BIN_DIRS_PROJ}/proj_9_2.dll"
         "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
         $<TARGET_FILE_DIR:aven>)
