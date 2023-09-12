@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.12)
 
 find_program(GIT_EXEC git REQUIRED)
 
-set(VERSION_REGEX "v([0-9]+)\.([0-9]+)\.([0-9]+).*")
+set(VERSION_REGEX "v?([0-9]+)\.([0-9]+)\.([0-9]+).*")
 
 execute_process(
     COMMAND ${GIT_EXEC} describe --tags
