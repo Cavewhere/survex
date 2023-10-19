@@ -382,12 +382,20 @@ foreach(DIR ${CONAN_BIN_DIRS_WXWIDGETS})
     endif()
 endforeach()
 
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(WX_DLL_TYPE "ud")
+    set(PROJ_D "_d")
+else()
+    set(WX_DLL_TYPE "u")
+    set(PROJ_D "")
+endif()
+
 add_custom_command(TARGET survexport POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${WX_VC_X64_DLL_PATH}/wxmsw315u_gl_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxmsw315u_core_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxmsw315u_html_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxbase315u_vc_custom.dll"
-        "${CONAN_BIN_DIRS_PROJ}/proj_9_2.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_gl_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_core_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_html_vc_custom.dll"
+        "${WX_VC_X64_DLL_PATH}/wxbase315${WX_DLL_TYPE}_vc_custom.dll"
+        "${CONAN_BIN_DIRS_PROJ}/proj_9_2${PROJ_D}.dll"
         "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
         $<TARGET_FILE_DIR:aven>)
