@@ -1,6 +1,6 @@
 /* cavern.h
  * SURVEX Cave surveying software - header file
- * Copyright (C) 1991-2022 Olly Betts
+ * Copyright (C) 1991-2024 Olly Betts
  * Copyright (C) 2004 Simeon Warner
  *
  * This program is free software; you can redistribute it and/or modify
@@ -36,6 +36,7 @@
 #include <proj.h>
 
 #include "img_hosted.h"
+#include "str.h"
 #include "useful.h"
 
 /* Set EXPLICIT_FIXED_FLAG to 1 to force an explicit fixed flag to be used
@@ -88,7 +89,18 @@ typedef enum {
 } q_quantity;
 
 typedef enum {
-   INFER_NULL = -1, INFER_EQUATES, INFER_EXPORTS, INFER_PLUMBS, INFER_SUBSURVEYS
+   INFER_NULL = -1,
+   INFER_EQUATES,
+   INFER_EXPORTS,
+   INFER_PLUMBS,
+   INFER_SUBSURVEYS,
+   /* In Compass DAT files a dummy zero-length leg from a station to itself is
+    * used to provide a place to specify LRUD for the start or end of a
+    * traverse (depending if dimensions are measured at the from or to
+    * station), so we shouldn't warn about equating a station to itself.
+    * This should be set *as well as* INFER_EQUATES.
+    */
+   INFER_EQUATES_SELF_OK
 } infer_what;
 
 /* unsigned long to cope with 16-bit int-s */
@@ -182,6 +194,7 @@ typedef enum {
     * so can have enum values >= 32 because we only use a
     * bitmask for those readings used in commands.c.
     */
+   CompassDATFr, CompassDATTo,
    CompassDATComp, CompassDATClino, CompassDATBackComp, CompassDATBackClino,
    CompassDATLeft, CompassDATRight, CompassDATUp, CompassDATDown,
    CompassDATFlags
@@ -318,7 +331,13 @@ typedef struct Settings {
    bool dash_for_anon_wall_station;
    unsigned char infer;
    enum {OFF, LOWER, UPPER} Case;
+   /* STYLE_xxx value to process data as. */
    int style;
+   /* STYLE_xxx value to put in 3d file (different for Compass DAT diving
+    * data, as the data in the DAT file is always presented in the format
+    * tape,compass,clino even if that isn't how it was really measured).
+    */
+   int recorded_style;
    prefix *Prefix;
    prefix *begin_survey; /* used to check BEGIN and END match */
    short *Translate; /* if short is >= 16 bits, which ANSI requires */
@@ -361,8 +380,7 @@ extern unsigned long optimize;
 extern char * proj_str_out;
 extern PJ * pj_cached;
 
-extern char *survey_title;
-extern int survey_title_len;
+extern string survey_title;
 
 extern bool fExplicitTitle;
 extern long cLegs, cStns, cComponents;
@@ -387,9 +405,9 @@ extern bool fSuppress; /* only output 3d file */
 #if EXPLICIT_FIXED_FLAG
 # define pfx_fixed(N) ((N)->pos->fFixed)
 # define pos_fixed(P) ((P)->fFixed)
-# define fix(S) (S)->name->pos->fFixed = (char)fTrue
-# define fixpos(P) (P)->fFixed = (char)fTrue
-# define unfix(S) (S)->name->pos->fFixed = (char)fFalse
+# define fix(S) (S)->name->pos->fFixed = (char)true
+# define fixpos(P) (P)->fFixed = (char)true
+# define unfix(S) (S)->name->pos->fFixed = (char)false
 #else
 # define pfx_fixed(N) ((N)->pos->p[0] != UNFIXED_VAL)
 # define pos_fixed(P) ((P)->p[0] != UNFIXED_VAL)
@@ -446,5 +464,7 @@ typedef struct lrudlist {
 extern lrudlist * model;
 
 extern lrud ** next_lrud;
+
+extern char output_separator;
 
 #endif /* CAVERN_H */

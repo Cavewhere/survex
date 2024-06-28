@@ -22,9 +22,7 @@
 //  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 //
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-#endif
 
 #include <assert.h>
 #include <float.h>
@@ -37,6 +35,7 @@
 #include "hash.h"
 #include "mainfrm.h"
 #include "message.h"
+#include "osalloc.h"
 #include "useful.h"
 #include "printing.h"
 #include "guicontrol.h"
@@ -1880,7 +1879,6 @@ void GfxCore::HighlightSurvey()
     double xpy_min = HUGE_VAL, xpy_max = -HUGE_VAL;
     double xmy_min = HUGE_VAL, xmy_max = -HUGE_VAL;
     list<LabelInfo*>::const_iterator pos = m_Parent->GetLabels();
-    double x_tot = 0, y_tot = 0;
     size_t c = 0;
     while (pos != m_Parent->GetLabelsEnd()) {
 	const LabelInfo* label = *pos++;
@@ -1899,8 +1897,6 @@ void GfxCore::HighlightSurvey()
 	double xmy = x - y;
 	if (xmy < xmy_min) xmy_min = xmy;
 	if (xmy > xmy_max) xmy_max = xmy;
-	x_tot += x;
-	y_tot += y;
 	++c;
     }
     for (int f = 0; f != 8; ++f) {
@@ -1920,8 +1916,6 @@ void GfxCore::HighlightSurvey()
 		double xmy = x - y;
 		if (xmy < xmy_min) xmy_min = xmy;
 		if (xmy > xmy_max) xmy_max = xmy;
-		x_tot += x;
-		y_tot += y;
 		++c;
 	    }
 	    trav = m_Parent->traverses_next(f, &filter, trav);
@@ -2261,7 +2255,7 @@ bool GfxCore::PointWithinScaleBar(wxPoint point) const
 
     auto f = GetContentScaleFactor();
     wxCoord y = (GetYSize() - SCALE_BAR_OFFSET_Y * f - GetFontSize()) - point.y;
-    if (y > SCALE_BAR_HEIGHT * f || y < 0) return false;
+    if (y > wxCoord(SCALE_BAR_HEIGHT * f) || y < 0) return false;
 
     wxCoord x = point.x - SCALE_BAR_OFFSET_X * f;
     if (x > m_ScaleBarWidth || x < 0) return false;
@@ -3112,7 +3106,7 @@ void GfxCore::DrawTerrain()
     const Vector3 & off = m_Parent->GetOffset();
     vector<Vector3> prevcol(dem_height + 1);
     for (size_t x = 0; x < dem_width; ++x) {
-	PJ_COORD coord = {o_x + x * step_x, 0.0, 0.0, HUGE_VAL};
+	PJ_COORD coord{{o_x + x * step_x, 0.0, 0.0, HUGE_VAL}};
 	Vector3 prev;
 	for (size_t y = 0; y < dem_height; ++y) {
 	    unsigned short elev = dem[x + y * dem_width];

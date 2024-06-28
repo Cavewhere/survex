@@ -1,6 +1,6 @@
 /* readval.c
  * Routines to read a prefix or number from the current input file
- * Copyright (C) 1991-2003,2005,2006,2010,2011,2012,2013,2014,2015,2016,2018,2019 Olly Betts
+ * Copyright (C) 1991-2024 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,9 +17,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <limits.h>
 #include <stddef.h> /* for offsetof */
@@ -76,11 +74,13 @@ read_prefix(unsigned pfx_flags)
    size_t name_len = 32;
    size_t i;
    bool fNew;
-   bool fImplicitPrefix = fTrue;
+   bool fImplicitPrefix = true;
    int depth = -1;
+   filepos here;
    filepos fp_firstsep;
 
    skipblanks();
+   get_pos(&here);
 #ifndef NO_DEPRECATED
    if (isRoot(ch)) {
       if (!(pfx_flags & PFX_ALLOW_ROOT)) {
@@ -100,7 +100,7 @@ read_prefix(unsigned pfx_flags)
 	 get_pos(&fp_firstsep);
 	 nextch();
       }
-      fImplicitPrefix = fFalse;
+      fImplicitPrefix = false;
 #else
    if (0) {
 #endif
@@ -108,8 +108,6 @@ read_prefix(unsigned pfx_flags)
       if ((pfx_flags & PFX_ANON) &&
 	  (isSep(ch) || (pcs->dash_for_anon_wall_station && ch == '-'))) {
 	 int first_ch = ch;
-	 filepos here;
-	 get_pos(&here);
 	 nextch();
 	 if (isBlank(ch) || isEol(ch)) {
 	    if (!isSep(first_ch))
@@ -120,7 +118,7 @@ read_prefix(unsigned pfx_flags)
 	     */
 	    if (TSTBIT(pcs->flags, FLAGS_ANON_ONE_END)) {
 	       set_pos(&here);
-	       compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Can't have a leg between two anonymous stations*/3);
+	       compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/3);
 	       LONGJMP(file.jbSkipLine);
 	    }
 	    pcs->flags |= BIT(FLAGS_ANON_ONE_END) | BIT(FLAGS_IMPLICIT_SPLAY);
@@ -136,7 +134,7 @@ read_prefix(unsigned pfx_flags)
 anon_wall_station:
 	       if (TSTBIT(pcs->flags, FLAGS_ANON_ONE_END)) {
 		  set_pos(&here);
-		  compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Can't have a leg between two anonymous stations*/3);
+		  compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/3);
 		  LONGJMP(file.jbSkipLine);
 	       }
 	       pcs->flags |= BIT(FLAGS_ANON_ONE_END) | BIT(FLAGS_IMPLICIT_SPLAY);
@@ -154,7 +152,7 @@ anon_wall_station:
 		   */
 		  if (TSTBIT(pcs->flags, FLAGS_ANON_ONE_END)) {
 		     set_pos(&here);
-		     compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Can't have a leg between two anonymous stations*/3);
+		     compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/3);
 		     LONGJMP(file.jbSkipLine);
 		  }
 		  pcs->flags |= BIT(FLAGS_ANON_ONE_END);
@@ -170,7 +168,7 @@ anon_wall_station:
    i = 0;
    name = NULL;
    do {
-      fNew = fFalse;
+      fNew = false;
       if (name == NULL) {
 	 /* Need a new name buffer */
 	 name = osmalloc(name_len);
@@ -193,7 +191,7 @@ anon_wall_station:
 	 nextch();
       }
       if (isSep(ch)) {
-	 fImplicitPrefix = fFalse;
+	 fImplicitPrefix = false;
 	 get_pos(&fp_firstsep);
       }
       if (i == 0) {
@@ -236,7 +234,7 @@ anon_wall_station:
 	 if (fSuspectTypo && !fImplicitPrefix)
 	    ptr->sflags |= BIT(SFLAGS_SUSPECTTYPO);
 	 back_ptr->down = ptr;
-	 fNew = fTrue;
+	 fNew = true;
       } else {
 	 /* Use caching to speed up adding an increasing sequence to a
 	  * large survey */
@@ -247,7 +245,7 @@ anon_wall_station:
 	    cmp = strcmp(cached_station->ident, name);
 	    if (cmp <= 0) ptr = cached_station;
 	 }
-	 while (ptr && (cmp = strcmp(ptr->ident, name))<0) {
+	 while (ptr && (cmp = strcmp(ptr->ident, name)) < 0) {
 	    ptrPrev = ptr;
 	    ptr = ptr->right;
 	 }
@@ -275,14 +273,25 @@ anon_wall_station:
 	    if (fSuspectTypo && !fImplicitPrefix)
 	       newptr->sflags |= BIT(SFLAGS_SUSPECTTYPO);
 	    ptr = newptr;
-	    fNew = fTrue;
+	    fNew = true;
 	 }
 	 cached_survey = back_ptr;
 	 cached_station = ptr;
       }
       depth++;
-      f_optional = fFalse; /* disallow after first level */
-      if (isSep(ch)) get_pos(&fp_firstsep);
+      f_optional = false; /* disallow after first level */
+      if (isSep(ch)) {
+	 get_pos(&fp_firstsep);
+	 if (!TSTBIT(ptr->sflags, SFLAGS_SURVEY)) {
+	    /* TRANSLATORS: Here "station" is a survey station, not a train station.
+	     *
+	     * Here "survey" is a "cave map" rather than list of questions - it should be
+	     * translated to the terminology that cavers using the language would use.
+	     */
+	    compile_diagnostic(DIAG_ERR|DIAG_FROM(here), /*“%s” can’t be both a station and a survey*/27,
+			       sprint_prefix(ptr));
+	 }
+      }
    } while (isSep(ch));
    if (name) osfree(name);
 
@@ -304,7 +313,7 @@ anon_wall_station:
 	  * Here "survey" is a "cave map" rather than list of questions - it should be
 	  * translated to the terminology that cavers using the language would use.
 	  */
-	 compile_diagnostic(DIAG_ERR, /*“%s” can’t be both a station and a survey*/27,
+	 compile_diagnostic(DIAG_ERR|DIAG_FROM(here), /*“%s” can’t be both a station and a survey*/27,
 			    sprint_prefix(ptr));
       }
       if (!fSurvey && TSTBIT(pcs->infer, INFER_EXPORTS)) ptr->min_export = USHRT_MAX;
@@ -356,7 +365,7 @@ anon_wall_station:
 static real
 read_number(bool f_optional, bool f_unsigned)
 {
-   bool fPositive = fTrue, fDigits = fFalse;
+   bool fPositive = true, fDigits = false;
    real n = (real)0.0;
    filepos fp;
    int ch_old;
@@ -371,7 +380,7 @@ read_number(bool f_optional, bool f_unsigned)
    while (isdigit(ch)) {
       n = n * (real)10.0 + (char)(ch - '0');
       nextch();
-      fDigits = fTrue;
+      fDigits = true;
    }
 
    if (isDecimal(ch)) {
@@ -380,7 +389,7 @@ read_number(bool f_optional, bool f_unsigned)
       while (isdigit(ch)) {
 	 mult *= (real).1;
 	 n += (char)(ch - '0') * mult;
-	 fDigits = fTrue;
+	 fDigits = true;
 	 nextch();
       }
    }
@@ -442,7 +451,7 @@ read_quadrant(bool f_optional)
       LONGJMP(file.jbSkipLine);
       return 0.0; /* for brain-fried compilers */
    }
-   real r = read_number(fTrue, fTrue);
+   real r = read_number(true, true);
    if (r == HUGE_REAL) {
       if (isSign(ch) || isDecimal(ch)) {
 	 /* Give better errors for S-0E, N+10W, N.E, etc. */
@@ -495,7 +504,7 @@ extern real
 read_numeric(bool f_optional)
 {
    skipblanks();
-   return read_number(f_optional, fFalse);
+   return read_number(f_optional, false);
 }
 
 extern real
@@ -508,7 +517,7 @@ read_numeric_multi(bool f_optional, bool f_quadrants, int *p_n_readings)
    if (!isOpen(ch)) {
       real r = 0;
       if (!f_quadrants)
-	  r = read_number(f_optional, fFalse);
+	  r = read_number(f_optional, false);
       else
 	  r = read_quadrant(f_optional);
       if (p_n_readings) *p_n_readings = (r == HUGE_REAL ? 0 : 1);
@@ -519,9 +528,9 @@ read_numeric_multi(bool f_optional, bool f_quadrants, int *p_n_readings)
    skipblanks();
    do {
       if (!f_quadrants)
-	 tot += read_number(fFalse, fFalse);
+	 tot += read_number(false, false);
       else
-	 tot += read_quadrant(fFalse);
+	 tot += read_quadrant(false);
       ++n_readings;
       skipblanks();
    } while (!isClose(ch));
@@ -538,7 +547,7 @@ extern real
 read_bearing_multi_or_omit(bool f_quadrants, int *p_n_readings)
 {
    real v;
-   v = read_numeric_multi(fTrue, f_quadrants, p_n_readings);
+   v = read_numeric_multi(true, f_quadrants, p_n_readings);
    if (v == HUGE_REAL) {
       if (!isOmit(ch)) {
 	 compile_diagnostic_token_show(DIAG_ERR, /*Expecting numeric field, found “%s”*/9);
@@ -574,10 +583,58 @@ read_uint(void)
    return read_uint_internal(/*Expecting numeric field, found “%s”*/9, NULL);
 }
 
-extern void
-read_string(char **pstr, int *plen)
+extern int
+read_int(int min_val, int max_val)
 {
-   s_zero(pstr);
+    skipblanks();
+    unsigned n = 0;
+    filepos fp;
+
+    get_pos(&fp);
+    bool negated = isMinus(ch);
+    unsigned limit;
+    if (negated) {
+	limit = (unsigned)(min_val == INT_MIN ? INT_MIN : -min_val);
+    } else {
+	limit = (unsigned)max_val;
+    }
+    if (isSign(ch)) nextch();
+
+    if (!isdigit(ch)) {
+bad_value:
+	set_pos(&fp);
+	/* TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+	 * bound and the second by the (inclusive) upper bound, for example:
+	 * Expecting integer in range -60 to 60
+	 */
+	compile_diagnostic(DIAG_ERR|DIAG_NUM, /*Expecting integer in range %d to %d*/489);
+	LONGJMP(file.jbSkipLine);
+    }
+
+    while (isdigit(ch)) {
+	unsigned old_n = n;
+	n = n * 10 + (char)(ch - '0');
+	if (n > limit || n < old_n) {
+	    goto bad_value;
+	}
+	nextch();
+    }
+    if (isDecimal(ch)) goto bad_value;
+
+    if (negated) {
+	if (n > (unsigned)INT_MAX) {
+	    // Avoid unportable casting.
+	    return INT_MIN;
+	}
+	return -(int)n;
+    }
+    return (int)n;
+}
+
+extern void
+read_string(string *pstr)
+{
+   s_clear(pstr);
 
    skipblanks();
    if (ch == '\"') {
@@ -591,19 +648,15 @@ read_string(char **pstr, int *plen)
 
 	 if (ch == '\"') break;
 
-	 s_catchar(pstr, plen, ch);
+	 s_catchar(pstr, ch);
 	 nextch();
-      }
-      if (!*pstr) {
-	 /* Return empty string for "", not NULL. */
-	 s_catchar(pstr, plen, '\0');
       }
       nextch();
    } else {
       /* Unquoted string */
       while (1) {
 	 if (isEol(ch) || isComm(ch)) {
-	    if (!*pstr || !(*pstr)[0]) {
+	    if (s_empty(pstr)) {
 	       compile_diagnostic(DIAG_ERR|DIAG_COL, /*Expecting string field*/121);
 	       LONGJMP(file.jbSkipLine);
 	    }
@@ -612,7 +665,7 @@ read_string(char **pstr, int *plen)
 
 	 if (isBlank(ch)) break;
 
-	 s_catchar(pstr, plen, ch);
+	 s_catchar(pstr, ch);
 	 nextch();
       }
    }

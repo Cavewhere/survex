@@ -26,13 +26,12 @@
 #define DUMP_NETWORK 1
 #endif
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "validate.h"
 #include "debug.h"
 #include "cavern.h"
+#include "commands.h"
 #include "filename.h"
 #include "message.h"
 #include "filelist.h"
@@ -442,7 +441,8 @@ replace_travs(void)
    if (!pimg) {
       char *fnm = add_ext(fnm_output_base, EXT_SVX_3D);
       filename_register_output(fnm);
-      pimg = img_open_write_cs(fnm, survey_title, proj_str_out, 0);
+      pimg = img_open_write_cs(fnm, s_str(&survey_title), proj_str_out,
+			       img_FFLAG_SEPARATOR(output_separator));
       if (!pimg) fatalerror(img_error(), fnm);
       osfree(fnm);
    }
@@ -602,11 +602,11 @@ replace_travs(void)
 		 (do_blunder ? "suspect:" : "OK"));
       }
 #endif
-      while (fTrue) {
+      while (true) {
 	 int reached_end;
 	 prefix *leg_pfx;
 
-	 fEquate = fTrue;
+	 fEquate = true;
 	 /* get next node in traverse
 	  * should have stn3->leg[k]->l.to == stn1 */
 	 stn3 = stn1->leg[i]->l.to;
@@ -638,7 +638,7 @@ replace_travs(void)
 
 	 lenTot = sqrdd(leg->d);
 
-	 if (!fZeros(&leg->v)) fEquate = fFalse;
+	 if (!fZeros(&leg->v)) fEquate = false;
 	 if (!reached_end) {
 	    add_stn_to_list(&stnlist, stn3);
 	    if (!fEquate) {
@@ -957,15 +957,15 @@ replace_trailing_travs(void)
 
       d = stn1->name->shape;
       if (d <= 1 && !TSTBIT(stn1->name->sflags, SFLAGS_USED)) {
-	 bool unused_fixed_point = fFalse;
+	 bool unused_fixed_point = false;
 	 if (d == 0) {
 	    /* Unused fixed point without error estimates */
-	    unused_fixed_point = fTrue;
+	    unused_fixed_point = true;
 	 } else if (stn1->leg[0]) {
 	    prefix *pfx = stn1->leg[0]->l.to->name;
 	    if (!pfx->ident && !TSTBIT(pfx->sflags, SFLAGS_ANON)) {
 	       /* Unused fixed point with error estimates */
-	       unused_fixed_point = fTrue;
+	       unused_fixed_point = true;
 	    }
 	 }
 	 if (unused_fixed_point) {

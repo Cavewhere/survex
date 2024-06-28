@@ -1,6 +1,6 @@
 /* datain.c
  * Reads in survey files, dealing with special characters, keywords & data
- * Copyright (C) 1991-2022 Olly Betts
+ * Copyright (C) 1991-2024 Olly Betts
  * Copyright (C) 2004 Simeon Warner
  *
  * This program is free software; you can redistribute it and/or modify
@@ -18,9 +18,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-#endif
 
 #include <limits.h>
 #include <stdarg.h>
@@ -28,6 +26,7 @@
 #include "debug.h"
 #include "cavern.h"
 #include "date.h"
+#include "img.h"
 #include "filename.h"
 #include "message.h"
 #include "filelist.h"
@@ -39,24 +38,66 @@
 #include "out.h"
 #include "str.h"
 #include "thgeomag.h"
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 2)
+/* Needed for proj_factors workaround */
+# include <proj_experimental.h>
+#endif
 
 #define EPSILON (REAL_EPSILON * 1000)
 
 #define var(I) (pcs->Var[(I)])
 
-/* true if x is not-a-number value in Compass (999.0 or -999.0)    */
-/* Compass uses 999.0 but understands Karst data which used -999.0 */
-#define is_compass_NaN(x) ( fabs(fabs(x)-999.0) <  EPSILON )
+/* Test for a not-a-number value in Compass data (999.0 or -999.0).
+ *
+ * Compass itself uses -999.0 but reportedly understands Karst data which used
+ * 999.0 (information from Larry Fish via Simeon Warner in 2004).  However
+ * testing with Compass in early 2024 it seems 999.0 is treated like any other
+ * reading.
+ *
+ * When "corrected" backsights are specified in FORMAT, Compass seems to write
+ * out -999 with the correction applied to the CLP file.
+ *
+ * Valid readings should be 0 to 360 for the compass and -90 to 90 for the
+ * clino, and the correction should have absolute value < 360, so we test for
+ * any reading with an absolute value greater than 999 - 360 = 639, which is
+ * well outside the valid range.
+ */
+#define is_compass_NaN(x) (fabs(x) > (999.0 - 360.0))
 
+static int
+read_compass_date_as_days_since_1900(void)
+{
+    /* NB order is *month* *day* year */
+    int month = read_uint();
+    int day = read_uint();
+    int year = read_uint();
+    /* Note: Larry says a 2 digit year is always 19XX */
+    if (year < 100) year += 1900;
+
+    /* Compass uses 1901-01-01 when no date was specified. */
+    if (year == 1901 && day == 1 && month == 1) return -1;
+
+    return days_since_1900(year, month, day);
+}
 int ch;
 
 typedef enum {
-    CTYPE_OMIT, CTYPE_READING, CTYPE_PLUMB, CTYPE_INFERPLUMB, CTYPE_HORIZ
+    // Clino omitted.  VAL() should be set to 0.0.
+    CTYPE_OMIT,
+    // An actual clino reading.
+    CTYPE_READING,
+    // An explicit plumb (U/D/UP/DOWN/+V/-V for reading).
+    CTYPE_PLUMB,
+    // An inferred plumb (+90 or -90 and *infer plumbs).
+    CTYPE_INFERPLUMB,
+    // An explicit horizontal leg (H/LEVEL for reading).
+    CTYPE_HORIZ
 } clino_type;
 
 /* Don't explicitly initialise as we can't set the jmp_buf - this has
  * static scope so will be initialised like this anyway */
-parse file /* = { NULL, NULL, 0, fFalse, NULL } */ ;
+parse file /* = { NULL, NULL, 0, false, NULL } */ ;
 
 bool f_export_ok;
 
@@ -99,7 +140,7 @@ report_parent(parse * p) {
 	report_parent(p->parent);
     /* Force re-report of include tree for further errors in
      * parent files */
-    p->reported_where = fFalse;
+    p->reported_where = false;
     /* TRANSLATORS: %s is replaced by the filename of the parent file, and %u
      * by the line number in that file.  Your translation should also contain
      * %s:%u so that automatic parsing of error messages to determine the file
@@ -114,7 +155,7 @@ error_list_parent_files(void)
       report_parent(file.parent);
       /* Suppress reporting of full include tree for further errors
        * in this file */
-      file.reported_where = fTrue;
+      file.reported_where = true;
    }
 }
 
@@ -172,8 +213,7 @@ grab_line(void)
 {
    /* Rewind to beginning of line. */
    long cur_pos = ftell(file.fh);
-   char *p = NULL;
-   int len = 0;
+   string p = S_INIT;
    if (cur_pos < 0 || fseek(file.fh, file.lpos, SEEK_SET) == -1)
       fatalerror_in_file(file.filename, 0, /*Error reading file*/18);
 
@@ -182,16 +222,16 @@ grab_line(void)
       int c = GETC(file.fh);
       /* Note: isEol() is true for EOF */
       if (isEol(c)) break;
-      s_catchar(&p, &len, (char)c);
+      s_catchar(&p, c);
    }
 
    /* Revert to where we were. */
    if (fseek(file.fh, cur_pos, SEEK_SET) == -1) {
-      free(p);
+      s_free(&p);
       fatalerror_in_file(file.filename, 0, /*Error reading file*/18);
    }
 
-   return p;
+   return s_steal(&p);
 }
 
 static int caret_width = 0;
@@ -211,11 +251,11 @@ static void
 compile_v_report(int diag_flags, int en, va_list ap)
 {
    int severity = (diag_flags & DIAG_SEVERITY_MASK);
-   if (diag_flags & (DIAG_COL|DIAG_BUF)) {
+   if (diag_flags & (DIAG_COL|DIAG_TOKEN)) {
       if (file.fh) {
-	 if (diag_flags & DIAG_BUF) caret_width = strlen(buffer);
+	 if (diag_flags & DIAG_TOKEN) caret_width = s_len(&token);
 	 compile_v_report_fpos(severity, ftell(file.fh), en, ap);
-	 if (diag_flags & DIAG_BUF) caret_width = 0;
+	 if (diag_flags & DIAG_TOKEN) caret_width = 0;
 	 if (diag_flags & DIAG_SKIP) skipline();
 	 return;
       }
@@ -223,8 +263,8 @@ compile_v_report(int diag_flags, int en, va_list ap)
    error_list_parent_files();
    v_report(severity, file.filename, file.line, 0, en, ap);
    if (file.fh) {
-      if (diag_flags & DIAG_BUF) {
-	 show_line(0, strlen(buffer));
+      if (diag_flags & DIAG_TOKEN) {
+	 show_line(0, s_len(&token));
       } else {
 	 show_line(0, caret_width);
       }
@@ -237,57 +277,62 @@ compile_diagnostic(int diag_flags, int en, ...)
 {
    va_list ap;
    va_start(ap, en);
-   if (diag_flags & (DIAG_TOKEN|DIAG_UINT|DIAG_DATE|DIAG_NUM)) {
-      char *p = NULL;
+   if (diag_flags & (DIAG_DATE|DIAG_NUM|DIAG_UINT|DIAG_WORD|DIAG_TAIL|DIAG_FROM_)) {
       int len = 0;
       skipblanks();
-      if (diag_flags & DIAG_TOKEN) {
+      if (diag_flags & DIAG_WORD) {
 	 while (!isBlank(ch) && !isEol(ch)) {
-	    s_catchar(&p, &len, (char)ch);
+	    ++len;
 	    nextch();
 	 }
       } else if (diag_flags & DIAG_UINT) {
 	 while (isdigit(ch)) {
-	    s_catchar(&p, &len, (char)ch);
+	    ++len;
 	    nextch();
 	 }
       } else if (diag_flags & DIAG_DATE) {
 	 while (isdigit(ch) || ch == '.') {
-	    s_catchar(&p, &len, (char)ch);
+	    ++len;
 	    nextch();
 	 }
+      } else if (diag_flags & DIAG_TAIL) {
+	 int len_last_nonblank = len;
+	 while (!isComm(ch) && !isEol(ch)) {
+	    ++len;
+	    if (!isBlank(ch)) len_last_nonblank = len;
+	    nextch();
+	 }
+	 len = len_last_nonblank;
+      } else if (diag_flags & DIAG_FROM_) {
+	 len = diag_flags >> DIAG_FROM_SHIFT;
       } else {
 	 if (isMinus(ch) || isPlus(ch)) {
-	    s_catchar(&p, &len, (char)ch);
+	    ++len;
 	    nextch();
 	 }
 	 while (isdigit(ch)) {
-	    s_catchar(&p, &len, (char)ch);
+	    ++len;
 	    nextch();
 	 }
 	 if (isDecimal(ch)) {
-	    s_catchar(&p, &len, (char)ch);
+	    ++len;
 	    nextch();
 	 }
 	 while (isdigit(ch)) {
-	    s_catchar(&p, &len, (char)ch);
+	    ++len;
 	    nextch();
 	 }
       }
-      if (p) {
-	 caret_width = strlen(p);
-	 osfree(p);
-      }
+      caret_width = len;
       compile_v_report(diag_flags|DIAG_COL, en, ap);
       caret_width = 0;
    } else if (diag_flags & DIAG_STRING) {
-      char *p = NULL;
-      int alloced = 0;
+      string p = S_INIT;
       skipblanks();
       caret_width = ftell(file.fh);
-      read_string(&p, &alloced);
-      osfree(p);
-      /* We want to include any quotes, so can't use strlen(p). */
+      read_string(&p);
+      s_free(&p);
+      /* We want to include any quotes, so can't use s_len(&p). */
       caret_width = ftell(file.fh) - caret_width;
       compile_v_report(diag_flags|DIAG_COL, en, ap);
       caret_width = 0;
@@ -344,18 +389,17 @@ compile_diagnostic_pfx(int diag_flags, const prefix * pfx, int en, ...)
 void
 compile_diagnostic_token_show(int diag_flags, int en)
 {
-   char *p = NULL;
-   int len = 0;
+   string p = S_INIT;
    skipblanks();
    while (!isBlank(ch) && !isEol(ch)) {
-      s_catchar(&p, &len, (char)ch);
+      s_catchar(&p, (char)ch);
       nextch();
    }
-   if (p) {
-      caret_width = strlen(p);
-      compile_diagnostic(diag_flags|DIAG_COL, en, p);
+   if (!s_empty(&p)) {
+      caret_width = s_len(&p);
+      compile_diagnostic(diag_flags|DIAG_COL, en, s_str(&p));
       caret_width = 0;
-      osfree(p);
+      s_free(&p);
    } else {
       compile_diagnostic(DIAG_ERR|DIAG_COL, en, "");
    }
@@ -418,7 +462,7 @@ process_eol(void)
 
    if (!isEol(ch)) {
       if (!isComm(ch))
-	 compile_diagnostic(DIAG_ERR|DIAG_COL, /*End of line not blank*/15);
+	 compile_diagnostic(DIAG_ERR|DIAG_TAIL, /*End of line not blank*/15);
       skipline();
    }
 
@@ -442,7 +486,7 @@ process_non_data_line(void)
 {
    skipblanks();
 
-   if (isData(ch)) return fFalse;
+   if (isData(ch)) return false;
 
    if (isKeywd(ch)) {
       nextch();
@@ -451,7 +495,7 @@ process_non_data_line(void)
 
    process_eol();
 
-   return fTrue;
+   return true;
 }
 
 static void
@@ -481,7 +525,7 @@ read_reading(reading r, bool f_optional)
    }
    LOC(r) = ftell(file.fh);
    /* since we don't handle bearings in read_readings, it's never quadrant */
-   VAL(r) = read_numeric_multi(f_optional, fFalse, &n_readings);
+   VAL(r) = read_numeric_multi(f_optional, false, &n_readings);
    WID(r) = ftell(file.fh) - LOC(r);
    VAR(r) = var(q);
    if (n_readings > 1) VAR(r) /= sqrt(n_readings);
@@ -491,18 +535,18 @@ static void
 read_bearing_or_omit(reading r)
 {
    int n_readings;
-   bool quadrants = fFalse;
+   bool quadrants = false;
    q_quantity q = Q_NULL;
    switch (r) {
       case Comp:
 	q = Q_BEARING;
 	if (pcs->f_bearing_quadrants)
-	   quadrants = fTrue;
+	   quadrants = true;
 	break;
       case BackComp:
 	q = Q_BACKBEARING;
 	if (pcs->f_backbearing_quadrants)
-	   quadrants = fTrue;
+	   quadrants = true;
 	break;
       default:
 	q = Q_NULL; /* Suppress compiler warning */;
@@ -515,6 +559,38 @@ read_bearing_or_omit(reading r)
    if (n_readings > 1) VAR(r) /= sqrt(n_readings);
 }
 
+// Set up settings for reading Compass DAT or MAK.
+static void
+initialise_common_compass_settings(void)
+{
+    short *t = ((short*)osmalloc(ossizeof(short) * 257)) + 1;
+    int i;
+    t[EOF] = SPECIAL_EOL;
+    memset(t, 0, sizeof(short) * 33);
+    for (i = 33; i < 127; i++) t[i] = SPECIAL_NAMES;
+    t[127] = 0;
+    for (i = 128; i < 256; i++) t[i] = SPECIAL_NAMES;
+    t['\t'] |= SPECIAL_BLANK;
+    t[' '] |= SPECIAL_BLANK;
+    t['\032'] |= SPECIAL_EOL; /* Ctrl-Z, so olde DOS text files are handled ok */
+    t['\n'] |= SPECIAL_EOL;
+    t['\r'] |= SPECIAL_EOL;
+    t['.'] |= SPECIAL_DECIMAL;
+    t['-'] |= SPECIAL_MINUS;
+    t['+'] |= SPECIAL_PLUS;
+
+    settings *pcsNew = osnew(settings);
+    *pcsNew = *pcs; /* copy contents */
+    pcsNew->begin_lineno = 0;
+    pcsNew->Translate = t;
+    pcsNew->Case = OFF;
+    pcsNew->Truncate = INT_MAX;
+    pcsNew->next = pcs;
+    pcs = pcsNew;
+
+    update_output_separator();
+}
+
 /* For reading Compass MAK files which have a freeform syntax */
 static void
 nextch_handling_eol(void)
@@ -525,16 +601,552 @@ nextch_handling_eol(void)
    }
 }
 
-#define LITLEN(S) (sizeof(S"") - 1)
-#define has_ext(F,L,E) ((L) > LITLEN(E) + 1 &&\
-			(F)[(L) - LITLEN(E) - 1] == FNM_SEP_EXT &&\
-			strcasecmp((F) + (L) - LITLEN(E), E) == 0)
+static void
+data_file_compass_dat_or_clp(bool is_clp)
+{
+    initialise_common_compass_settings();
+    default_units(pcs);
+    default_calib(pcs);
+    pcs->z[Q_DECLINATION] = HUGE_REAL;
+
+    pcs->recorded_style = pcs->style = STYLE_NORMAL;
+    pcs->units[Q_LENGTH] = METRES_PER_FOOT;
+    pcs->infer = BIT(INFER_EQUATES) |
+		 BIT(INFER_EQUATES_SELF_OK) |
+		 BIT(INFER_EXPORTS) |
+		 BIT(INFER_PLUMBS);
+    /* We need to update separator_map so we don't pick a separator character
+     * which occurs in a station name.  However Compass DAT allows everything
+     * >= ASCII char 33 except 127 in station names so if we just added all
+     * the valid station name characters we'd always pick space as the
+     * separator for any dataset which included a DAT file, yet in practice
+     * '.' is never used in any of the sample DAT files I've seen.  So
+     * instead we scan the characters actually used in station names when we
+     * process CompassDATFr and CompassDATTo fields.
+     */
+
+#ifdef HAVE_SETJMP_H
+    /* errors in nested functions can longjmp here */
+    if (setjmp(file.jbSkipLine)) {
+	skipline();
+	process_eol();
+    }
+#endif
+
+    while (ch != EOF && !ferror(file.fh)) {
+	static const reading compass_order[] = {
+	    CompassDATFr, CompassDATTo, Tape, CompassDATComp, CompassDATClino,
+	    CompassDATLeft, CompassDATUp, CompassDATDown, CompassDATRight,
+	    CompassDATFlags, IgnoreAll
+	};
+	static const reading compass_order_backsights[] = {
+	    CompassDATFr, CompassDATTo, Tape, CompassDATComp, CompassDATClino,
+	    CompassDATLeft, CompassDATUp, CompassDATDown, CompassDATRight,
+	    CompassDATBackComp, CompassDATBackClino,
+	    CompassDATFlags, IgnoreAll
+	};
+	/* <Cave name> */
+	skipline();
+	process_eol();
+	/* SURVEY NAME: <Short name> */
+	get_token();
+	get_token();
+	/* if (ch != ':') ... */
+	nextch();
+	get_token();
+	skipline();
+	process_eol();
+	/* SURVEY DATE: 7 10 79  COMMENT:<Long name> */
+	get_token();
+	get_token();
+	copy_on_write_meta(pcs);
+	if (ch == ':') {
+	    nextch();
+	    int days = read_compass_date_as_days_since_1900();
+	    pcs->meta->days1 = pcs->meta->days2 = days;
+	} else {
+	    pcs->meta->days1 = pcs->meta->days2 = -1;
+	}
+	pcs->declination = HUGE_REAL;
+	skipline();
+	process_eol();
+	/* SURVEY TEAM: */
+	get_token();
+	get_token();
+	skipline();
+	process_eol();
+	/* <Survey team> */
+	skipline();
+	process_eol();
+	/* DECLINATION: 1.00  FORMAT: DDDDLUDRADLN  CORRECTIONS: 2.00 3.00 4.00 */
+	get_token();
+	nextch(); /* : */
+	skipblanks();
+	if (pcs->dec_filename == NULL) {
+	    pcs->z[Q_DECLINATION] = -read_numeric(false);
+	    pcs->z[Q_DECLINATION] *= pcs->units[Q_DECLINATION];
+	} else {
+	    (void)read_numeric(false);
+	}
+	get_token();
+	pcs->ordering = compass_order;
+	if (S_EQ(&token, "FORMAT")) {
+	    /* This documents the format in the original survey notebook - we
+	     * don't need to fully parse it to be able to parse the survey data
+	     * in the file, which gets converted to a fixed order and units.
+	     */
+	    nextch(); /* : */
+	    get_token();
+	    size_t token_len = s_len(&token);
+	    if (token_len >= 4 && s_str(&token)[3] == 'W') {
+		/* Original "Inclination Units" were "Depth Gauge". */
+		pcs->recorded_style = STYLE_DIVING;
+	    }
+	    if (token_len >= 12) {
+		char backsight_type = s_str(&token)[token_len >= 15 ? 13 : 11];
+		// B means redundant backsight; C means redundant backsights
+		// but displayed "corrected" (i.e. reversed to make visually
+		// comparing easier).
+		if (backsight_type == 'B' || backsight_type == 'C') {
+		    /* We have backsights for compass and clino */
+		    pcs->ordering = compass_order_backsights;
+		}
+	    }
+	    get_token();
+	}
+
+	// CORRECTIONS and CORRECTIONS2 have already been applied to data in
+	// the CLP file.
+	if (!is_clp) {
+	    if (S_EQ(&token, "CORRECTIONS") && ch == ':') {
+		nextch(); /* : */
+		pcs->z[Q_BACKBEARING] = pcs->z[Q_BEARING] = -rad(read_numeric(false));
+		pcs->z[Q_BACKGRADIENT] = pcs->z[Q_GRADIENT] = -rad(read_numeric(false));
+		pcs->z[Q_LENGTH] = -METRES_PER_FOOT * read_numeric(false);
+		get_token();
+	    }
+
+	    /* get_token() only reads alphas so we must check for '2' here. */
+	    if (S_EQ(&token, "CORRECTIONS") && ch == '2') {
+		nextch(); /* 2 */
+		nextch(); /* : */
+		pcs->z[Q_BACKBEARING] = -rad(read_numeric(false));
+		pcs->z[Q_BACKGRADIENT] = -rad(read_numeric(false));
+		get_token();
+	    }
+	}
+
+#if 0
+	// FIXME Parse once we handle discovery dates...
+	// NB: Need to skip unread CORRECTIONS* for the `is_clp` case.
+	if (S_EQ(&token, "DISCOVERY") && ch == ':') {
+	    // Discovery date, e.g. DISCOVERY: 2 28 2024
+	    nextch(); /* : */
+	    int days = read_compass_date_as_days_since_1900();
+	}
+#endif
+	skipline();
+	process_eol();
+	/* BLANK LINE */
+	skipline();
+	process_eol();
+	/* heading line */
+	skipline();
+	process_eol();
+	/* BLANK LINE */
+	skipline();
+	process_eol();
+	while (ch != EOF) {
+	    if (ch == '\x0c') {
+		nextch();
+		process_eol();
+		break;
+	    }
+	    data_normal();
+	}
+	clear_last_leg();
+    }
+    pcs->ordering = NULL; /* Avoid free() of static array. */
+    pop_settings();
+}
+
+static void
+data_file_compass_dat(void)
+{
+    data_file_compass_dat_or_clp(false);
+}
+
+static void
+data_file_compass_clp(void)
+{
+    data_file_compass_dat_or_clp(true);
+}
+
+static void
+data_file_compass_mak(void)
+{
+    initialise_common_compass_settings();
+    short *t = pcs->Translate;
+    // In a Compass MAK file a station name can't contain these three
+    // characters due to how the syntax works.
+    t['['] = t[','] = t[';'] = 0;
+
+#ifdef HAVE_SETJMP_H
+    /* errors in nested functions can longjmp here */
+    if (setjmp(file.jbSkipLine)) {
+	skipline();
+	process_eol();
+    }
+#endif
+
+    int datum = 0;
+    int utm_zone = 0;
+    real base_x = 0.0, base_y = 0.0, base_z = 0.0;
+    int base_utm_zone = 0;
+    unsigned int base_line = 0;
+    long base_lpos = 0;
+    string path = S_INIT;
+    s_donate(&path, path_from_fnm(file.filename));
+    struct mak_folder {
+	struct mak_folder *next;
+	int len;
+    } *folder_stack = NULL;
+
+    while (ch != EOF && !ferror(file.fh)) {
+	switch (ch) {
+	  case '#': {
+	      /* include a file */
+	      int ch_store;
+	      string dat_fnm = S_INIT;
+	      nextch_handling_eol();
+	      while (ch != ',' && ch != ';' && ch != EOF) {
+		  while (isEol(ch)) process_eol();
+		  s_catchar(&dat_fnm, (char)ch);
+		  nextch_handling_eol();
+	      }
+	      if (!s_empty(&dat_fnm)) {
+		  if (base_utm_zone) {
+		      // Process the previous @ command using the datum from &.
+		      char *proj_str = img_compass_utm_proj_str(datum,
+								base_utm_zone);
+		      if (proj_str) {
+			  // Temporarily reset line and lpos so dec_context and
+			  // dec_line refer to the @ command.
+			  unsigned saved_line = file.line;
+			  file.line = base_line;
+			  long saved_lpos = file.lpos;
+			  file.lpos = base_lpos;
+			  set_declination_location(base_x, base_y, base_z,
+						   proj_str);
+			  file.line = saved_line;
+			  file.lpos = saved_lpos;
+			  if (!pcs->proj_str) {
+			      pcs->proj_str = proj_str;
+			      if (!proj_str_out) {
+				  proj_str_out = osstrdup(proj_str);
+			      }
+			  } else {
+			      osfree(proj_str);
+			  }
+		      }
+		  }
+		  ch_store = ch;
+		  data_file(s_str(&path), s_str(&dat_fnm));
+		  ch = ch_store;
+		  s_free(&dat_fnm);
+	      }
+	      while (ch != ';' && ch != EOF) {
+		  prefix *name;
+		  nextch_handling_eol();
+		  filepos fp_name;
+		  get_pos(&fp_name);
+		  name = read_prefix(PFX_STATION|PFX_OPT);
+		  if (name) {
+		      scan_compass_station_name(name);
+		      skipblanks();
+		      if (ch == '[') {
+			  /* fixed pt */
+			  node *stn;
+			  real x, y, z;
+			  bool in_feet = false;
+			  // Compass treats these fixed points as entrances
+			  // ("distance from entrance" in a .DAT file counts
+			  // from 0.0 at these points) so we do too.
+			  name->sflags |= BIT(SFLAGS_FIXED) |
+					  BIT(SFLAGS_ENTRANCE);
+			  nextch_handling_eol();
+			  if (ch == 'F' || ch == 'f') {
+			      in_feet = true;
+			      nextch_handling_eol();
+			  } else if (ch == 'M' || ch == 'm') {
+			      nextch_handling_eol();
+			  } else {
+			      compile_diagnostic(DIAG_ERR|DIAG_COL, /*Expecting “F” or “M”*/103);
+			  }
+			  while (!isdigit(ch) && ch != '+' && ch != '-' &&
+				 ch != '.' && ch != ']' && ch != EOF) {
+			      nextch_handling_eol();
+			  }
+			  x = read_numeric(false);
+			  while (!isdigit(ch) && ch != '+' && ch != '-' &&
+				 ch != '.' && ch != ']' && ch != EOF) {
+			      nextch_handling_eol();
+			  }
+			  y = read_numeric(false);
+			  while (!isdigit(ch) && ch != '+' && ch != '-' &&
+				 ch != '.' && ch != ']' && ch != EOF) {
+			      nextch_handling_eol();
+			  }
+			  z = read_numeric(false);
+			  if (in_feet) {
+			      x *= METRES_PER_FOOT;
+			      y *= METRES_PER_FOOT;
+			      z *= METRES_PER_FOOT;
+			  }
+			  stn = StnFromPfx(name);
+			  if (!fixed(stn)) {
+			      POS(stn, 0) = x;
+			      POS(stn, 1) = y;
+			      POS(stn, 2) = z;
+			      fix(stn);
+			  } else {
+			      filepos fp;
+			      get_pos(&fp);
+			      set_pos(&fp_name);
+			      if (x != POS(stn, 0) ||
+				  y != POS(stn, 1) ||
+				  z != POS(stn, 2)) {
+				  compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Station already fixed or equated to a fixed point*/46);
+			      } else {
+				  compile_diagnostic(DIAG_WARN|DIAG_WORD, /*Station already fixed at the same coordinates*/55);
+			      }
+			      set_pos(&fp);
+			  }
+			  while (ch != ']' && ch != EOF) nextch_handling_eol();
+			  if (ch == ']') {
+			      nextch_handling_eol();
+			      skipblanks();
+			  }
+		      } else {
+			  /* FIXME: link station - ignore for now */
+			  /* FIXME: perhaps issue warning?  Other station names
+			   * can be "reused", which is problematic... */
+		      }
+		      while (ch != ',' && ch != ';' && ch != EOF)
+			  nextch_handling_eol();
+		  }
+	      }
+	      break;
+	  }
+	  case '$':
+	    /* UTM zone */
+	    nextch();
+	    skipblanks();
+	    utm_zone = read_int(-60, 60);
+	    skipblanks();
+	    if (ch == ';') nextch_handling_eol();
+
+update_proj_str:
+	    if (!pcs->next || pcs->proj_str != pcs->next->proj_str)
+		osfree(pcs->proj_str);
+	    pcs->proj_str = NULL;
+	    if (datum && utm_zone && abs(utm_zone) <= 60) {
+		/* Set up coordinate system. */
+		char *proj_str = img_compass_utm_proj_str(datum, utm_zone);
+		if (proj_str) {
+		    pcs->proj_str = proj_str;
+		    if (!proj_str_out) {
+			proj_str_out = osstrdup(proj_str);
+		    }
+		}
+	    }
+	    invalidate_pj_cached();
+	    break;
+	  case '&': {
+	      /* Datum */
+	      string p = S_INIT;
+	      int datum_len = 0;
+	      int c = 0;
+	      nextch();
+	      skipblanks();
+	      while (ch != ';' && !isEol(ch)) {
+		  s_catchar(&p, (char)ch);
+		  ++c;
+		  /* Ignore trailing blanks. */
+		  if (!isBlank(ch)) datum_len = c;
+		  nextch();
+	      }
+	      if (ch == ';') nextch_handling_eol();
+	      datum = img_parse_compass_datum_string(s_str(&p), datum_len);
+	      s_free(&p);
+	      goto update_proj_str;
+	  }
+	  case '[': {
+	      // Enter subdirectory.
+	      struct mak_folder *p = folder_stack;
+	      folder_stack = osnew(struct mak_folder);
+	      folder_stack->next = p;
+	      folder_stack->len = s_len(&path);
+	      if (!s_empty(&path))
+		  s_catchar(&path, FNM_SEP_LEV);
+	      nextch();
+	      while (ch != ';' && !isEol(ch)) {
+		  if (ch == '\\') {
+		      ch = FNM_SEP_LEV;
+		  }
+		  s_catchar(&path, (char)ch);
+		  nextch();
+	      }
+	      if (ch == ';') nextch_handling_eol();
+	      break;
+	  }
+	  case ']': {
+	      // Leave subdirectory.
+	      struct mak_folder *p = folder_stack;
+	      if (folder_stack == NULL) {
+		  // FIXME: Error?  Check what Compass does.
+		  break;
+	      }
+	      s_truncate(&path, folder_stack->len);
+	      folder_stack = folder_stack->next;
+	      osfree(p);
+	      nextch();
+	      skipblanks();
+	      if (ch == ';') nextch_handling_eol();
+	      break;
+	  }
+	  case '@': {
+	      /* "Base Location" to calculate magnetic declination at:
+	       * UTM East, UTM North, Elevation, UTM Zone, Convergence Angle
+	       * The first three are in metres.
+	       */
+	      nextch();
+	      real easting = read_numeric(false);
+	      skipblanks();
+	      if (ch != ',') break;
+	      nextch();
+	      real northing = read_numeric(false);
+	      skipblanks();
+	      if (ch != ',') break;
+	      nextch();
+	      real elevation = read_numeric(false);
+	      skipblanks();
+	      if (ch != ',') break;
+	      nextch();
+	      int zone = read_int(-60, 60);
+	      skipblanks();
+	      if (ch != ',') break;
+	      nextch();
+	      real convergence_angle = read_numeric(false);
+	      /* We've now read them all successfully so store them.  The
+	       * Compass documentation gives an example which specifies the
+	       * datum *AFTER* the base location, so we need to convert lazily.
+	       */
+	      base_x = easting;
+	      base_y = northing;
+	      base_z = elevation;
+	      base_utm_zone = zone;
+	      base_line = file.line;
+	      base_lpos = file.lpos;
+	      // We ignore the stored UTM grid convergence angle since we get
+	      // this from PROJ.
+	      (void)convergence_angle;
+	      if (ch == ';') nextch_handling_eol();
+	      break;
+	  }
+	  default:
+	    nextch_handling_eol();
+	    break;
+	}
+    }
+
+    while (folder_stack) {
+	// FIXME: Error?  Check what Compass does.
+	struct mak_folder *next = folder_stack->next;
+	osfree(folder_stack);
+	folder_stack = next;
+    }
+
+    pop_settings();
+    s_free(&path);
+}
+
+static void
+data_file_survex(void)
+{
+    int begin_lineno_store = pcs->begin_lineno;
+    pcs->begin_lineno = 0;
+
+    if (ch == 0xef) {
+	/* Maybe a UTF-8 "BOM" - skip if so. */
+	if (nextch() == 0xbb && nextch() == 0xbf) {
+	    nextch();
+	    file.lpos = 3;
+	} else {
+	    rewind(file.fh);
+	    ch = 0xef;
+	}
+    }
+
+#ifdef HAVE_SETJMP_H
+    /* errors in nested functions can longjmp here */
+    if (setjmp(file.jbSkipLine)) {
+	skipline();
+	process_eol();
+    }
+#endif
+
+    while (ch != EOF && !ferror(file.fh)) {
+	if (!process_non_data_line()) {
+	    f_export_ok = false;
+	    switch (pcs->style) {
+	      case STYLE_NORMAL:
+	      case STYLE_DIVING:
+	      case STYLE_CYLPOLAR:
+		data_normal();
+		break;
+	      case STYLE_CARTESIAN:
+		data_cartesian();
+		break;
+	      case STYLE_PASSAGE:
+		data_passage();
+		break;
+	      case STYLE_NOSURVEY:
+		data_nosurvey();
+		break;
+	      case STYLE_IGNORE:
+		data_ignore();
+		break;
+	      default:
+		BUG("bad style");
+	    }
+	}
+    }
+    clear_last_leg();
+
+    /* don't allow *BEGIN at the end of a file, then *EXPORT in the
+     * including file */
+    f_export_ok = false;
+
+    if (pcs->begin_lineno) {
+	error_in_file(file.filename, pcs->begin_lineno,
+		      /*BEGIN with no matching END in this file*/23);
+	/* Implicitly close any unclosed BEGINs from this file */
+	do {
+	    pop_settings();
+	} while (pcs->begin_lineno);
+    }
+
+    pcs->begin_lineno = begin_lineno_store;
+}
+
+#define EXT3(C1, C2, C3) (((C3) << 16) | ((C2) << 8) | (C1))
+
 extern void
 data_file(const char *pth, const char *fnm)
 {
-   int begin_lineno_store;
    parse file_store;
-   volatile enum {FMT_SVX, FMT_DAT, FMT_MAK} fmt = FMT_SVX;
+   unsigned ext = 0;
 
    {
       char *filename;
@@ -554,10 +1166,12 @@ data_file(const char *pth, const char *fnm)
       }
 
       len = strlen(filename);
-      if (has_ext(filename, len, "dat")) {
-	 fmt = FMT_DAT;
-      } else if (has_ext(filename, len, "mak")) {
-	 fmt = FMT_MAK;
+      if (len > 4 && filename[len - 4] == FNM_SEP_EXT) {
+	  /* Read extension and pack into ext. */
+	  for (int i = 1; i < 4; ++i) {
+	      unsigned char ext_ch = filename[len - i];
+	      ext = (ext << 8) | tolower(ext_ch);
+	  }
       }
 
       file_store = file;
@@ -566,342 +1180,35 @@ data_file(const char *pth, const char *fnm)
       file.filename = filename;
       file.line = 1;
       file.lpos = 0;
-      file.reported_where = fFalse;
+      file.reported_where = false;
       nextch();
-      if (fmt == FMT_SVX && ch == 0xef) {
-	 /* Maybe a UTF-8 "BOM" - skip if so. */
-	 if (nextch() == 0xbb && nextch() == 0xbf) {
-	    nextch();
-	    file.lpos = 3;
-	 } else {
-	    rewind(fh);
-	    ch = 0xef;
-	 }
-      }
    }
 
    using_data_file(file.filename);
 
-   begin_lineno_store = pcs->begin_lineno;
-   pcs->begin_lineno = 0;
-
-   if (fmt == FMT_DAT) {
-      short *t;
-      int i;
-      settings *pcsNew;
-
-      pcsNew = osnew(settings);
-      *pcsNew = *pcs; /* copy contents */
-      pcsNew->begin_lineno = 0;
-      pcsNew->next = pcs;
-      pcs = pcsNew;
-      default_units(pcs);
-      default_calib(pcs);
-
-      pcs->style = STYLE_NORMAL;
-      pcs->units[Q_LENGTH] = METRES_PER_FOOT;
-      t = ((short*)osmalloc(ossizeof(short) * 257)) + 1;
-
-      t[EOF] = SPECIAL_EOL;
-      memset(t, 0, sizeof(short) * 33);
-      for (i = 33; i < 127; i++) t[i] = SPECIAL_NAMES;
-      t[127] = 0;
-      for (i = 128; i < 256; i++) t[i] = SPECIAL_NAMES;
-      t['\t'] |= SPECIAL_BLANK;
-      t[' '] |= SPECIAL_BLANK;
-      t['\032'] |= SPECIAL_EOL; /* Ctrl-Z, so olde DOS text files are handled ok */
-      t['\n'] |= SPECIAL_EOL;
-      t['\r'] |= SPECIAL_EOL;
-      t['.'] |= SPECIAL_DECIMAL;
-      t['-'] |= SPECIAL_MINUS;
-      t['+'] |= SPECIAL_PLUS;
-      pcs->Translate = t;
-      pcs->Case = OFF;
-      pcs->Truncate = INT_MAX;
-      pcs->infer = BIT(INFER_EQUATES)|BIT(INFER_EXPORTS)|BIT(INFER_PLUMBS);
-   } else if (fmt == FMT_MAK) {
-      short *t;
-      int i;
-      settings *pcsNew;
-
-      pcsNew = osnew(settings);
-      *pcsNew = *pcs; /* copy contents */
-      pcsNew->begin_lineno = 0;
-      pcsNew->next = pcs;
-      pcs = pcsNew;
-
-      t = ((short*)osmalloc(ossizeof(short) * 257)) + 1;
-
-      t[EOF] = SPECIAL_EOL;
-      memset(t, 0, sizeof(short) * 33);
-      for (i = 33; i < 127; i++) t[i] = SPECIAL_NAMES;
-      t[127] = 0;
-      for (i = 128; i < 256; i++) t[i] = SPECIAL_NAMES;
-      t['['] = t[','] = t[';'] = 0;
-      t['\t'] |= SPECIAL_BLANK;
-      t[' '] |= SPECIAL_BLANK;
-      t['\032'] |= SPECIAL_EOL; /* Ctrl-Z, so olde DOS text files are handled ok */
-      t['\n'] |= SPECIAL_EOL;
-      t['\r'] |= SPECIAL_EOL;
-      t['.'] |= SPECIAL_DECIMAL;
-      t['-'] |= SPECIAL_MINUS;
-      t['+'] |= SPECIAL_PLUS;
-      pcs->Translate = t;
-      pcs->Case = OFF;
-      pcs->Truncate = INT_MAX;
+   switch (ext) {
+     case EXT3('d', 'a', 't'):
+       // Compass survey data.
+       data_file_compass_dat();
+       break;
+     case EXT3('c', 'l', 'p'):
+       // Compass closed data.  The format of .clp is the same as .dat,
+       // but it contains loop-closed data.  This might be useful to
+       // read if you want to keep existing stations at the same
+       // adjusted positions, for example to be able to draw extensions
+       // on an existing drawn-up survey.  Or if you managed to lose the
+       // original .dat but still have the .clp.
+       data_file_compass_clp();
+       break;
+     case EXT3('m', 'a', 'k'):
+       // Compass project file.
+       data_file_compass_mak();
+       break;
+     default:
+       // Native Survex data.
+       data_file_survex();
+       break;
    }
-
-#ifdef HAVE_SETJMP_H
-   /* errors in nested functions can longjmp here */
-   if (setjmp(file.jbSkipLine)) {
-      skipline();
-      process_eol();
-   }
-#endif
-
-   if (fmt == FMT_DAT) {
-      while (ch != EOF && !ferror(file.fh)) {
-	 static const reading compass_order[] = {
-	    Fr, To, Tape, CompassDATComp, CompassDATClino,
-	    CompassDATLeft, CompassDATRight, CompassDATUp, CompassDATDown,
-	    CompassDATFlags, IgnoreAll
-	 };
-	 static const reading compass_order_backsights[] = {
-	    Fr, To, Tape, CompassDATComp, CompassDATClino,
-	    CompassDATLeft, CompassDATRight, CompassDATUp, CompassDATDown,
-	    CompassDATBackComp, CompassDATBackClino,
-	    CompassDATFlags, IgnoreAll
-	 };
-	 /* <Cave name> */
-	 skipline();
-	 process_eol();
-	 /* SURVEY NAME: <Short name> */
-	 get_token();
-	 get_token();
-	 /* if (ch != ':') ... */
-	 nextch();
-	 get_token();
-	 skipline();
-	 process_eol();
-	 /* SURVEY DATE: 7 10 79  COMMENT:<Long name> */
-	 get_token();
-	 get_token();
-	 copy_on_write_meta(pcs);
-	 if (ch == ':') {
-	     int year, month, day;
-
-	     nextch();
-
-	     /* NB order is *month* *day* year */
-	     month = read_uint();
-	     day = read_uint();
-	     year = read_uint();
-	     /* Note: Larry says a 2 digit year is always 19XX */
-	     if (year < 100) year += 1900;
-
-	     pcs->meta->days1 = pcs->meta->days2 = days_since_1900(year, month, day);
-	 } else {
-	     pcs->meta->days1 = pcs->meta->days2 = -1;
-	 }
-	 pcs->declination = HUGE_REAL;
-	 skipline();
-	 process_eol();
-	 /* SURVEY TEAM: */
-	 get_token();
-	 get_token();
-	 skipline();
-	 process_eol();
-	 /* <Survey team> */
-	 skipline();
-	 process_eol();
-	 /* DECLINATION: 1.00  FORMAT: DDDDLUDRADLN  CORRECTIONS: 2.00 3.00 4.00 */
-	 get_token();
-	 nextch(); /* : */
-	 skipblanks();
-	 pcs->z[Q_DECLINATION] = -read_numeric(fFalse);
-	 pcs->z[Q_DECLINATION] *= pcs->units[Q_DECLINATION];
-	 get_token();
-	 pcs->ordering = compass_order;
-	 if (strcmp(buffer, "FORMAT") == 0) {
-	    nextch(); /* : */
-	    get_token();
-	    if (strlen(buffer) >= 12 && buffer[11] == 'B') {
-	       /* We have backsights for compass and clino */
-	       pcs->ordering = compass_order_backsights;
-	    }
-	    get_token();
-	 }
-	 if (strcmp(buffer, "CORRECTIONS") == 0) {
-	    nextch(); /* : */
-	    pcs->z[Q_BEARING] = -rad(read_numeric(fFalse));
-	    pcs->z[Q_GRADIENT] = -rad(read_numeric(fFalse));
-	    pcs->z[Q_LENGTH] = -read_numeric(fFalse);
-	 } else {
-	    pcs->z[Q_BEARING] = 0;
-	    pcs->z[Q_GRADIENT] = 0;
-	    pcs->z[Q_LENGTH] = 0;
-	 }
-	 skipline();
-	 process_eol();
-	 /* BLANK LINE */
-	 skipline();
-	 process_eol();
-	 /* heading line */
-	 skipline();
-	 process_eol();
-	 /* BLANK LINE */
-	 skipline();
-	 process_eol();
-	 while (ch != EOF) {
-	    if (ch == '\x0c') {
-	       nextch();
-	       process_eol();
-	       break;
-	    }
-	    data_normal();
-	 }
-	 clear_last_leg();
-      }
-      pcs->ordering = NULL; /* Avoid free() of static array. */
-      pop_settings();
-   } else if (fmt == FMT_MAK) {
-      while (ch != EOF && !ferror(file.fh)) {
-	 if (ch == '#') {
-	    /* include a file */
-	    int ch_store;
-	    char *dat_pth = path_from_fnm(file.filename);
-	    char *dat_fnm = NULL;
-	    int dat_fnm_len;
-	    nextch_handling_eol();
-	    while (ch != ',' && ch != ';' && ch != EOF) {
-	       while (isEol(ch)) process_eol();
-	       s_catchar(&dat_fnm, &dat_fnm_len, (char)ch);
-	       nextch_handling_eol();
-	    }
-	    if (dat_fnm) {
-	       ch_store = ch;
-	       data_file(dat_pth, dat_fnm);
-	       ch = ch_store;
-	       osfree(dat_fnm);
-	    }
-	    while (ch != ';' && ch != EOF) {
-	       prefix *name;
-	       nextch_handling_eol();
-	       name = read_prefix(PFX_STATION|PFX_OPT);
-	       if (name) {
-		  skipblanks();
-		  if (ch == '[') {
-		     /* fixed pt */
-		     node *stn;
-		     real x, y, z;
-		     bool in_feet = fFalse;
-		     name->sflags |= BIT(SFLAGS_FIXED);
-		     nextch_handling_eol();
-		     if (ch == 'F' || ch == 'f') {
-			in_feet = fTrue;
-			nextch_handling_eol();
-		     } else if (ch == 'M' || ch == 'm') {
-			nextch_handling_eol();
-		     } else {
-			compile_diagnostic(DIAG_ERR, /*Expecting “F” or “M”*/103);
-		     }
-		     while (!isdigit(ch) && ch != '+' && ch != '-' &&
-			    ch != '.' && ch != ']' && ch != EOF) {
-			nextch_handling_eol();
-		     }
-		     x = read_numeric(fFalse);
-		     while (!isdigit(ch) && ch != '+' && ch != '-' &&
-			    ch != '.' && ch != ']' && ch != EOF) {
-			nextch_handling_eol();
-		     }
-		     y = read_numeric(fFalse);
-		     while (!isdigit(ch) && ch != '+' && ch != '-' &&
-			    ch != '.' && ch != ']' && ch != EOF) {
-			nextch_handling_eol();
-		     }
-		     z = read_numeric(fFalse);
-		     if (in_feet) {
-			x *= METRES_PER_FOOT;
-			y *= METRES_PER_FOOT;
-			z *= METRES_PER_FOOT;
-		     }
-		     stn = StnFromPfx(name);
-		     if (!fixed(stn)) {
-			POS(stn, 0) = x;
-			POS(stn, 1) = y;
-			POS(stn, 2) = z;
-			fix(stn);
-		     } else {
-			if (x != POS(stn, 0) || y != POS(stn, 1) ||
-			    z != POS(stn, 2)) {
-			   compile_diagnostic(DIAG_ERR, /*Station already fixed or equated to a fixed point*/46);
-			} else {
-			   compile_diagnostic(DIAG_WARN, /*Station already fixed at the same coordinates*/55);
-			}
-		     }
-		     while (ch != ']' && ch != EOF) nextch_handling_eol();
-		     if (ch == ']') {
-			nextch_handling_eol();
-			skipblanks();
-		     }
-		  } else {
-		     /* FIXME: link station - ignore for now */
-		     /* FIXME: perhaps issue warning?  Other station names can be "reused", which is problematic... */
-		  }
-		  while (ch != ',' && ch != ';' && ch != EOF)
-		     nextch_handling_eol();
-	       }
-	    }
-	 } else {
-	    /* FIXME: also check for % and $ later */
-	    nextch_handling_eol();
-	 }
-      }
-      pop_settings();
-   } else {
-      while (ch != EOF && !ferror(file.fh)) {
-	 if (!process_non_data_line()) {
-	    f_export_ok = fFalse;
-	    switch (pcs->style) {
-	     case STYLE_NORMAL:
-	     case STYLE_DIVING:
-	     case STYLE_CYLPOLAR:
-	       data_normal();
-	       break;
-	     case STYLE_CARTESIAN:
-	       data_cartesian();
-	       break;
-	     case STYLE_PASSAGE:
-	       data_passage();
-	       break;
-	     case STYLE_NOSURVEY:
-	       data_nosurvey();
-	       break;
-	     case STYLE_IGNORE:
-	       data_ignore();
-	       break;
-	     default:
-	       BUG("bad style");
-	    }
-	 }
-      }
-      clear_last_leg();
-   }
-
-   /* don't allow *BEGIN at the end of a file, then *EXPORT in the
-    * including file */
-   f_export_ok = fFalse;
-
-   if (pcs->begin_lineno) {
-      error_in_file(file.filename, pcs->begin_lineno,
-		    /*BEGIN with no matching END in this file*/23);
-      /* Implicitly close any unclosed BEGINs from this file */
-      do {
-	  pop_settings();
-      } while (pcs->begin_lineno);
-   }
-
-   pcs->begin_lineno = begin_lineno_store;
 
    if (ferror(file.fh))
       fatalerror_in_file(file.filename, 0, /*Error reading file*/18);
@@ -975,12 +1282,13 @@ handle_plumb(clino_type *p_ctype)
 }
 
 static void
-warn_readings_differ(int msgno, real diff, int units)
+warn_readings_differ(int msgno, real diff, int units,
+		     reading r_fore, reading r_back)
 {
    char buf[64];
    char *p;
    diff /= get_units_factor(units);
-   sprintf(buf, "%.2f", fabs(diff));
+   snprintf(buf, sizeof(buf), "%.2f", fabs(diff));
    for (p = buf; *p; ++p) {
       if (*p == '.') {
 	 char *z = p;
@@ -992,15 +1300,20 @@ warn_readings_differ(int msgno, real diff, int units)
       }
    }
    strcpy(p, get_units_string(units));
-   compile_diagnostic(DIAG_WARN, msgno, buf);
+   // FIXME: Highlight r_fore too.
+   (void)r_fore;
+   compile_diagnostic_reading(DIAG_WARN, r_back, msgno, buf);
 }
 
-static bool
+// If one (or both) compass readings are given, return Comp or BackComp
+// so we can report plumb legs with compass readings.  If neither are,
+// return End.
+static reading
 handle_comp_units(void)
 {
-   bool fNoComp = fTrue;
+   reading which_comp = End;
    if (VAL(Comp) != HUGE_REAL) {
-      fNoComp = fFalse;
+      which_comp = Comp;
       VAL(Comp) *= pcs->units[Q_BEARING];
       if (VAL(Comp) < (real)0.0 || VAL(Comp) - M_PI * 2.0 > EPSILON) {
 	 /* TRANSLATORS: Suspicious means something like 410 degrees or -20
@@ -1010,7 +1323,7 @@ handle_comp_units(void)
       }
    }
    if (VAL(BackComp) != HUGE_REAL) {
-      fNoComp = fFalse;
+      if (which_comp == End) which_comp = BackComp;
       VAL(BackComp) *= pcs->units[Q_BACKBEARING];
       if (VAL(BackComp) < (real)0.0 || VAL(BackComp) - M_PI * 2.0 > EPSILON) {
 	 /* FIXME: different message for BackComp? */
@@ -1018,7 +1331,100 @@ handle_comp_units(void)
 	 VAL(BackComp) = mod2pi(VAL(BackComp));
       }
    }
-   return fNoComp;
+   return which_comp;
+}
+
+static real compute_convergence(real lon, real lat) {
+    // PROJ < 8.1.0 dereferences the context without a NULL check inside
+    // proj_create_ellipsoidal_2D_cs() but PJ_DEFAULT_CTX is really just
+    // NULL so for affected PROJ versions we create a context temporarily to
+    // avoid a segmentation fault.
+    PJ_CONTEXT * ctx = PJ_DEFAULT_CTX;
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 1)
+    ctx = proj_context_create();
+#endif
+
+    if (!proj_str_out) {
+	compile_diagnostic(DIAG_ERR, /*Output coordinate system not set*/488);
+	return 0.0;
+    }
+    PJ * pj = proj_create(ctx, proj_str_out);
+    PJ_COORD lp;
+    lp.lp.lam = lon;
+    lp.lp.phi = lat;
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 2)
+    /* Code adapted from fix in PROJ 8.2.0 to make proj_factors() work in
+     * cases we need (e.g. a CRS specified as "EPSG:<number>").
+     */
+    switch (proj_get_type(pj)) {
+	case PJ_TYPE_PROJECTED_CRS: {
+	    /* If it is a projected CRS, then compute the factors on the conversion
+	     * associated to it. We need to start from a temporary geographic CRS
+	     * using the same datum as the one of the projected CRS, and with
+	     * input coordinates being in longitude, latitude order in radian,
+	     * to be consistent with the expectations of the lp input parameter.
+	     */
+
+	    PJ * geodetic_crs = proj_get_source_crs(ctx, pj);
+	    if (!geodetic_crs)
+		break;
+	    PJ * datum = proj_crs_get_datum(ctx, geodetic_crs);
+#if PROJ_VERSION_MAJOR == 8 || \
+    (PROJ_VERSION_MAJOR == 7 && PROJ_VERSION_MINOR >= 2)
+	    /* PROJ 7.2.0 upgraded to EPSG 10.x which added the concept
+	     * of a datum ensemble, and this version of PROJ also added
+	     * an API to deal with these.
+	     *
+	     * If we're using PROJ < 7.2.0 then its EPSG database won't
+	     * have datum ensembles, so we don't need any code to handle
+	     * them.
+	     */
+	    if (!datum) {
+		datum = proj_crs_get_datum_ensemble(ctx, geodetic_crs);
+	    }
+#endif
+	    PJ * cs = proj_create_ellipsoidal_2D_cs(
+		ctx, PJ_ELLPS2D_LONGITUDE_LATITUDE, "Radian", 1.0);
+	    PJ * temp = proj_create_geographic_crs_from_datum(
+		ctx, "unnamed crs", datum, cs);
+	    proj_destroy(datum);
+	    proj_destroy(cs);
+	    proj_destroy(geodetic_crs);
+	    PJ * newOp = proj_create_crs_to_crs_from_pj(ctx, temp, pj, NULL, NULL);
+	    proj_destroy(temp);
+	    if (newOp) {
+		proj_destroy(pj);
+		pj = newOp;
+	    }
+	    break;
+	}
+	default:
+	    break;
+    }
+#endif
+#if PROJ_VERSION_MAJOR < 9 || \
+    (PROJ_VERSION_MAJOR == 9 && PROJ_VERSION_MINOR < 3)
+    if (pj) {
+	/* In PROJ < 9.3.0 proj_factors() returns a grid convergence which is
+	 * off by 90° for a projected coordinate system with northing/easting
+	 * axis order.  We can't copy over the fix for this in PROJ 9.3.0's
+	 * proj_factors() since it uses non-public PROJ functions, but
+	 * normalising the output order here works too.
+	 */
+	PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX, pj);
+	proj_destroy(pj);
+	pj = pj_norm;
+    }
+#endif
+    PJ_FACTORS factors = proj_factors(pj, lp);
+    proj_destroy(pj);
+#if PROJ_VERSION_MAJOR < 8 || \
+    (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 1)
+    proj_context_destroy(ctx);
+#endif
+    return factors.meridian_convergence;
 }
 
 static real
@@ -1053,6 +1459,13 @@ handle_compass(real *p_var)
 	      pcs->max_declination_days = avg_days;
 	  }
       }
+      if (pcs->convergence == HUGE_REAL) {
+	  /* Compute the convergence lazily.  It only depends on the output
+	   * coordinate system so we can cache it for reuse to apply to
+	   * a declination value for a different date.
+	   */
+	  pcs->convergence = compute_convergence(pcs->dec_lon, pcs->dec_lat);
+      }
       declination -= pcs->convergence;
       /* We cache the calculated declination as the calculation is relatively
        * expensive.  We also cache an "assumed 0" answer so that we only
@@ -1078,7 +1491,7 @@ handle_compass(real *p_var)
 	    /* TRANSLATORS: %s is replaced by the amount the readings disagree
 	     * by, e.g. "2.5°" or "3ᵍ". */
 	    warn_readings_differ(/*COMPASS reading and BACKCOMPASS reading disagree by %s*/98,
-				 diff, get_angle_units(Q_BEARING));
+				 diff, get_angle_units(Q_BEARING), Comp, BackComp);
 	 }
 	 comp = (comp / compvar + backcomp / VAR(BackComp));
 	 compvar = (compvar + VAR(BackComp)) / 4;
@@ -1159,15 +1572,13 @@ process_normal(prefix *fr, prefix *to, bool fToFirst,
    real cxy, cyz, czx;
 #endif
 
-   bool fNoComp;
-
    /* adjusted tape is negative -- probably the calibration is wrong */
    if (tape < (real)0.0) {
       /* TRANSLATE different message for topofil? */
       compile_diagnostic_reading(DIAG_WARN, Tape, /*Negative adjusted tape reading*/79);
    }
 
-   fNoComp = handle_comp_units();
+   reading comp_given = handle_comp_units();
 
    if (ctype == CTYPE_READING) {
       clin = handle_clino(Q_GRADIENT, Clino, clin,
@@ -1195,16 +1606,16 @@ process_normal(prefix *fr, prefix *to, bool fToFirst,
    if (ctype == CTYPE_PLUMB || ctype == CTYPE_INFERPLUMB ||
        backctype == CTYPE_PLUMB || backctype == CTYPE_INFERPLUMB) {
       /* plumbed */
-      if (!fNoComp) {
+      if (comp_given != End) {
 	 if (ctype == CTYPE_PLUMB ||
 	     (ctype == CTYPE_INFERPLUMB && VAL(Comp) != 0.0) ||
 	     backctype == CTYPE_PLUMB ||
-	     (backctype == CTYPE_INFERPLUMB && VAL(BackComp) != 0.0)) {
-	    /* FIXME: Different message for BackComp? */
+	     (backctype == CTYPE_INFERPLUMB &&
+	      (VAL(BackComp) != 0.0 && VAL(BackComp) != M_PI))) {
 	    /* TRANSLATORS: A "plumbed leg" is one measured using a plumbline
 	     * (a weight on a string).  So the problem here is that the leg is
 	     * vertical, so a compass reading has no meaning! */
-	    compile_diagnostic(DIAG_WARN, /*Compass reading given on plumbed leg*/21);
+	    compile_diagnostic_reading(DIAG_WARN, comp_given, /*Compass reading given on plumbed leg*/21);
 	 }
       }
 
@@ -1231,7 +1642,7 @@ process_normal(prefix *fr, prefix *to, bool fToFirst,
        * or CTYPE_OMIT */
       /* clino */
       real L2, cosG, LcosG, cosG2, sinB, cosB, dx2, dy2, dz2, v, V;
-      if (fNoComp) {
+      if (comp_given == End) {
 	 /* TRANSLATORS: Here "legs" are survey legs, i.e. measurements between
 	  * survey stations. */
 	 compile_error_reading_skip(Comp, /*Compass reading may not be omitted except on plumbed legs*/14);
@@ -1266,7 +1677,7 @@ process_normal(prefix *fr, prefix *to, bool fToFirst,
 		  /* TRANSLATORS: %s is replaced by the amount the readings disagree
 		   * by, e.g. "2.5°" or "3ᵍ". */
 		  warn_readings_differ(/*CLINO reading and BACKCLINO reading disagree by %s*/99,
-				       clin + backclin, get_angle_units(Q_GRADIENT));
+				       clin + backclin, get_angle_units(Q_GRADIENT), Clino, BackClino);
 	       }
 	       clin = (clin / var_clin - backclin / VAR(BackClino));
 	       var_clin = (var_clin + VAR(BackClino)) / 4;
@@ -1378,7 +1789,7 @@ process_diving(prefix *fr, prefix *to, bool fToFirst, bool fDepthChange)
 
    /* adjusted tape is negative -- probably the calibration is wrong */
    if (tape < (real)0.0) {
-      compile_diagnostic(DIAG_WARN, /*Negative adjusted tape reading*/79);
+      compile_diagnostic_reading(DIAG_WARN, Tape, /*Negative adjusted tape reading*/79);
    }
 
    /* check if tape is less than depth change */
@@ -1389,7 +1800,7 @@ process_diving(prefix *fr, prefix *to, bool fToFirst, bool fDepthChange)
        * It could be a gross error (e.g. the decimal point is missing from the
        * depth gauge reading) or it could just be due to random error on a near
        * vertical leg */
-      compile_diagnostic(DIAG_WARN, /*Tape reading is less than change in depth*/62);
+      compile_diagnostic_reading(DIAG_WARN, Tape, /*Tape reading is less than change in depth*/62);
    }
 
    if (tape == (real)0.0 && dz == 0.0) {
@@ -1483,7 +1894,7 @@ data_cartesian(void)
 {
    prefix *fr = NULL, *to = NULL;
 
-   bool fMulti = fFalse;
+   bool fMulti = false;
 
    reading first_stn = End;
 
@@ -1508,7 +1919,7 @@ data_cartesian(void)
 	 first_stn = To;
 	 break;
        case Dx: case Dy: case Dz:
-	 read_reading(*ordering, fFalse);
+	 read_reading(*ordering, false);
 	 break;
        case Ignore:
 	 skipword(); break;
@@ -1520,7 +1931,7 @@ data_cartesian(void)
 	    if (!process_cartesian(fr, to, first_stn == To))
 	       skipline();
 	 }
-	 fMulti = fTrue;
+	 fMulti = true;
 	 while (1) {
 	    process_eol();
 	    skipblanks();
@@ -1574,7 +1985,7 @@ process_cylpolar(prefix *fr, prefix *to, bool fToFirst, bool fDepthChange)
 
    /* adjusted tape is negative -- probably the calibration is wrong */
    if (tape < (real)0.0) {
-      compile_diagnostic(DIAG_WARN, /*Negative adjusted tape reading*/79);
+      compile_diagnostic_reading(DIAG_WARN, Tape, /*Negative adjusted tape reading*/79);
    }
 
    if (VAL(Comp) == HUGE_REAL && VAL(BackComp) == HUGE_REAL) {
@@ -1620,7 +2031,7 @@ data_normal(void)
    prefix *fr = NULL, *to = NULL;
    reading first_stn = End;
 
-   bool fTopofil = fFalse, fMulti = fFalse;
+   bool fTopofil = false, fMulti = false;
    bool fRev;
    clino_type ctype, backctype;
    bool fDepthChange;
@@ -1634,9 +2045,9 @@ data_normal(void)
    VAL(FrDepth) = VAL(ToDepth) = 0;
    VAL(Left) = VAL(Right) = VAL(Up) = VAL(Down) = HUGE_REAL;
 
-   fRev = fFalse;
+   fRev = false;
    ctype = backctype = CTYPE_OMIT;
-   fDepthChange = fFalse;
+   fDepthChange = false;
 
    /* ordering may omit clino reading, so set up default here */
    /* this is also used if clino reading is the omit character */
@@ -1659,6 +2070,16 @@ data_normal(void)
 	  to = read_prefix(PFX_STATION|PFX_ALLOW_ROOT|PFX_ANON);
 	  if (first_stn == End) first_stn = To;
 	  break;
+       case CompassDATFr:
+	  // Compass DAT is always From then To.
+	  first_stn = Fr;
+	  fr = read_prefix(PFX_STATION);
+	  scan_compass_station_name(fr);
+	  break;
+       case CompassDATTo:
+	  to = read_prefix(PFX_STATION);
+	  scan_compass_station_name(to);
+	  break;
        case Station:
 	  fr = to;
 	  to = read_prefix(PFX_STATION);
@@ -1679,10 +2100,10 @@ data_normal(void)
 	   case DIR_FORE:
 	     break;
 	   case DIR_BACK:
-	     fRev = fTrue;
+	     fRev = true;
 	     break;
 	   default:
-	     compile_diagnostic(DIAG_ERR|DIAG_BUF|DIAG_SKIP, /*Found “%s”, expecting “F” or “B”*/131, buffer);
+	     compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*Found “%s”, expecting “F” or “B”*/131, s_str(&token));
 	     process_eol();
 	     return;
 	  }
@@ -1690,7 +2111,7 @@ data_normal(void)
        }
        case Tape: case BackTape: {
 	  reading r = *ordering;
-	  read_reading(r, fTrue);
+	  read_reading(r, true);
 	  if (VAL(r) == HUGE_REAL) {
 	     if (!isOmit(ch)) {
 		compile_diagnostic_token_show(DIAG_ERR, /*Expecting numeric field, found “%s”*/9);
@@ -1708,15 +2129,15 @@ data_normal(void)
 	  VAL(FrCount) = VAL(ToCount);
 	  LOC(FrCount) = LOC(ToCount);
 	  WID(FrCount) = WID(ToCount);
-	  read_reading(ToCount, fFalse);
-	  fTopofil = fTrue;
+	  read_reading(ToCount, false);
+	  fTopofil = true;
 	  break;
        case FrCount:
-	  read_reading(FrCount, fFalse);
+	  read_reading(FrCount, false);
 	  break;
        case ToCount:
-	  read_reading(ToCount, fFalse);
-	  fTopofil = fTrue;
+	  read_reading(ToCount, false);
+	  fTopofil = true;
 	  break;
        case Comp: case BackComp:
 	  read_bearing_or_omit(*ordering);
@@ -1724,7 +2145,7 @@ data_normal(void)
        case Clino: case BackClino: {
 	  reading r = *ordering;
 	  clino_type * p_ctype = (r == Clino ? &ctype : &backctype);
-	  read_reading(r, fTrue);
+	  read_reading(r, true);
 	  if (VAL(r) == HUGE_REAL) {
 	     VAL(r) = handle_plumb(p_ctype);
 	     if (VAL(r) != HUGE_REAL) break;
@@ -1737,18 +2158,18 @@ data_normal(void)
 	  break;
        }
        case FrDepth: case ToDepth:
-	  read_reading(*ordering, fFalse);
+	  read_reading(*ordering, false);
 	  break;
        case Depth:
 	  VAL(FrDepth) = VAL(ToDepth);
 	  LOC(FrDepth) = LOC(ToDepth);
 	  WID(FrDepth) = WID(ToDepth);
-	  read_reading(ToDepth, fFalse);
+	  read_reading(ToDepth, false);
 	  break;
        case DepthChange:
-	  fDepthChange = fTrue;
+	  fDepthChange = true;
 	  VAL(FrDepth) = 0;
-	  read_reading(ToDepth, fFalse);
+	  read_reading(ToDepth, false);
 	  break;
        case CompassDATComp:
 	  read_bearing_or_omit(Comp);
@@ -1768,9 +2189,9 @@ data_normal(void)
 	     r = BackClino;
 	     p_ctype = &backctype;
 	  }
-	  read_reading(r, fFalse);
+	  read_reading(r, false);
 	  if (is_compass_NaN(VAL(r))) {
-	     VAL(r) = HUGE_REAL;
+	     VAL(r) = 0;
 	     *p_ctype = CTYPE_OMIT;
 	  } else {
 	     *p_ctype = CTYPE_READING;
@@ -1781,7 +2202,7 @@ data_normal(void)
        case CompassDATUp: case CompassDATDown: {
 	  /* FIXME: need to actually make use of these entries! */
 	  reading actual = Left + (*ordering - CompassDATLeft);
-	  read_reading(actual, fFalse);
+	  read_reading(actual, false);
 	  if (VAL(actual) < 0) VAL(actual) = HUGE_REAL;
 	  break;
        }
@@ -1794,12 +2215,15 @@ data_normal(void)
 		nextch();
 		while (ch >= 'A' && ch <= 'Z') {
 		   compass_dat_flags |= BIT(ch - 'A');
-		   /* We currently understand:
+		   /* Flags we handle:
 		    *   L (exclude from length)
+		    *   S (splay)
+		    *   P (no plot) (mapped to FLAG_SURFACE)
 		    *   X (exclude data)
-		    * FIXME: but should also handle at least some of:
-		    *   C (no adjustment) (set all (co)variances to 0?)
-		    *   P (no plot) (new flag in 3d for "hidden by default"?)
+		    * FIXME: Defined flags we currently ignore:
+		    *   C (no adjustment) (set all (co)variances to 0?  Then
+		    *	  we need to handle a loop of such legs or a traverse
+		    *	  of such legs between two fixed points...)
 		    */
 		   nextch();
 		}
@@ -1836,7 +2260,8 @@ data_normal(void)
 		 (VAL(Tape) == (real)0.0 || VAL(Tape) == HUGE_REAL) &&
 		 (VAL(BackTape) == (real)0.0 || VAL(BackTape) == HUGE_REAL) &&
 		 VAL(FrDepth) == VAL(ToDepth)) {
-		process_equate(fr, to);
+		if (!TSTBIT(pcs->infer, INFER_EQUATES_SELF_OK) || fr != to)
+		   process_equate(fr, to);
 		goto inferred_equate;
 	     }
 	     if (fRev) {
@@ -1862,7 +2287,7 @@ data_normal(void)
 		      /* TRANSLATORS: %s is replaced by the amount the readings disagree
 		       * by, e.g. "0.12m" or "0.2ft". */
 		      warn_readings_differ(/*TAPE reading and BACKTAPE reading disagree by %s*/97,
-					   diff, get_length_units(Q_LENGTH));
+					   diff, get_length_units(Q_LENGTH), Tape, BackTape);
 		   }
 		   VAL(Tape) = VAL(Tape) / VAR(Tape) + VAL(BackTape) / VAR(BackTape);
 		   VAR(Tape) = (VAR(Tape) + VAR(BackTape)) / 4;
@@ -1910,9 +2335,9 @@ data_normal(void)
 	     }
 	  }
 
-	  fRev = fFalse;
+	  fRev = false;
 	  ctype = backctype = CTYPE_OMIT;
-	  fDepthChange = fFalse;
+	  fDepthChange = false;
 
 	  /* ordering may omit clino reading, so set up default here */
 	  /* this is also used if clino reading is the omit character */
@@ -1922,7 +2347,7 @@ data_normal(void)
 
 	  inferred_equate:
 
-	  fMulti = fTrue;
+	  fMulti = true;
 	  while (1) {
 	      process_eol();
 	      skipblanks();
@@ -1961,7 +2386,8 @@ data_normal(void)
 		 (VAL(Tape) == (real)0.0 || VAL(Tape) == HUGE_REAL) &&
 		 (VAL(BackTape) == (real)0.0 || VAL(BackTape) == HUGE_REAL) &&
 		 VAL(FrDepth) == VAL(ToDepth)) {
-		process_equate(fr, to);
+		if (!TSTBIT(pcs->infer, INFER_EQUATES_SELF_OK) || fr != to)
+		   process_equate(fr, to);
 		process_eol();
 		return;
 	     }
@@ -1983,7 +2409,7 @@ data_normal(void)
 		      /* TRANSLATORS: %s is replaced by the amount the readings disagree
 		       * by, e.g. "0.12m" or "0.2ft". */
 		      warn_readings_differ(/*TAPE reading and BACKTAPE reading disagree by %s*/97,
-					   diff, get_length_units(Q_LENGTH));
+					   diff, get_length_units(Q_LENGTH), Tape, BackTape);
 		   }
 		   VAL(Tape) = VAL(Tape) / VAR(Tape) + VAL(BackTape) / VAR(BackTape);
 		   VAR(Tape) = (VAR(Tape) + VAR(BackTape)) / 4;
@@ -2002,6 +2428,21 @@ data_normal(void)
 	     save_flags = pcs->flags;
 	     if (implicit_splay) {
 		pcs->flags |= BIT(FLAGS_SPLAY);
+	     }
+	     if ((compass_dat_flags & BIT('S' - 'A'))) {
+		/* 'S' means "splay". */
+		pcs->flags |= BIT(FLAGS_SPLAY);
+	     }
+	     if ((compass_dat_flags & BIT('P' - 'A'))) {
+		/* 'P' means "Exclude this shot from plotting", but the use
+		 * suggested in the Compass docs is for surface data, and legs
+		 * with this flag "[do] not support passage modeling".
+		 *
+		 * Even if it's actually being used for a different
+		 * purpose, Survex programs don't show surface legs
+		 * by default so FLAGS_SURFACE matches fairly well.
+		 */
+		pcs->flags |= BIT(FLAGS_SURFACE);
 	     }
 	     if ((compass_dat_flags & BIT('L' - 'A'))) {
 		/* 'L' means "exclude from length" - map this to Survex's
@@ -2074,7 +2515,7 @@ data_passage(void)
 	 break;
        case Left: case Right: case Up: case Down: {
 	 reading r = *ordering;
-	 read_reading(r, fTrue);
+	 read_reading(r, true);
 	 if (VAL(r) == HUGE_REAL) {
 	    if (!isOmit(ch)) {
 	       compile_diagnostic_token_show(DIAG_ERR, /*Expecting numeric field, found “%s”*/9);
@@ -2131,7 +2572,7 @@ data_nosurvey(void)
 {
    prefix *fr = NULL, *to = NULL;
 
-   bool fMulti = fFalse;
+   bool fMulti = false;
 
    reading first_stn = End;
 
@@ -2175,7 +2616,7 @@ data_nosurvey(void)
 	    }
 	    goto again;
 	 }
-	 fMulti = fTrue;
+	 fMulti = true;
 	 while (1) {
 	    process_eol();
 	    skipblanks();

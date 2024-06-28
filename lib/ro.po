@@ -98,7 +98,7 @@ msgstr "Este necesara versiunea Survex %s sau superioara pentru procesarea acest
 #: ../src/message.c:1221
 #: n:485
 msgid "info"
-msgstr ""
+msgstr "info"
 
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
@@ -157,6 +157,15 @@ msgstr "Aceasta rubrica nu poate fi omisa"
 #, c-format
 msgid "Expecting numeric field, found “%s”"
 msgstr "Se asteapta camp numeric, s-a gasit “%s”"
+
+#. TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+#. bound and the second by the (inclusive) upper bound, for example:
+#. Expecting integer in range -60 to 60
+#: ../src/readval.c:593
+#: n:489
+#, c-format
+msgid "Expecting integer in range %d to %d"
+msgstr ""
 
 #: ../src/commands.c:1879
 #: n:10
@@ -406,6 +415,11 @@ msgstr ""
 msgid "Input coordinate system must be specified for “*DECLINATION AUTO”"
 msgstr ""
 
+#: ../src/datain.c:1041
+#: n:488
+msgid "Output coordinate system not set"
+msgstr ""
+
 #: ../src/commands.c:1688
 #: n:309
 msgid "Expected number or “AUTO”"
@@ -575,8 +589,8 @@ msgstr "Comanda FIX fara coordonate - se atribuie (0,0,0)"
 msgid "Station already fixed at the same coordinates"
 msgstr "Punct de statie deja fixat cu aceleasi coordonate"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX" command
-#. with no coordinates.
+#. TRANSLATORS: Emitted after second and subsequent "FIX command with
+#. no coordinates - fixing at (0,0,0)" warnings.
 #: ../src/commands.c:871
 #: n:441
 #, fuzzy, c-format
@@ -1655,8 +1669,22 @@ msgstr "Fişier Survex svx"
 #. surveying package, so should not be translated
 #: ../src/mainfrm.cc:1425
 #: n:330
-msgid "Compass DAT and MAK files"
-msgstr ""
+msgid "Compass MAK files"
+msgstr "Fişier Compass MAK"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:490
+msgid "Compass DAT files"
+msgstr "Fişier Compass DAT"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:491
+msgid "Compass CLP files"
+msgstr "Fişier Compass CLP"
 
 #: ../src/export.cc:72
 #: n:101

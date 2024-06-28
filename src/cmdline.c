@@ -17,9 +17,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-#endif
 
 #include <ctype.h>
 #include <errno.h>
@@ -112,7 +110,7 @@ cmdline_help(void)
 
 	    putchar('=');
 
-	    for (p = longopt; *p ; p++) putchar(toupper(*p));
+	    for (p = longopt; *p ; p++) putchar((unsigned char)toupper(*p));
 
 	    if (o->has_arg == optional_argument) putchar(']');
 	 }

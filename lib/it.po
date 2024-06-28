@@ -158,6 +158,15 @@ msgstr "Questo campo non puó essere omesso"
 msgid "Expecting numeric field, found “%s”"
 msgstr "Questo campo é numerico, trovato “%s”"
 
+#. TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+#. bound and the second by the (inclusive) upper bound, for example:
+#. Expecting integer in range -60 to 60
+#: ../src/readval.c:593
+#: n:489
+#, c-format
+msgid "Expecting integer in range %d to %d"
+msgstr ""
+
 #: ../src/commands.c:1879
 #: n:10
 #, c-format
@@ -406,6 +415,11 @@ msgstr ""
 msgid "Input coordinate system must be specified for “*DECLINATION AUTO”"
 msgstr ""
 
+#: ../src/datain.c:1041
+#: n:488
+msgid "Output coordinate system not set"
+msgstr ""
+
 #: ../src/commands.c:1688
 #: n:309
 msgid "Expected number or “AUTO”"
@@ -575,8 +589,8 @@ msgstr "Comando FIX senza coordinate - fissato a (0,0,0)"
 msgid "Station already fixed at the same coordinates"
 msgstr "Stazione giá fissata alle stesse coordinate"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX" command
-#. with no coordinates.
+#. TRANSLATORS: Emitted after second and subsequent "FIX command with
+#. no coordinates - fixing at (0,0,0)" warnings.
 #: ../src/commands.c:871
 #: n:441
 #, fuzzy, c-format
@@ -1654,8 +1668,22 @@ msgstr "File Survex svx"
 #. surveying package, so should not be translated
 #: ../src/mainfrm.cc:1425
 #: n:330
-msgid "Compass DAT and MAK files"
-msgstr "File Compass DAT e MAK"
+msgid "Compass MAK files"
+msgstr "File Compass MAK"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:490
+msgid "Compass DAT files"
+msgstr "File Compass DAT"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:491
+msgid "Compass CLP files"
+msgstr "File Compass CLP"
 
 #: ../src/export.cc:72
 #: n:101

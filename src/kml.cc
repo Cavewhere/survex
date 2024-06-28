@@ -19,9 +19,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "kml.h"
 
@@ -155,7 +153,7 @@ KML::line(const img_point *p1, const img_point *p, unsigned /*flags*/, bool fPen
 	    fputs("<LineString><altitudeMode>absolute</altitudeMode><coordinates>\n", fh);
 	}
 
-	PJ_COORD coord = {p1->x, p1->y, p1->z, HUGE_VAL};
+	PJ_COORD coord{{p1->x, p1->y, p1->z, HUGE_VAL}};
 	coord = proj_trans(pj, PJ_FWD, coord);
 	if (coord.xyzt.x == HUGE_VAL ||
 	    coord.xyzt.y == HUGE_VAL ||
@@ -169,7 +167,7 @@ KML::line(const img_point *p1, const img_point *p, unsigned /*flags*/, bool fPen
 		coord.xyzt.z);
     }
 
-    PJ_COORD coord = {p->x, p->y, p->z, HUGE_VAL};
+    PJ_COORD coord{{p->x, p->y, p->z, HUGE_VAL}};
     coord = proj_trans(pj, PJ_FWD, coord);
     if (coord.xyzt.x == HUGE_VAL ||
 	coord.xyzt.y == HUGE_VAL ||
@@ -196,7 +194,7 @@ KML::xsect(const img_point *p, double angle, double d1, double d2)
     double c = cos(rad(angle));
 
     {
-	PJ_COORD coord = {p->x + s * d1, p->y + c * d1, p->z, HUGE_VAL};
+	PJ_COORD coord{{p->x + s * d1, p->y + c * d1, p->z, HUGE_VAL}};
 	coord = proj_trans(pj, PJ_FWD, coord);
 	if (coord.xyzt.x == HUGE_VAL ||
 	    coord.xyzt.y == HUGE_VAL ||
@@ -211,7 +209,7 @@ KML::xsect(const img_point *p, double angle, double d1, double d2)
     }
 
     {
-	PJ_COORD coord = {p->x - s * d2, p->y - c * d2, p->z, HUGE_VAL};
+	PJ_COORD coord{{p->x - s * d2, p->y - c * d2, p->z, HUGE_VAL}};
 	coord = proj_trans(pj, PJ_FWD, coord);
 	if (coord.xyzt.x == HUGE_VAL ||
 	    coord.xyzt.y == HUGE_VAL ||
@@ -243,7 +241,7 @@ KML::wall(const img_point *p, double angle, double d)
     double s = sin(rad(angle));
     double c = cos(rad(angle));
 
-    PJ_COORD coord = {p->x + s * d, p->y + c * d, p->z, HUGE_VAL};
+    PJ_COORD coord{{p->x + s * d, p->y + c * d, p->z, HUGE_VAL}};
     coord = proj_trans(pj, PJ_FWD, coord);
     if (coord.xyzt.x == HUGE_VAL ||
 	coord.xyzt.y == HUGE_VAL ||
@@ -263,7 +261,7 @@ KML::passage(const img_point *p, double angle, double d1, double d2)
     double s = sin(rad(angle));
     double c = cos(rad(angle));
 
-    PJ_COORD coord1 = {p->x + s * d1, p->y + c * d1, p->z, HUGE_VAL};
+    PJ_COORD coord1{{p->x + s * d1, p->y + c * d1, p->z, HUGE_VAL}};
     coord1 = proj_trans(pj, PJ_FWD, coord1);
     if (coord1.xyzt.x == HUGE_VAL ||
 	coord1.xyzt.y == HUGE_VAL ||
@@ -274,7 +272,7 @@ KML::passage(const img_point *p, double angle, double d1, double d2)
     double y1 = coord1.xyzt.y;
     double z1 = coord1.xyzt.z;
 
-    PJ_COORD coord2 = {p->x - s * d2, p->y - c * d2, p->z, HUGE_VAL};
+    PJ_COORD coord2{{p->x - s * d2, p->y - c * d2, p->z, HUGE_VAL}};
     coord2 = proj_trans(pj, PJ_FWD, coord2);
     if (coord2.xyzt.x == HUGE_VAL ||
 	coord2.xyzt.y == HUGE_VAL ||
@@ -333,9 +331,10 @@ KML::tube_end()
 }
 
 void
-KML::label(const img_point *p, const char *s, bool /*fSurface*/, int type)
+KML::label(const img_point *p, const wxString& str, bool /*fSurface*/, int type)
 {
-    PJ_COORD coord = {p->x, p->y, p->z, HUGE_VAL};
+    const char* s = str.utf8_str();
+    PJ_COORD coord{{p->x, p->y, p->z, HUGE_VAL}};
     coord = proj_trans(pj, PJ_FWD, coord);
     if (coord.xyzt.x == HUGE_VAL ||
 	coord.xyzt.y == HUGE_VAL ||

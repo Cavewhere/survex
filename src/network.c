@@ -23,9 +23,7 @@
 #define DUMP_NETWORK 1
 #endif
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "validate.h"
 #include "debug.h"
@@ -75,14 +73,14 @@ remove_subnets(void)
    int dirn, dirn2, dirn3, dirn4;
    stackRed *trav;
    linkfor *newleg, *newleg2;
-   bool fMore = fTrue;
+   bool fMore = true;
 
    ptrRed = NULL;
 
    out_current_action(msg(/*Simplifying network*/129));
 
    while (fMore) {
-      fMore = fFalse;
+      fMore = false;
       if (optimize & BITA('l')) {
 #if PRINT_NETBITS
 	 printf("replacing lollipops\n");
@@ -156,7 +154,7 @@ remove_subnets(void)
 	       printf("remove noose\n");
 #endif
 	       ptrRed = trav;
-	       fMore = fTrue;
+	       fMore = true;
 	    }
 	 }
       }
@@ -287,7 +285,7 @@ remove_subnets(void)
 	       printf("remove parallel\n");
 #endif
 	       ptrRed = trav;
-	       fMore = fTrue;
+	       fMore = true;
 	    }
 	 }
       }
@@ -508,7 +506,7 @@ remove_subnets(void)
 		    printf("remove delta*\n");
 #endif
 		    ptrRed = trav;
-		    fMore = fTrue;
+		    fMore = true;
 
 		    remove_stn_from_list(&stnlist, stn);
 		    remove_stn_from_list(&stnlist, stn2);

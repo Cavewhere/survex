@@ -19,9 +19,7 @@
 
 /*#define DEBUG 1*/
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +33,7 @@
 #include "whichos.h"
 #include "filename.h"
 #include "message.h"
-#include "osdepend.h"
+#include "osalloc.h"
 #include "filelist.h"
 #include "debug.h"
 #include "str.h"
@@ -238,9 +236,10 @@ default_charset(void)
 
 	 if (only_digit) goto iso;
 
-	 switch (tolower(chset[0])) {
+	 switch (tolower((unsigned char)chset[0])) {
 	  case 'i':
-	    if (tolower(chset[1]) == 's' && tolower(chset[2]) == 'o') {
+	    if (tolower((unsigned char)chset[1]) == 's' &&
+		tolower((unsigned char)chset[2]) == 'o') {
 	       chset += 3;
 	       iso:
 	       if (strncmp(chset, "8859", 4) == 0) {
@@ -257,7 +256,8 @@ default_charset(void)
 	    }
 	    break;
 	  case 'u':
-	    if (tolower(chset[1]) == 't' && tolower(chset[2]) == 'f') {
+	    if (tolower((unsigned char)chset[1]) == 't' &&
+		tolower((unsigned char)chset[2]) == 'f') {
 	       chset += 3;
 	       while (chset < p && *chset && !isdigit((unsigned char)*chset))
 		  chset++;
@@ -711,7 +711,7 @@ static const char *pth_cfg_files = "";
 static int num_msgs = 0;
 static char **msg_array = NULL;
 
-static bool msg_lang_explicit = fFalse;
+static bool msg_lang_explicit = false;
 const char *msg_lang = NULL;
 const char *msg_lang2 = NULL;
 
@@ -893,9 +893,6 @@ void
 (msg_init)(char * const *argv)
 {
    char *p;
-#if OS_UNIX_MACOS
-   int msg_macos_relocatable = 0;
-#endif
    SVX_ASSERT(argv);
 
    /* Point to argv[0] itself so we report a more helpful error if the
@@ -909,7 +906,7 @@ void
    p = leaf_from_fnm(argv[0]);
    appname_copy = p;
    while (*p) {
-      *p = tolower(*p);
+      *p = tolower((unsigned char)*p);
       ++p;
    }
 #endif
@@ -923,11 +920,11 @@ void
    if (argv[0]) {
       exe_pth = path_from_fnm(argv[0]);
 #if OS_UNIX && defined DATADIR && defined PACKAGE
-      bool free_pth = fFalse;
+      bool free_pth = false;
       char *pth = getenv("srcdir");
       if (!pth || !pth[0]) {
 	 pth = path_from_fnm(argv[0]);
-	 free_pth = fTrue;
+	 free_pth = true;
       }
       if (pth[0]) {
 	 struct stat buf;
@@ -938,7 +935,6 @@ void
 	 p = use_path(pth, "share/survex/en.msg");
 	 if (stat(p, &buf) == 0 && S_ISREG(buf.st_mode)) {
 	    pth_cfg_files = use_path(pth, "share/survex");
-	    msg_macos_relocatable = 1;
 	    goto macos_got_msg;
 	 }
 	 osfree(p);
@@ -950,7 +946,6 @@ void
 	 p = use_path(pth, "../Resources/en.msg");
 	 if (stat(p, &buf) == 0 && S_ISREG(buf.st_mode)) {
 	    pth_cfg_files = use_path(pth, "../Resources");
-	    msg_macos_relocatable = 1;
 	    goto macos_got_msg;
 	 }
 	 osfree(p);
@@ -1006,9 +1001,9 @@ macos_got_msg:
    fprintf(stderr, "msg_lang = %p (= \"%s\")\n", msg_lang, msg_lang?msg_lang:"(null)");
 #endif
 
-   msg_lang_explicit = fTrue;
+   msg_lang_explicit = true;
    if (!msg_lang || !*msg_lang) {
-      msg_lang_explicit = fFalse;
+      msg_lang_explicit = false;
       msg_lang = getenv("LC_ALL");
    }
    if (!msg_lang || !*msg_lang) {

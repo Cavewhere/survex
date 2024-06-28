@@ -18,23 +18,12 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "export3d.h"
 
 #include "export.h" // For LABELS, etc
 #include "img.h"
-
-#include <algorithm>
-#include <stdio.h>
-#include <string.h>
-
-#include "message.h"
-#include "namecompare.h"
-#include "osalloc.h"
-#include "useful.h"
 
 using namespace std;
 
@@ -55,8 +44,9 @@ Export3D::passes() const
 void Export3D::header(const char* title, const char *, time_t,
 		      double, double, double, double, double, double)
 {
-    // FIXME: cs?
-    pimg = img_write_stream(fh, NULL, title, NULL, 0);
+    pimg = img_write_stream(fh, NULL, title,
+			    cs.empty() ? NULL : (const char*)cs.utf8_str(),
+			    img_FFLAG_SEPARATOR(separator));
 }
 
 void
@@ -77,8 +67,9 @@ Export3D::line(const img_point* p1, const img_point* p, unsigned flags, bool fPe
 }
 
 void
-Export3D::label(const img_point* p, const char* s, bool fSurface, int type)
+Export3D::label(const img_point* p, const wxString& str, bool fSurface, int type)
 {
+    const char* s = str.utf8_str();
     // FIXME: flags here aren't quite right.
     int flags = (fSurface ? img_SFLAG_SURFACE : img_SFLAG_UNDERGROUND);
     switch (type) {

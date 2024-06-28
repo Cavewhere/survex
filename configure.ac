@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.4.5], [https://trac.survex.com/])
+AC_INIT([survex], [1.4.8], [https://trac.survex.com/])
 AM_INIT_AUTOMAKE([1.5 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
@@ -11,7 +11,7 @@ AC_SUBST(RELEASE)
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/aven.cc])
 
-COPYRIGHT_MSG="Copyright (C) 1990-2021 Olly Betts"
+COPYRIGHT_MSG="Copyright (C) 1990-2024 Olly Betts"
 AVEN_COPYRIGHT_MSG="Copyright (C) 1999-2003,2005,2006 Mark R. Shinwell"
 
 AC_DEFINE_UNQUOTED(COPYRIGHT_MSG, ["$COPYRIGHT_MSG"], [Copyright Message])
@@ -74,9 +74,7 @@ AX_CXX_COMPILE_STDCXX_11
 
 AM_PROG_CC_C_O
 
-AC_LANG_C
-
-AC_C_INLINE
+AC_LANG([C])
 
 AC_EXEEXT
 AC_OBJEXT
@@ -171,7 +169,7 @@ AC_SUBST(WX_CFLAGS)
 WX_CXXFLAGS=`$WX_CONFIG --cxxflags "$wx_libs"`
 AC_SUBST(WX_CXXFLAGS)
 
-AC_LANG_C
+AC_LANG([C])
 save_CFLAGS=$CFLAGS
 CFLAGS="$CFLAGS $WX_CFLAGS"
 AC_CHECK_SIZEOF([wxChar], [], [
@@ -180,13 +178,13 @@ AC_CHECK_SIZEOF([wxChar], [], [
 ])
 CFLAGS=$save_CFLAGS
 
-dnl Check for libav (FIXME: does our code still work with ffmpeg?)
-PKG_CHECK_MODULES([LIBAV], [libavcodec libavformat libswscale libavutil], [
-  AC_DEFINE([WITH_LIBAV], [1], [Use libav for movie export])
+dnl Check for FFmpeg libraries.
+PKG_CHECK_MODULES([FFMPEG], [libavcodec libavformat libswscale libavutil], [
+  AC_DEFINE([WITH_FFMPEG], [1], [Use FFmpeg for movie export])
   save_CXXFLAGS=$CXXFLAGS
   save_LIBS=$LIBS
-  CFLAGS="$CFLAGS $LIBAV_CFLAGS"
-  LIBS="$LIBS $LIBAV_LIBS"
+  CFLAGS="$CFLAGS $FFMPEG_CFLAGS"
+  LIBS="$LIBS $FFMPEG_LIBS"
   AC_CHECK_FUNCS([av_guess_format avio_open avio_close avformat_write_header avcodec_encode_video2 avcodec_free_frame avcodec_open2 avformat_new_stream av_frame_alloc av_frame_free])
   AC_CHECK_DECLS([AVMEDIA_TYPE_VIDEO], [], [], [#include <libavcodec/avcodec.h>])
   AC_CHECK_DECLS([AV_CODEC_ID_NONE], [], [], [#include <libavcodec/avcodec.h>])
@@ -197,8 +195,8 @@ PKG_CHECK_MODULES([LIBAV], [libavcodec libavformat libswscale libavutil], [
 ], [
   dnl Build without movie export feature.
 ])
-AC_SUBST([LIBAV_LIBS])
-AC_SUBST([LIBAV_CFLAGS])
+AC_SUBST([FFMPEG_LIBS])
+AC_SUBST([FFMPEG_CFLAGS])
 
 dnl Check for PROJ.
 PKG_CHECK_MODULES([PROJ], [proj >= 6.2.0], [
@@ -224,15 +222,6 @@ AC_CHECK_HEADERS(limits.h string.h setjmp.h sys/select.h)
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 AC_STRUCT_TM
-AC_TYPE_SIGNAL
-
-dnl check if CLOCKS_PER_SEC is defined by time.h (as ANSI says it should be)
-dnl if it isn't, assume it is 1000000, as it is on SunOS 4
-AC_TRY_COMPILE([#include <time.h>],[
-#ifndef CLOCKS_PER_SEC
-choke me
-#endif
-], , AC_DEFINE(CLOCKS_PER_SEC, 1000000, [For old systems which don't define it themselves]))
 
 dnl Check for 16-bit and 32-bit integer types.
 AC_TYPE_INT16_T
@@ -240,59 +229,39 @@ AC_TYPE_UINT16_T
 AC_TYPE_INT32_T
 AC_TYPE_UINT32_T
 
-dnl Checks for library functions.
-AC_FUNC_STRFTIME
-if test yes != "$ac_cv_func_strftime"; then
-  AC_LIBOBJ(strftime)
-fi
-AC_FUNC_VPRINTF
 dnl Check if there's a declaration of lround().  Below we also check for
 dnl lround() with AC_CHECK_FUNCS, which just checks if it can be linked
 dnl against.  Some platforms are missing a prototype for lround(), so
 dnl both checks are useful.
 AC_CHECK_DECLS([lround], [], [], [[#include <math.h>]])
-dnl check for strcasecmp here as well as below - this one is to get
-dnl HAVE_STRCASECMP defined if appropriate (for img.c)
-AC_CHECK_FUNCS([popen getpwuid lround strcasecmp hypot mmap])
-
-dnl difftime seems to be an ANSI invention
-AC_CHECK_FUNCS(difftime)
+AC_CHECK_FUNCS([popen getpwuid lround hypot mmap])
 
 dnl Much faster than using getc()/putc(), at least on Linux.
 AC_CHECK_FUNCS([getc_unlocked putc_unlocked])
 
 AC_CHECK_FUNCS([setenv unsetenv])
 
-dnl try to find a case-insensitive compare
-
-strcasecmp=no
-dnl The order of these tests is important.
-AC_CHECK_FUNC(strcasecmp, [strcasecmp=strcasecmp])
-if test no = "$strcasecmp"; then
-  AC_CHECK_FUNC(stricmp, [strcasecmp=stricmp])
-fi
-if test no = "$strcasecmp"; then
-  AC_CHECK_FUNC(strcmpi, [strcasecmp=strcmpi])
-fi
-
-AC_MSG_CHECKING([how to compare strings ignoring case])
-case $strcasecmp in
-no)
-  AC_LIBOBJ(strcasecmp)
-  AC_MSG_RESULT([using own implementation of strcasecmp]) ;;
-strcasecmp)
-  AC_MSG_RESULT([strcasecmp]) ;;
-*)
-  AC_DEFINE_UNQUOTED(strcasecmp, "$strcasecmp",
-    [strcasecmp define for systems which call it something else])
-  AC_MSG_RESULT([$strcasecmp]) ;;
-esac
-
 AC_PATH_PROG([JW], [jw], [$MISSING jw])
 AC_ARG_VAR([JW], [jw from docbook-utils/docbook-tools])
 
+AC_ARG_ENABLE([werror],
+  [AS_HELP_STRING([--enable-werror], [enable treating compiler warnings as errors [default=maintainer-mode]])],
+  [case ${enableval} in
+    yes|no) ;;
+  *) AC_MSG_ERROR([bad value ${enableval} for --enable-werror]) ;;
+  esac],
+  [enable_werror=no])
+
+dnl Put -Werror or equivalent in its own make variable so that it can easily
+dnl be overridden by `make WERROR=` if needed during development (e.g. if
+dnl you want to get a full list of compile warnings to fix rather than
+dnl stopping at the first file with warnings).
+WERROR=
+AC_SUBST([WERROR])
+
 dnl extra warning flags for building with GCC
 if test yes = "$GCC"; then
+  WERROR=-Werror
   if test yes = "$cross_compiling"; then
 dnl    AM_CFLAGS="$AM_CFLAGS -Werror -Wall -Wunused -Wpointer-arith\
 dnl      -Wwrite-strings -Wcast-align"
@@ -313,6 +282,10 @@ dnl to disable it for mingw builds.
 fi
 AC_SUBST(AM_CFLAGS)
 AC_SUBST(AM_CXXFLAGS)
+
+if test x$enable_werror != xyes; then
+  WERROR=
+fi
 
 dnl See if large file support is available.  Survex is unlikely to need to
 dnl process files > 2GB in size, but LFS is also needed for stat() to work
@@ -360,6 +333,13 @@ AH_BOTTOM(
 # define PUTC(C, F) putc_unlocked(C, F)
 #else
 # define PUTC(C, F) putc(C, F)
+#endif
+
+#ifndef __cplusplus
+/* C23 added bool, false and true as keywords - let's emulate that and
+ * avoid every C file which uses these needing to include <stdbool.h>.
+ */
+# include <stdbool.h>
 #endif
 ])
 

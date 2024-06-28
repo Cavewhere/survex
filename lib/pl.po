@@ -158,6 +158,15 @@ msgstr "Nie można pominąć tego pola"
 msgid "Expecting numeric field, found “%s”"
 msgstr "Spodziewałem się liczby, znalazłem “%s”"
 
+#. TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+#. bound and the second by the (inclusive) upper bound, for example:
+#. Expecting integer in range -60 to 60
+#: ../src/readval.c:593
+#: n:489
+#, c-format
+msgid "Expecting integer in range %d to %d"
+msgstr ""
+
 #: ../src/commands.c:1879
 #: n:10
 #, c-format
@@ -406,6 +415,11 @@ msgstr "Nie można pominąć współrzędnych jeśli wskazano układ współrzę
 msgid "Input coordinate system must be specified for “*DECLINATION AUTO”"
 msgstr "Należy wskazać wejściowy układ współrzędnych dla “*DECLINATION AUTO”"
 
+#: ../src/datain.c:1041
+#: n:488
+msgid "Output coordinate system not set"
+msgstr ""
+
 #: ../src/commands.c:1688
 #: n:309
 msgid "Expected number or “AUTO”"
@@ -574,8 +588,8 @@ msgstr "Polecenie FIX bez współrzędnych - ustalam na (0,0,0)"
 msgid "Station already fixed at the same coordinates"
 msgstr "Ponowne ustalenie punktu na tych samych współrzędnych"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX" command
-#. with no coordinates.
+#. TRANSLATORS: Emitted after second and subsequent "FIX command with
+#. no coordinates - fixing at (0,0,0)" warnings.
 #: ../src/commands.c:871
 #: n:441
 #, c-format
@@ -1651,8 +1665,22 @@ msgstr "Pliki Survex svx"
 #. surveying package, so should not be translated
 #: ../src/mainfrm.cc:1425
 #: n:330
-msgid "Compass DAT and MAK files"
-msgstr "Pliki Compass DAT i MAK"
+msgid "Compass MAK files"
+msgstr "Pliki Compass MAK"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:490
+msgid "Compass DAT files"
+msgstr "Pliki Compass DAT"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:491
+msgid "Compass CLP files"
+msgstr "Pliki Compass CLP"
 
 #: ../src/export.cc:72
 #: n:101

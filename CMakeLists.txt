@@ -172,7 +172,6 @@ add_custom_target(thgeomagdata DEPENDS ${PROJECT_BINARY_DIR}/thgeomagdata.h)
 add_library(survex_core STATIC
     ${SRC_DIR}/message.c
     ${SRC_DIR}/cmdline.c
-    ${SRC_DIR}/osdepend.c
     ${SRC_DIR}/filename.c
     ${SRC_DIR}/str.c
     ${SRC_DIR}/useful.c

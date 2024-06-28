@@ -158,6 +158,15 @@ msgstr "Поле не может быть пропущено"
 msgid "Expecting numeric field, found “%s”"
 msgstr "Ожидается числовое значение, но вместо него получено “%s”"
 
+#. TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+#. bound and the second by the (inclusive) upper bound, for example:
+#. Expecting integer in range -60 to 60
+#: ../src/readval.c:593
+#: n:489
+#, c-format
+msgid "Expecting integer in range %d to %d"
+msgstr ""
+
 #: ../src/commands.c:1879
 #: n:10
 #, c-format
@@ -406,6 +415,11 @@ msgstr "Координаты не могут быть пропущены есл�
 msgid "Input coordinate system must be specified for “*DECLINATION AUTO”"
 msgstr "Система координат должна быть определена перед использованием “*DECLINATION AUTO”"
 
+#: ../src/datain.c:1041
+#: n:488
+msgid "Output coordinate system not set"
+msgstr ""
+
 #: ../src/commands.c:1688
 #: n:309
 msgid "Expected number or “AUTO”"
@@ -574,8 +588,8 @@ msgstr "Команда FIX без указания координат - выпо
 msgid "Station already fixed at the same coordinates"
 msgstr "Пикет с таким именем уже зафиксирован с такими же координатами"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX" command
-#. with no coordinates.
+#. TRANSLATORS: Emitted after second and subsequent "FIX command with
+#. no coordinates - fixing at (0,0,0)" warnings.
 #: ../src/commands.c:871
 #: n:441
 #, c-format
@@ -1651,8 +1665,22 @@ msgstr "Survex svx файлы"
 #. surveying package, so should not be translated
 #: ../src/mainfrm.cc:1425
 #: n:330
-msgid "Compass DAT and MAK files"
-msgstr "DAT и MAK файлы Compass"
+msgid "Compass MAK files"
+msgstr "Compass MAK файлы"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:490
+msgid "Compass DAT files"
+msgstr "Compass DAT файлы"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:491
+msgid "Compass CLP files"
+msgstr "Compass CLP файлы"
 
 #: ../src/export.cc:72
 #: n:101

@@ -18,9 +18,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "json.h"
 
@@ -33,7 +31,7 @@ using namespace std;
 const int *
 JSON::passes() const
 {
-    static const int default_passes[] = { LEGS, 0 };
+    static const int default_passes[] = { LEGS|SURF, 0 };
     return default_passes;
 }
 
@@ -74,10 +72,9 @@ JSON::line(const img_point *p1, const img_point *p, unsigned /*flags*/, bool fPe
 }
 
 void
-JSON::label(const img_point *p, const char *s, bool /*fSurface*/, int type)
+JSON::label(const img_point *p, const wxString&, bool /*fSurface*/, int type)
 {
     (void)p;
-    (void)s;
     (void)type;
 }
 

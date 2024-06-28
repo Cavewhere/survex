@@ -22,9 +22,7 @@
 //  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 //
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-#endif
 
 #include "cavernlog.h"
 #include "mainfrm.h"
@@ -216,7 +214,7 @@ private:
 // Write a value without trailing zeros after the decimal point.
 static void write_double(double d, FILE * fh) {
     char buf[64];
-    sprintf(buf, "%.21f", d);
+    snprintf(buf, sizeof(buf), "%.21f", d);
     char * p = strchr(buf, ',');
     if (p) *p = '.';
     size_t l = strlen(buf);
@@ -1283,7 +1281,8 @@ void MainFrm::OpenFile(const wxString& file, const wxString& survey)
     if (file.length() > 4 && file[file.length() - 4] == '.') {
 	wxString ext(file, file.length() - 3, 3);
 	ext.MakeLower();
-	if (ext == wxT("svx") || ext == wxT("dat") || ext == wxT("mak")) {
+	if (ext == wxT("svx") || ext == wxT("dat") || ext == wxT("mak") ||
+	    ext == wxT("clp")) {
 	    CavernLogWindow * log = new CavernLogWindow(this, survey, m_Splitter);
 	    wxWindow * win = m_Splitter->GetWindow1();
 	    m_Splitter->ReplaceWindow(win, log);
@@ -1402,12 +1401,14 @@ void MainFrm::OnOpen(wxCommandEvent&)
     wxString filetypes = wxT("*.3d");
 #else
     wxString filetypes;
-    filetypes.Printf(wxT("%s|*.3d;*.svx;*.plt;*.plf;*.dat;*.mak;*.adj;*.sht;*.una;*.xyz"
-		     CASE("*.3D;*.SVX;*.PLT;*.PLF;*.DAT;*.MAK;*.ADJ;*.SHT;*.UNA;*.XYZ")
+    filetypes.Printf(wxT("%s|*.3d;*.svx;*.plt;*.plf;*.dat;*.mak;*.clp;*.adj;*.sht;*.una;*.xyz"
+		     CASE("*.3D;*.SVX;*.PLT;*.PLF;*.DAT;*.MAK;*.CLP;*.ADJ;*.SHT;*.UNA;*.XYZ")
 		     "|%s|*.3d" CASE("*.3D")
 		     "|%s|*.svx" CASE("*.SVX")
 		     "|%s|*.plt;*.plf" CASE("*.PLT;*.PLF")
-		     "|%s|*.dat;*.mak" CASE("*.DAT;*.MAK")
+		     "|%s|*.mak" CASE("*.MAK")
+		     "|%s|*.dat" CASE("*.DAT")
+		     "|%s|*.clp" CASE("*.CLP")
 		     "|%s|*.adj;*.sht;*.una;*.xyz" CASE("*.ADJ;*.SHT;*.UNA;*.XYZ")
 		     "|%s|%s"),
 		     /* TRANSLATORS: Here "survey" is a "cave map" rather than
@@ -1428,7 +1429,15 @@ void MainFrm::OnOpen(wxCommandEvent&)
 		     /* TRANSLATORS: "Compass" as in Larry Fish’s cave
 		      * surveying package, so should not be translated
 		      */
-		     wmsg(/*Compass DAT and MAK files*/330).c_str(),
+		     wmsg(/*Compass MAK files*/330).c_str(),
+		     /* TRANSLATORS: "Compass" as in Larry Fish’s cave
+		      * surveying package, so should not be translated
+		      */
+		     wmsg(/*Compass DAT files*/490).c_str(),
+		     /* TRANSLATORS: "Compass" as in Larry Fish’s cave
+		      * surveying package, so should not be translated
+		      */
+		     wmsg(/*Compass CLP files*/491).c_str(),
 		     /* TRANSLATORS: "CMAP" is Bob Thrun’s cave surveying
 		      * package, so don’t translate it. */
 		     wmsg(/*CMAP XYZ files*/325).c_str(),
@@ -2057,7 +2066,7 @@ void MainFrm::OnPresStop(wxCommandEvent&)
 
 void MainFrm::OnPresExportMovie(wxCommandEvent&)
 {
-#ifdef WITH_LIBAV
+#ifdef WITH_FFMPEG
     // FIXME : Taking the leaf of the currently loaded presentation as the
     // default might make more sense?
     wxString baseleaf;

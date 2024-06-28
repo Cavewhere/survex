@@ -98,7 +98,7 @@ msgstr "Pre spracovanie týchto dát je potrebná verzia Survexu %s alebo novši
 #: ../src/message.c:1221
 #: n:485
 msgid "info"
-msgstr ""
+msgstr "info"
 
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
@@ -157,6 +157,15 @@ msgstr "Pole by nemalo zostať nevyplnené"
 #, c-format
 msgid "Expecting numeric field, found “%s”"
 msgstr "predpokladá sa numerické pole, zistené “%s”"
+
+#. TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+#. bound and the second by the (inclusive) upper bound, for example:
+#. Expecting integer in range -60 to 60
+#: ../src/readval.c:593
+#: n:489
+#, c-format
+msgid "Expecting integer in range %d to %d"
+msgstr ""
 
 #: ../src/commands.c:1879
 #: n:10
@@ -406,6 +415,11 @@ msgstr ""
 msgid "Input coordinate system must be specified for “*DECLINATION AUTO”"
 msgstr ""
 
+#: ../src/datain.c:1041
+#: n:488
+msgid "Output coordinate system not set"
+msgstr ""
+
 #: ../src/commands.c:1688
 #: n:309
 msgid "Expected number or “AUTO”"
@@ -575,8 +589,8 @@ msgstr "Príkaz FIX bez odpovedajúcich súradníc - priradené (0,0,0)"
 msgid "Station already fixed at the same coordinates"
 msgstr "Bod už bol fixovaný s tými istými súradnicami"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX" command
-#. with no coordinates.
+#. TRANSLATORS: Emitted after second and subsequent "FIX command with
+#. no coordinates - fixing at (0,0,0)" warnings.
 #: ../src/commands.c:871
 #: n:441
 #, fuzzy, c-format
@@ -1654,8 +1668,22 @@ msgstr "Súbory svx Survexu"
 #. surveying package, so should not be translated
 #: ../src/mainfrm.cc:1425
 #: n:330
-msgid "Compass DAT and MAK files"
-msgstr "Súbory DAT a MAK pre Compass"
+msgid "Compass MAK files"
+msgstr "Súbory MAK pre Compass"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:490
+msgid "Compass DAT files"
+msgstr "Súbory DAT pre Compass"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:491
+msgid "Compass CLP files"
+msgstr "Súbory CLP pre Compass"
 
 #: ../src/export.cc:72
 #: n:101

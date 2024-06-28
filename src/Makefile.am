@@ -1,10 +1,14 @@
 ## Process this file with automake to produce Makefile.in
 
+# Allow easy overriding via: make WERROR=
+AM_CFLAGS += $(WERROR)
+AM_CXXFLAGS += $(WERROR)
+
 noinst_HEADERS = cavern.h commands.h cmdline.h date.h datain.h debug.h\
  filelist.h filename.h getopt.h hash.h img.c img.h img_hosted.h kml.h\
  labelinfo.h listpos.h matrix.h message.h namecmp.h namecompare.h netartic.h\
  netbits.h netskel.h network.h osalloc.h\
- osdepend.h ostypes.h out.h readval.h str.h useful.h validate.h whichos.h\
+ out.h readval.h str.h useful.h validate.h whichos.h\
  glbitmapfont.h gllogerror.h guicontrol.h gla.h gpx.h moviemaker.h\
  export3d.h exportfilter.h hpgl.h cavernlog.h aboutdlg.h aven.h avenpal.h\
  gfxcore.h json.h log.h mainfrm.h pos.h vector3.h wx.h aventypes.h\
@@ -27,7 +31,7 @@ uninstall-hook:
 
 check_PROGRAMS = imgtest
 
-COMMONSRC = cmdline.c message.c str.c filename.c osdepend.c z_getopt.c getopt1.c
+COMMONSRC = cmdline.c message.c str.c filename.c z_getopt.c getopt1.c
 
 cavern_SOURCES = cavern.c date.c listpos.c commands.c datain.c netskel.c \
  network.c readval.c matrix.c img_hosted.c netbits.c useful.c \
@@ -48,20 +52,19 @@ aven_SOURCES = aven.cc gfxcore.cc mainfrm.cc model.cc vector3.cc aboutdlg.cc \
 dump3d_SOURCES = dump3d.c date.c img_hosted.c useful.c \
  $(COMMONSRC)
 
+aven_LDADD = $(LIBOBJS) $(WX_LIBS) $(PROJ_LIBS) $(FFMPEG_LIBS)
+
 if WIN32
-aven_LDADD = avenrc.o $(LIBOBJS) $(LIBAV_LIBS) $(WX_LIBS) $(PROJ_LIBS)
+aven_LDADD += avenrc.o
 
 avenrc.o: $(srcdir)/aven.rc ../lib/icons/aven.ico
 	cd $(srcdir) && `$(WX_CONFIG) --rescomp` --include-dir '$(abs_top_builddir)/lib/icons' -o '$(abs_builddir)/avenrc.o' aven.rc
-
-else
-aven_LDADD = $(LIBOBJS) $(WX_LIBS) $(PROJ_LIBS) $(LIBAV_LIBS)
 endif
 
 AM_CFLAGS += $(PROJ_CFLAGS)
 
 aven_CFLAGS = $(AM_CFLAGS) $(WX_CFLAGS) -DAVEN
-aven_CXXFLAGS = $(AM_CXXFLAGS) $(PROJ_CFLAGS) $(LIBAV_CFLAGS) $(WX_CXXFLAGS)
+aven_CXXFLAGS = $(AM_CXXFLAGS) $(PROJ_CFLAGS) $(FFMPEG_CFLAGS) $(WX_CXXFLAGS)
 aven_LDFLAGS =
 
 survexport_CXXFLAGS = $(AM_CXXFLAGS) $(PROJ_CFLAGS) $(WX_CXXFLAGS)
@@ -83,7 +86,7 @@ survexport_SOURCES = survexport.cc model.cc export.cc export3d.cc \
 		namecompare.cc useful.c hash.c img_hosted.c \
 		gpx.cc hpgl.cc json.cc kml.cc pos.cc vector3.cc $(COMMONSRC)
 
-#testerr_SOURCES = testerr.c message.c filename.c useful.c osdepend.c
+#testerr_SOURCES = testerr.c message.c filename.c useful.c
 
 imgtest_SOURCES = imgtest.c img.c
 

@@ -22,9 +22,7 @@
 # define DEBUG_ARTIC
 #endif
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "debug.h"
 #include "cavern.h"
@@ -380,7 +378,7 @@ articulate(void)
        * stations which aren't connected, so we report it as an error
        * and die after listing them...
        */
-      bool fNotAttached = fFalse;
+      bool fNotAttached = false;
       /* TRANSLATORS: At the end of processing (or if a *SOLVE command is used)
        * cavern will issue this error if there are any sections of the survey
        * network which are hanging. */
@@ -390,7 +388,7 @@ articulate(void)
 	  * the same anonymous station can't be referred to more than once),
 	  * and trailing traverses have been removed at this point.
 	  *
-	  * However, we may removed a trailing traverse back to an anonymous
+	  * However, we may remove a trailing traverse back to an anonymous
 	  * station.  FIXME: It's not helpful to fail to point to a station
 	  * in such a case - it would be much nicer to look through the list
 	  * of trailing traverses in such a case to find a relevant traverse
@@ -399,7 +397,7 @@ articulate(void)
 	 /* SVX_ASSERT(!TSTBIT(stn->name->sflags, SFLAGS_ANON)); */
 	 if (stn->name->ident) {
 	    if (!fNotAttached) {
-	       fNotAttached = fTrue;
+	       fNotAttached = true;
 	       /* TRANSLATORS: Here "station" is a survey station, not a train
 		* station. */
 	       puts(msg(/*The following survey stations are not attached to a fixed point:*/71));

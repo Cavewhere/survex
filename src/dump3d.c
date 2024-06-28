@@ -17,9 +17,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,9 +62,9 @@ main(int argc, char **argv)
    img_point from = { 0.0, 0.0, 0.0 };
    int code;
    const char *survey = NULL;
-   bool fRewind = fFalse;
-   bool show_dates = fFalse;
-   bool make_legs = fFalse;
+   bool fRewind = false;
+   bool show_dates = false;
+   bool make_legs = false;
 
    msg_init(argv);
 
@@ -75,9 +73,9 @@ main(int argc, char **argv)
       int opt = cmdline_getopt();
       if (opt == EOF) break;
       if (opt == 's') survey = optarg;
-      if (opt == 'r') fRewind = fTrue;
-      if (opt == 'd') show_dates = fTrue;
-      if (opt == 'l') make_legs = fTrue;
+      if (opt == 'r') fRewind = true;
+      if (opt == 'd') show_dates = true;
+      if (opt == 'l') make_legs = true;
    }
    fnm = argv[optind];
 
@@ -99,7 +97,7 @@ main(int argc, char **argv)
    do {
       if (code == img_STOP) {
 	 printf("<<< REWIND <<<\n");
-	 fRewind = fFalse;
+	 fRewind = false;
 	 if (!img_rewind(pimg)) fatalerror(img_error2msg(img_error()), fnm);
       }
 

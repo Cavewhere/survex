@@ -78,9 +78,9 @@ sudo apt-get install mingw-w64-i686-dev
 
 <p>
 I then install the various libraries by compiling from source.  For wxWidgets
-3.0.5, I apply a
-<a href="https://survex.com/software/wxWidgets-3.0.5.patch">patch</a> to
-fix a compiler error and disable a pointless and annoying compiler ABI check
+I apply a
+<a href="https://survex.com/software/wxWidgets-3.2.4.patch">patch</a> to
+disable a pointless and annoying compiler ABI check
 (with this check aven stops working each time my cross compiler package is
 upgraded to a new GCC version; without it everything works fine).
 </p>
@@ -90,17 +90,9 @@ Then I configure, build and install with:
 </p>
 
 <pre>
-./configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --with-msw --with-opengl --without-libtiff --enable-display --disable-shared host_alias=i686-w64-mingw32 DOCBOOK_TO_MAN="xmlto man --skip-validation"
+./configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --with-msw --with-opengl --enable-display --disable-shared host_alias=i686-w64-mingw32 DOCBOOK_TO_MAN="xmlto man --skip-validation"
 make
 sudo make install
-</pre>
-
-<p>With wxWidgets 3.1.6, there's a linking problem with aven if libtiff isn't
-disabled, and Survex doesn't use it so it's simplest to just disable it:
-</p>
-
-<pre>
-/usr/bin/i686-w64-mingw32-ld: /usr/i686-w64-mingw32/lib/libwxtiff-3.1-i686-w64-mingw32.a(wxtiff_tif_dirinfo.o):tif_dirinfo.c:(.text+0x80d): undefined reference to `_TIFF_snprintf_f'
 </pre>
 
 <p>
@@ -118,15 +110,39 @@ sudo make install
 </pre>
 
 <p>
-For PROJ 8.2.0 (TIFF apparently useful for some grids, but would also need libtiff):
+Sadly newer versions of PROJ have to be built with cmake.  For PROJ 9.3.0
+I used the following (TIFF is apparently useful for some grids, but would also
+need libtiff):
 </p>
 
 <pre>
 mkdir BUILD
 cd BUILD
-../configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --disable-shared host_alias=i686-w64-mingw32 --without-curl --disable-tiff
+cmake .. -DCMAKE_TOOLCHAIN_FILE=~/git/survex/cross-mingw.cmake -DCMAKE_INSTALL_PREFIX=/usr/i686-w64-mingw32 -DENABLE_CURL=OFF -DENABLE_TIFF=OFF -DBUILD_PROJSYNC=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_EXPORT_NO_PACKAGE_REGISTRY=ON -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF -DCMAKE_FIND_PACKAGE_NO_PACKAGE_REGISTRY=ON -DFETCHCONTENT_FULLY_DISCONNECTED=ON -DBUILD_TESTING=OFF
 make
 sudo make install
+</pre>
+
+<p>where <tt>mingw.cmake</tt> contains:</p>
+
+<pre>
+# the name of the target operating system
+set(CMAKE_SYSTEM_NAME Windows)
+
+# which compilers to use for C and C++
+set(CMAKE_C_COMPILER   i686-w64-mingw32-gcc)
+set(CMAKE_CXX_COMPILER i686-w64-mingw32-g++)
+
+# where is the target environment located
+set(CMAKE_FIND_ROOT_PATH  /usr/i686-w64-mingw32)
+
+# adjust the default behaviour of the FIND_XXX() commands:
+# search programs in the host environment
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+
+# search headers and libraries in the target environment
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 </pre>
 
 <p>

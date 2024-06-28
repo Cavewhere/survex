@@ -99,7 +99,7 @@ msgstr "Legalább %s verzió szükséges a feladat végrehajtásához."
 #: ../src/message.c:1221
 #: n:485
 msgid "info"
-msgstr ""
+msgstr "információ"
 
 #. TRANSLATORS: Indicates a warning message e.g.:
 #. "spoon.svx:12: warning: *prefix is deprecated"
@@ -157,6 +157,15 @@ msgstr "Nem elhagyható mező"
 #: n:9
 #, c-format
 msgid "Expecting numeric field, found “%s”"
+msgstr ""
+
+#. TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+#. bound and the second by the (inclusive) upper bound, for example:
+#. Expecting integer in range -60 to 60
+#: ../src/readval.c:593
+#: n:489
+#, c-format
+msgid "Expecting integer in range %d to %d"
 msgstr ""
 
 #: ../src/commands.c:1879
@@ -409,6 +418,11 @@ msgstr "A koordináták nem elhagyhatók, ha a koordináta rendszer meghatározo
 msgid "Input coordinate system must be specified for “*DECLINATION AUTO”"
 msgstr ""
 
+#: ../src/datain.c:1041
+#: n:488
+msgid "Output coordinate system not set"
+msgstr ""
+
 #: ../src/commands.c:1688
 #: n:309
 msgid "Expected number or “AUTO”"
@@ -579,8 +593,8 @@ msgstr "Rögzítés parancs koordináták nélkül - rögzítés (0,0,0) ban"
 msgid "Station already fixed at the same coordinates"
 msgstr "Már van rögzítve ezeken a koordinátákon állomás"
 
-#. TRANSLATORS: Emitted after second and subsequent "FIX" command
-#. with no coordinates.
+#. TRANSLATORS: Emitted after second and subsequent "FIX command with
+#. no coordinates - fixing at (0,0,0)" warnings.
 #: ../src/commands.c:871
 #: n:441
 #, c-format
@@ -1661,8 +1675,22 @@ msgstr "Survex svx fájlok"
 #. surveying package, so should not be translated
 #: ../src/mainfrm.cc:1425
 #: n:330
-msgid "Compass DAT and MAK files"
-msgstr "Compass DAT és MAK fájlok"
+msgid "Compass MAK files"
+msgstr "Compass MAK fájlok"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:490
+msgid "Compass DAT files"
+msgstr "Compass DAT fájlok"
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:491
+msgid "Compass CLP files"
+msgstr "Compass CLP fájlok"
 
 #: ../src/export.cc:72
 #: n:101

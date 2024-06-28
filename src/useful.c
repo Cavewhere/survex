@@ -16,12 +16,9 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "useful.h"
-#include "osdepend.h"
 
 #ifdef WORDS_BIGENDIAN
 
@@ -62,4 +59,5 @@ useful_get32(FILE *fh)
    w |= (uint32_t)(GETC(fh) << 24l);
    return (int32_t)w;
 }
+
 #endif

@@ -160,6 +160,15 @@ msgstr ""
 msgid "Expecting numeric field, found “%s”"
 msgstr ""
 
+#. TRANSLATORS: The first %d will be replaced by the (inclusive) lower
+#. bound and the second by the (inclusive) upper bound, for example:
+#. Expecting integer in range -60 to 60
+#: ../src/readval.c:593
+#: n:489
+#, c-format
+msgid "Expecting integer in range %d to %d"
+msgstr ""
+
 #: ../src/commands.c:1879
 #: n:10
 #, c-format
@@ -406,6 +415,11 @@ msgstr ""
 #: ../src/commands.c:1696
 #: n:301
 msgid "Input coordinate system must be specified for “*DECLINATION AUTO”"
+msgstr ""
+
+#: ../src/datain.c:1041
+#: n:488
+msgid "Output coordinate system not set"
 msgstr ""
 
 #: ../src/commands.c:1688
@@ -1653,7 +1667,21 @@ msgstr ""
 #. surveying package, so should not be translated
 #: ../src/mainfrm.cc:1425
 #: n:330
-msgid "Compass DAT and MAK files"
+msgid "Compass MAK files"
+msgstr ""
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:490
+msgid "Compass DAT files"
+msgstr ""
+
+#. TRANSLATORS: "Compass" as in Larry Fish’s cave
+#. surveying package, so should not be translated
+#: ../src/mainfrm.cc:1425
+#: n:491
+msgid "Compass CLP files"
 msgstr ""
 
 #: ../src/export.cc:72

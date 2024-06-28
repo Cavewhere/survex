@@ -1,6 +1,6 @@
 /* netbits.c
  * Miscellaneous primitive network routines for Survex
- * Copyright (C) 1992-2003,2006,2011,2013,2014,2015,2019 Olly Betts
+ * Copyright (C) 1992-2024 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,9 +17,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #if 0
 # define DEBUG_INVALID 1
@@ -304,7 +302,7 @@ addleg_(node *fr, node *to,
    leg2->l.reverse = i;
    leg->l.reverse = j | FLAG_DATAHERE | leg_flags;
 
-   leg->l.flags = pcs->flags | (pcs->style << FLAGS_STYLE_BIT0);
+   leg->l.flags = pcs->flags | (pcs->recorded_style << FLAGS_STYLE_BIT0);
    leg->meta = pcs->meta;
    if (pcs->meta) ++pcs->meta->ref_count;
 
@@ -546,7 +544,7 @@ freeleg(node **stnptr)
    leg->v[0] = leg->v[1] = leg->v[2] = (real)0.0;
 #endif
    leg->l.reverse = 1 | FLAG_DATAHERE | FLAG_FAKE;
-   leg->l.flags = pcs->flags | (pcs->style << FLAGS_STYLE_BIT0);
+   leg->l.flags = pcs->flags | (pcs->recorded_style << FLAGS_STYLE_BIT0);
 
    leg2->l.to = oldstn;
    leg2->l.reverse = 0;
@@ -598,7 +596,7 @@ fprint_prefix(FILE *fh, const prefix *ptr)
    }
    if (ptr->up != NULL) {
       fprint_prefix(fh, ptr->up);
-      if (ptr->up->up != NULL) fputc('.', fh);
+      if (ptr->up->up != NULL) fputc(output_separator, fh);
       SVX_ASSERT(ptr->ident);
       fputs(ptr->ident, fh);
    }
@@ -613,14 +611,17 @@ sprint_prefix_(const prefix *ptr)
    OSSIZE_T len = 1;
    if (ptr->up != NULL) {
       SVX_ASSERT(ptr->ident);
-      len = sprint_prefix_(ptr->up) + strlen(ptr->ident);
+      len = sprint_prefix_(ptr->up);
+      OSSIZE_T end = len - 1;
       if (ptr->up->up != NULL) len++;
+      len += strlen(ptr->ident);
       if (len > buffer_len) {
 	 buffer = osrealloc(buffer, len);
 	 buffer_len = len;
       }
-      if (ptr->up->up != NULL) strcat(buffer, ".");
-      strcat(buffer, ptr->ident);
+      char *p = buffer + end;
+      if (ptr->up->up != NULL) *p++ = output_separator;
+      strcpy(p, ptr->ident);
    }
    return len;
 }
@@ -634,7 +635,7 @@ sprint_prefix(const prefix *ptr)
       /* We release the stations, so ptr->stn is NULL late on, so we can't
        * use that to print "anonymous station surveyed from somesurvey.12"
        * here.  FIXME */
-      sprintf(buffer, "anonymous station");
+      strcpy(buffer, "anonymous station");
       /* FIXME: if ident is set, show it? */
       return buffer;
    }
@@ -922,8 +923,8 @@ fZeros(/*const*/ svar *v) {
    int i;
 
    check_svar(v);
-   for (i = 0; i < 6; i++) if ((*v)[i] != 0.0) return fFalse;
+   for (i = 0; i < 6; i++) if ((*v)[i] != 0.0) return false;
 
-   return fTrue;
+   return true;
 #endif
 }

@@ -2,7 +2,7 @@
  * Convert a processed survey data file to another format.
  */
 
-/* Copyright (C) 1994-2004,2008,2010,2011,2013,2014,2018,2020,2022 Olly Betts
+/* Copyright (C) 1994-2024 Olly Betts
  * Copyright (C) 2004 John Pybus (SVG Output code)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -20,12 +20,11 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-#endif
 
 #define MSG_SETUP_PROJ_SEARCH_PATH 1
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,7 +37,7 @@
 #include "filename.h"
 #include "img_hosted.h"
 #include "message.h"
-#include "str.h"
+#include "osalloc.h"
 #include "useful.h"
 
 #include <iostream>
@@ -63,7 +62,10 @@ main(int argc, char **argv)
    {
        /* Default to .pos output if installed as 3dtopos. */
        char* progname = baseleaf_from_fnm(argv[0]);
-       if (strcasecmp(progname, "3dtopos") == 0) {
+       for (char * p = progname; *p; ++p) {
+	   *p = tolower((unsigned char)*p);
+       }
+       if (strcmp(progname, "3dtopos") == 0) {
 	   format = FMT_POS;
        }
        osfree(progname);
@@ -389,11 +391,17 @@ main(int argc, char **argv)
       if (format == FMT_MAX_PLUS_ONE_) {
 	 // Select format based on extension.
 	 size_t len = strlen(fnm_out);
+	 // Length of longest extension of interest.
+	 constexpr size_t MAX_EXT_LEN = 4;
+	 char ext[MAX_EXT_LEN + 2];
+	 for (size_t i = 0; i < MAX_EXT_LEN + 2; ++i) {
+	     ext[i] = tolower((unsigned char)fnm_out[len - (MAX_EXT_LEN + 1) + i]);
+	 }
 	 for (size_t i = 0; i < FMT_MAX_PLUS_ONE_; ++i) {
 	    const auto& info = export_format_info[i];
 	    size_t l = strlen(info.extension);
 	    if (len > l + 1 &&
-		strcasecmp(fnm_out + len - l, info.extension) == 0) {
+		strcmp(ext + MAX_EXT_LEN + 1 - l, info.extension) == 0) {
 	       format = export_format(i);
 	       break;
 	    }

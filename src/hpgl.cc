@@ -18,9 +18,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include <stdio.h>
 
@@ -43,8 +41,8 @@
 static long xpPageWidth, ypPageDepth;
 
 static long x_org = 0, y_org = 0;
-static bool fNewLines = fTrue;
-static bool fOriginInCentre = fFalse;
+static bool fNewLines = true;
+static bool fOriginInCentre = false;
 
 /* Check if this line intersects the current page */
 /* Initialise HPGL routines. */
@@ -110,7 +108,7 @@ HPGL::line(const img_point *p1, const img_point *p, unsigned /*flags*/, bool fPe
 #define CS HPGL_CROSS_SIZE
 #define CS2 (2 * HPGL_CROSS_SIZE)
 void
-HPGL::cross(const img_point *p, bool /*fSurface*/)
+HPGL::cross(const img_point *p, const wxString&, bool /*fSurface*/)
 {
     fprintf(fh, "PU%ld,%ld;", long(p->x - x_org), long(p->y - y_org));
     /* SM plots a symbol at each point, but it isn't very convenient here   */
@@ -124,8 +122,9 @@ HPGL::cross(const img_point *p, bool /*fSurface*/)
 #undef CS2
 
 void
-HPGL::label(const img_point *p, const char *s, bool /*fSurface*/, int)
+HPGL::label(const img_point *p, const wxString& str, bool /*fSurface*/, int)
 {
+    const char* s = str.utf8_str();
     /* LB is a text label, terminated with a ^C */
     fprintf(fh, "PU%ld,%ld;LB", long(p->x - x_org), long(p->y - y_org));
     while (*s) {

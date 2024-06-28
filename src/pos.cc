@@ -18,9 +18,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#ifdef HAVE_CONFIG_H
-# include <config.h>
-#endif
+#include <config.h>
 
 #include "pos.h"
 
@@ -32,7 +30,6 @@
 
 #include "message.h"
 #include "namecompare.h"
-#include "osalloc.h"
 #include "useful.h"
 
 using namespace std;
@@ -104,8 +101,9 @@ void POS::header(const char *, const char *, time_t,
 }
 
 void
-POS::label(const img_point *p, const char *s, bool /*fSurface*/, int /*type*/)
+POS::label(const img_point *p, const wxString& str, bool /*fSurface*/, int /*type*/)
 {
+    const char* s = str.utf8_str();
     size_t len = strlen(s);
     pos_label * l = (pos_label*)malloc(offsetof(pos_label, name) + len + 1);
     if (l == NULL)

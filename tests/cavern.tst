@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Survex test suite - cavern tests
-# Copyright (C) 1999-2021 Olly Betts
+# Copyright (C) 1999-2024 Olly Betts
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,13 +33,15 @@ testdir=`(cd "$testdir" && pwd)`
 
 : ${CAVERN="$testdir"/../src/cavern}
 : ${DIFFPOS="$testdir"/../src/diffpos}
+: ${DUMP3D="$testdir"/../src/dump3d}
 : ${SURVEXPORT="$testdir"/../src/survexport}
 
 : ${TESTS=${*:-"singlefix singlereffix oneleg midpoint noose cross firststn\
  deltastar deltastar2 bug3 calibrate_tape nosurvey2 cartesian cartesian2\
- lengthunits angleunits cmd_alias cmd_truncate cmd_case cmd_fix cmd_solve\
- cmd_entrance cmd_entrance_bad cmd_sd cmd_sd_bad cmd_fix_bad cmd_set\
- cmd_set_bad beginroot revcomplist break_replace_pfx bug0 bug1 bug2 bug4 bug5\
+ lengthunits angleunits cmd_alias cmd_alias_bad cmd_truncate cmd_case cmd_fix\
+ cmd_solve cmd_entrance cmd_entrance_bad cmd_sd cmd_sd_bad cmd_fix_bad cmd_set\
+ cmd_set_bad cmd_set_dot_in_name\
+ beginroot revcomplist break_replace_pfx bug0 bug1 bug2 bug4 bug5\
  expobug require export export2 includecomment\
  self_loop self_eq_loop reenterwarn cmd_default cmd_prefix cmd_prefix_bad\
  cmd_begin_bad cmd_equate_bad cmd_export_bad\
@@ -61,18 +63,23 @@ testdir=`(cd "$testdir" && pwd)`
  bad_units_qlist\
  percent_gradient dotinsurvey leandroclino lowsd revdir gettokennullderef\
  nosurveyhanging cmd_solve_nothing cmd_solve_nothing_implicit\
- cmd_calibrate cmd_declination cmd_declination_auto cmd_declination_conv\
+ cmd_calibrate cmd_declination cmd_declination_auto cmd_declination_auto_bad\
+ cmd_declination_conv cmd_declination_conv_proj_bug\
  lech level 2fixbug dot17 3dcorner\
  unconnected-bug\
- declination.dat ignore.dat backread.dat nomeasure.dat noteam.dat\
- fixfeet.mak\
+ backread.dat corrections.dat depthguage.dat flags.dat karstcompat.dat\
+ lrud.dat nomeasure.dat noteam.dat\
+ badmak.mak\
+ fixfeet.mak utm.mak\
+ clptest.dat clptest.clp\
  surfequate passage hanging_lrud equatenosuchstn surveytypo\
  skipafterbadomit passagebad badreadingdotplus badcalibrate calibrate_clino\
  badunits badbegin anonstn anonstnbad anonstnrev doubleinc reenterlots\
  cs csbad csbadsdfix csfeet cslonglat omitfixaroundsolve repeatreading\
  mixedeols utf8bom nonewlineateof suspectreadings cmd_data_default\
  quadrant_bearing bad_quadrant_bearing\
- gpxexport jsonexport kmlexport\
+ samename\
+ gpxexport jsonexport kmlexport pltexport svgexport\
 "}}
 
 # Test file stnsurvey3.svx missing: pos=fail # We exit before the error count.
@@ -99,6 +106,7 @@ if [ -n "$VALGRIND" ] ; then
   rm -f "$vg_log"
   CAVERN="$VALGRIND --log-file=$vg_log --error-exitcode=$vg_error $CAVERN"
   DIFFPOS="$VALGRIND --log-file=$vg_log --error-exitcode=$vg_error $DIFFPOS"
+  DUMP3D="$VALGRIND --log-file=$vg_log --error-exitcode=$vg_error $DUMP3D"
   SURVEXPORT="$VALGRIND --log-file=$vg_log --error-exitcode=$vg_error $SURVEXPORT"
 fi
 
@@ -138,27 +146,24 @@ for file in $TESTS ; do
   # gpx : Convert to GPX with survexport and compare with <testcase_name>.gpx
   # json : Convert to JSON with survexport and compare with <testcase_name>.json
   # kml : Convert to KML with survexport and compare with <testcase_name>.kml
+  # plt : Convert to PLT with survexport and compare with <testcase_name>.plt
+  # svg : Convert to SVG with survexport and compare with <testcase_name>.svg
   pos=
 
   case $file in
+    backread.dat|clptest.dat|clptest.clp|depthguage.dat|flags.dat|karstcompat.dat)
+      pos=dump
+      warn=0
+      ;;
     *.dat)
-      # .dat files can't start with a comment.  All the current .dat tests
+      # .dat files can't start with a comment.  All the other .dat tests
       # have the same settings.
       pos=yes
       warn=0
       ;;
-    badinc5.mak)
-      pos=fail
-      warn=1
-      error=1
-      ;;
-    *.mak)
-      # All the other .mak tests have the same settings.
-      pos=yes
-      warn=0
-      ;;
     nonexistent_file*|ONELEG)
-      # We exit before the error count.
+      # These testcase files don't exist (or for ONELEG exist with a different
+      # case).  They all have the same settings.
       pos=fail
       ;;
     *)
@@ -192,7 +197,7 @@ for file in $TESTS ; do
   rm -f tmp.*
   pwd=`pwd`
   cd "$srcdir"
-  srcdir=. $CAVERN "$input" --output="$pwd/tmp" > "$pwd/tmp.out"
+  srcdir=. SOURCE_DATE_EPOCH=1 $CAVERN "$input" --output="$pwd/tmp" > "$pwd/tmp.out"
   exitcode=$?
   cd "$pwd"
   test -n "$VERBOSE" && cat tmp.out
@@ -250,7 +255,28 @@ for file in $TESTS ; do
     fi
     [ "$exitcode" = 0 ] || exit 1
     ;;
-  dxf|gpx|json|kml)
+  dump)
+    expectedfile=$basefile.dump
+    tmpfile=tmp.dump
+    $DUMP3D --show-dates --legs tmp.3d > "$tmpfile"
+    exitcode=$?
+    if [ -n "$VALGRIND" ] ; then
+      if [ $exitcode = "$vg_error" ] ; then
+	cat "$vg_log"
+	rm "$vg_log"
+	exit 1
+      fi
+      rm "$vg_log"
+    fi
+    [ "$exitcode" = 0 ] || exit 1
+
+    if test -n "$VERBOSE" ; then
+      diff "$expectedfile" "$tmpfile" || exit 1
+    else
+      cmp -s "$expectedfile" "$tmpfile" || exit 1
+    fi
+    ;;
+  dxf|gpx|json|kml|plt|svg)
     # $pos gives us the file extension here.
     expectedfile=$basefile.$pos
     tmpfile=tmp.$pos

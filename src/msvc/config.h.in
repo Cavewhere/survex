@@ -16,18 +16,6 @@
 /* Has string.h */
 #define HAVE_STRING_H @HAVE_STRING_H@
 
-/* Define to empty if the keyword does not work.  */
-/* #undef const */
-
-/* Define if you don't have vprintf but do have _doprnt.  */
-#undef HAVE_DOPRNT
-
-/* Define if you have the strftime function.  */
-#define HAVE_STRFTIME 1
-
-/* Define if you have the vprintf function.  */
-#define HAVE_VPRINTF 1
-
 /* Define to `unsigned' if <sys/types.h> doesn't define.  */
 /* #undef size_t */
 
@@ -62,12 +50,6 @@ typedef __int32 int32_t;
 /* unsigned 32 bit integer type */
 typedef unsigned __int32 uint32_t;
 #endif
-
-/* strcasecmp define for systems which call it something else */
-#define strcasecmp stricmp
-
-/* Define if you have the difftime function.  */
-#define HAVE_DIFFTIME 1
 
 /* Define if you have the mktime function.  */
 #define HAVE_MKTIME 1
@@ -104,12 +86,6 @@ typedef unsigned __int32 uint32_t;
 
 /* Define if you have the m library (-lm).  */
 #undef HAVE_LIBM
-
-/* Use far in various declarations and definitions. */
-#undef HAVE_FAR_POINTERS
-
-/* Use img routines in a hosted way (i.e. they can use other survex code). */
-#define IMG_HOSTED 1
 
 /* Name of package */
 #define PACKAGE "@PACKAGE@"

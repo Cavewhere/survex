@@ -1,6 +1,6 @@
 /* cavern.c
  * SURVEX Cave surveying software: data reduction main and related functions
- * Copyright (C) 1991-2022 Olly Betts
+ * Copyright (C) 1991-2023 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,9 +17,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_CONFIG_H
 #include <config.h>
-#endif
 
 #define MSG_SETUP_PROJ_SEARCH_PATH 1
 
@@ -40,7 +38,6 @@
 #include "listpos.h"
 #include "netbits.h"
 #include "netskel.h"
-#include "osdepend.h"
 #include "out.h"
 #include "str.h"
 #include "validate.h"
@@ -63,17 +60,17 @@ prefix *root;
 prefix *anon_list = NULL;
 long cLegs, cStns;
 long cComponents;
-bool fExportUsed = fFalse;
+bool fExportUsed = false;
 char * proj_str_out = NULL;
 PJ * pj_cached = NULL;
 
 FILE *fhErrStat = NULL;
 img *pimg = NULL;
-bool fQuiet = fFalse; /* just show brief summary + errors */
-bool fMute = fFalse; /* just show errors */
-bool fSuppress = fFalse; /* only output 3d file */
-static bool fLog = fFalse; /* stdout to .log file */
-static bool f_warnings_are_errors = fFalse; /* turn warnings into errors */
+bool fQuiet = false; /* just show brief summary + errors */
+bool fMute = false; /* just show errors */
+bool fSuppress = false; /* only output 3d file */
+static bool fLog = false; /* stdout to .log file */
+static bool f_warnings_are_errors = false; /* turn warnings into errors */
 
 nosurveylink *nosurveyhead;
 
@@ -81,16 +78,17 @@ real totadj, total, totplan, totvert;
 real min[6], max[6];
 prefix *pfxHi[6], *pfxLo[6];
 
-char *survey_title = NULL;
-int survey_title_len;
+string survey_title = S_INIT;
 
-bool fExplicitTitle = fFalse;
+bool fExplicitTitle = false;
 
 char *fnm_output_base = NULL;
 int fnm_output_base_is_dir = 0;
 
 lrudlist * model = NULL;
 lrud ** next_lrud = NULL;
+
+char output_separator = '.';
 
 static void do_stats(void);
 
@@ -189,7 +187,7 @@ main(int argc, char **argv)
    pcs->meta = NULL;
    pcs->proj_str = NULL;
    pcs->declination = HUGE_REAL;
-   pcs->convergence = 0.0;
+   pcs->convergence = HUGE_REAL;
    pcs->dec_filename = NULL;
    pcs->dec_line = 0;
    pcs->dec_context = NULL;
@@ -275,7 +273,7 @@ main(int argc, char **argv)
 	    if (islower((unsigned char)c)) optimize |= BITA(c);
 	 break;
        case 1:
-	 fLog = fTrue;
+	 fLog = true;
 	 break;
 #if OS_WIN32
        case 2:
@@ -333,11 +331,14 @@ main(int argc, char **argv)
       const char *fnm = argv[optind];
 
       if (!fExplicitTitle) {
-	 char *lf;
-	 lf = baseleaf_from_fnm(fnm);
-	 if (survey_title) s_catchar(&survey_title, &survey_title_len, ' ');
-	 s_cat(&survey_title, &survey_title_len, lf);
-	 osfree(lf);
+	  char *lf = baseleaf_from_fnm(fnm);
+	  if (s_empty(&survey_title)) {
+	      s_donate(&survey_title, lf);
+	  } else {
+	      s_catchar(&survey_title, ' ');
+	      s_cat(&survey_title, lf);
+	      osfree(lf);
+	  }
       }
 
       /* Select defaults settings */
