@@ -84,16 +84,20 @@ set(COPYRIGHT_MSG_UTF8 copyright-message_undefined)
 set(AVEN_COPYRIGHT_MSG_UTF8 copyright-message_undefined)
 
 include_directories(${PROJECT_BINARY_DIR})
-
-list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_BINARY_DIR}/conan-dependencies")
+# message( FATAL_ERROR "${CMAKE_CURRENT_BINARY_DIR}/conan-dependencies/conan_paths.cmake" )
+include("${CMAKE_CURRENT_BINARY_DIR}/../conan-dependencies/conan_paths.cmake")
 
 find_package(Python3 COMPONENTS Interpreter)
 find_package(Perl)
-find_package(wxwidgets REQUIRED) # COMPONENTS core base adv gl)
 find_package(GLEW REQUIRED)
 find_package(proj REQUIRED)
 
-SET(CMAKE_REQUIRED_INCLUDES ${PROJ_proj_INCLUDE_DIRS})
+#For macOS only system wxwidgets from brew
+#You also seet to set the PATH to /usr/local/opt/wxwidgets/bin so wxWidgets can find wx-config
+set(CMAKE_FIND_ROOT_PATH "/usr/local/opt/wxwidgets/bin")
+find_package(wxWidgets REQUIRED COMPONENTS core base adv gl html)
+
+SET(CMAKE_REQUIRED_INCLUDES ${proj_INCLUDE_DIRS_DEBUG} ${proj_INCLUDE_DIRS_RELEASE})
 check_include_file("proj.h" HAVE_PROJ_H)
 
 if(HAVE_PROJ_H)
@@ -102,7 +106,7 @@ else()
     set(HAVE_PROJ_H 0)
 endif()
 
-SET(CMAKE_REQUIRED_INCLUDES ${wxwidgets_INCLUDE_DIRS})
+SET(CMAKE_REQUIRED_INCLUDES ${wxWidgets_INCLUDE_DIRS})
 SET(CMAKE_EXTRA_INCLUDE_FILES "wx/chartype.h")
 check_type_size("wxChar" SIZEOF_WXCHAR)
 SET(CMAKE_EXTRA_INCLUDE_FILES)
@@ -181,7 +185,7 @@ add_library(survex_core STATIC
 target_compile_definitions(survex_core PUBLIC
     HAVE_CONFIG_H
     )
-target_link_libraries(survex_core PROJ::PROJ)
+target_link_libraries(survex_core PROJ::proj)
 
 # add the executable
 add_executable(cavern
@@ -208,7 +212,7 @@ add_dependencies(cavern
 
 target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
 target_link_libraries(cavern
-    PROJ::PROJ
+    PROJ::proj
     survex_core
 )
 target_compile_definitions(cavern PUBLIC
@@ -283,7 +287,7 @@ add_executable(survexport
     )
 target_include_directories(survexport PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(survexport
-    wxwidgets::wxwidgets
+    wxWidgets::wxWidgets
     GLEW::GLEW
     survex_core)
 target_compile_definitions(survexport PUBLIC
@@ -360,18 +364,14 @@ add_dependencies(aven
 
 target_include_directories(aven PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(aven
-    wxwidgets::wxwidgets
+    wxWidgets::wxWidgets
     GLEW::GLEW
-    PROJ::PROJ
+    PROJ::proj
     survex_core)
 target_compile_definitions(aven PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
     )
-
-# Copy DLLs
-set(conanbuildinfo ${CMAKE_BINARY_DIR}/conan-dependencies/conanbuildinfo.cmake)
-include(${conanbuildinfo})
 
 set(WX_VC_X64_DLL_PATH "")
 foreach(DIR ${CONAN_BIN_DIRS_WXWIDGETS})
@@ -390,12 +390,14 @@ else()
     set(PROJ_D "")
 endif()
 
-add_custom_command(TARGET survexport POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_gl_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_core_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_html_vc_custom.dll"
-        "${WX_VC_X64_DLL_PATH}/wxbase315${WX_DLL_TYPE}_vc_custom.dll"
-        "${CONAN_BIN_DIRS_PROJ}/proj_9_2${PROJ_D}.dll"
-        "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
-        $<TARGET_FILE_DIR:aven>)
+if(WIN32)
+    add_custom_command(TARGET survexport POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_gl_vc_custom.dll"
+            "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_core_vc_custom.dll"
+            "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_html_vc_custom.dll"
+            "${WX_VC_X64_DLL_PATH}/wxbase315${WX_DLL_TYPE}_vc_custom.dll"
+            "${CONAN_BIN_DIRS_PROJ}/proj_9_2${PROJ_D}.dll"
+            "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
+            $<TARGET_FILE_DIR:aven>)
+endif()
