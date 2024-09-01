@@ -11,11 +11,12 @@ class SurvexConan(ConanFile):
     version = "1.0"
     settings = "os", "compiler", "build_type", "arch"
     requires = [
-    ("wxwidgets/3.1.5@bincrafters/stable"),
+    ("wxwidgets/[>=3.2.5]"),
     ("glew/2.2.0"),
     ("proj/9.2.1"),
     ("zlib/1.2.13"),
     ("libtiff/4.0.9"),
+    ("gdal/[>=3.8.3]")
     ]
 
     generators = "cmake_find_package", "cmake_paths", "cmake"

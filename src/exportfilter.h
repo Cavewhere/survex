@@ -1,9 +1,8 @@
 /* exportfilter.h
- * Export to CAD-like formats (DXF, Skencil, SVG, EPS, HPGL) and also Compass
- * PLT.
+ * Export to CAD-like formats (DXF, SVG, EPS, HPGL) and also Compass PLT.
  */
 
-/* Copyright (C) 2005,2012,2013,2014,2015,2016 Olly Betts
+/* Copyright (C) 2005-2024 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +31,7 @@
 class ExportFilter {
   protected:
     FILE * fh;
+
   public:
     ExportFilter() : fh(NULL) { }
     // FIXME: deal with errors closing file... (safe_fclose?)
@@ -49,8 +49,8 @@ class ExportFilter {
     virtual void start_pass(int);
     virtual void line(const img_point *, const img_point *, unsigned, bool);
     virtual void label(const img_point* p, const wxString& s,
-		       bool fSurface, int type) = 0;
-    virtual void cross(const img_point *, const wxString&, bool);
+		       int sflags, int type) = 0;
+    virtual void cross(const img_point *, const wxString&, int sflags);
     virtual void xsect(const img_point *, double, double, double);
     virtual void wall(const img_point *, double, double);
     virtual void passage(const img_point *, double, double, double);
@@ -72,7 +72,7 @@ inline void
 ExportFilter::line(const img_point *, const img_point *, unsigned, bool) { }
 
 inline void
-ExportFilter::cross(const img_point *, const wxString&, bool) { }
+ExportFilter::cross(const img_point *, const wxString&, int) { }
 
 inline void
 ExportFilter::xsect(const img_point *, double, double, double) { }

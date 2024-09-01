@@ -260,6 +260,15 @@ static wxString scales[] = {
     wxT("25000"),
     wxT("50000"),
     wxT("100000"),
+    wxT("240 (1\":20')"),
+    wxT("300 (1\":25')"),
+    // This entry will be "304.8 (1mm:1ft)" but we need to use the
+    // locale-specific decimal point so this gets filled in on first
+    // use, after the locale is initialised.
+#define SCALES_INDEX_MM_TO_FEET 15
+    wxT(""),
+    wxT("480 (1\":40')"),
+    wxT("600 (1\":50')"),
     wxT("...")
 };
 
@@ -275,7 +284,6 @@ static wxString formats[] = {
     wxT("JSON"),
     wxT("KML"),
     wxT("Plot"),
-    wxT("Skencil"),
     wxT("Survex pos"),
     wxT("SVG")
 };
@@ -294,13 +302,13 @@ svxPrintDlg::svxPrintDlg(MainFrm* mainfrm_, const wxString & filename,
 			 bool labels, bool crosses, bool legs, bool surf,
 			 bool splays, bool tubes, bool ents, bool fixes,
 			 bool exports, bool printing, bool close_after_)
-	: wxDialog(mainfrm_, -1, wxString(printing ?
-					  /* TRANSLATORS: Title of the print
-					   * dialog */
-					  wmsg(/*Print*/399) :
-					  /* TRANSLATORS: Title of the export
-					   * dialog */
-					  wmsg(/*Export*/383))),
+	: wxDialog(mainfrm_, wxID_ANY,
+		   wxString(printing ? /* TRANSLATORS: Title of the print
+					* dialog */
+				       wmsg(/*Print*/399) :
+				       /* TRANSLATORS: Title of the export
+					* dialog */
+				       wmsg(/*Export*/383))),
 	  m_layout(printing ? wxGetApp().GetPageSetupDialogData() : NULL),
 	  m_File(filename), mainfrm(mainfrm_), close_after(close_after_)
 {
@@ -353,17 +361,17 @@ svxPrintDlg::svxPrintDlg(MainFrm* mainfrm_, const wxString & filename,
     /* TRANSLATORS: Used as a label for the surrounding box for the "Bearing"
      * and "Tilt angle" fields, and the "Plan view" and "Elevation" buttons in
      * the "what to print/export" dialog. */
-    m_viewbox = new wxStaticBoxSizer(new wxStaticBox(this, -1, wmsg(/*View*/283)), wxVERTICAL);
+    m_viewbox = new wxStaticBoxSizer(new wxStaticBox(this, wxID_ANY, wmsg(/*View*/283)), wxVERTICAL);
     /* TRANSLATORS: Used as a label for the surrounding box for the "survey
      * legs" "stations" "names" etc checkboxes in the "what to print" dialog.
      * "Elements" isn’t a good name for this but nothing better has yet come to
      * mind! */
-    wxBoxSizer* v2 = new wxStaticBoxSizer(new wxStaticBox(this, -1, wmsg(/*Elements*/256)), wxVERTICAL);
+    wxBoxSizer* v2 = new wxStaticBoxSizer(new wxStaticBox(this, wxID_ANY, wmsg(/*Elements*/256)), wxVERTICAL);
     wxBoxSizer* h2 = new wxBoxSizer(wxHORIZONTAL); // holds buttons
 
     if (!printing) {
 	wxStaticText* label;
-	label = new wxStaticText(this, -1, wxString(wmsg(/*Export format*/410)));
+	label = new wxStaticText(this, wxID_ANY, wxString(wmsg(/*Export format*/410)));
 	const size_t n_formats = sizeof(formats) / sizeof(formats[0]);
 	m_format = new wxChoice(this, svx_FORMAT,
 				wxDefaultPosition, wxDefaultSize,
@@ -387,8 +395,11 @@ svxPrintDlg::svxPrintDlg(MainFrm* mainfrm_, const wxString & filename,
 	v1->Add(formatbox, 0, wxALIGN_LEFT|wxALL, 0);
     }
 
+    if (scales[SCALES_INDEX_MM_TO_FEET][0] == '\0') {
+	scales[SCALES_INDEX_MM_TO_FEET] = wxString::FromDouble(304.8) + wxT(" (1mm:1ft)");
+    }
     wxStaticText* label;
-    label = new wxStaticText(this, -1, wxString(wmsg(/*Scale*/154)) + wxT(" 1:"));
+    label = new wxStaticText(this, wxID_ANY, wxString(wmsg(/*Scale*/154)) + wxT(" 1:"));
     if (printing && scales[0].empty()) {
 	/* TRANSLATORS: used in the scale drop down selector in the print
 	 * dialog the implicit meaning is "choose a suitable scale to fit
@@ -421,14 +432,14 @@ svxPrintDlg::svxPrintDlg(MainFrm* mainfrm_, const wxString & filename,
 	// Make the dummy string wider than any sane value and use that to
 	// fix the width of the control so the sizers allow space for bigger
 	// page layouts.
-	m_printSize = new wxStaticText(this, -1, wxString::Format(wmsg(/*%d pages (%dx%d)*/257), 9604, 98, 98));
+	m_printSize = new wxStaticText(this, wxID_ANY, wxString::Format(wmsg(/*%d pages (%dx%d)*/257), 9604, 98, 98));
 	m_viewbox->Add(m_printSize, 0, wxALIGN_LEFT|wxALL, 5);
     }
 
     if (m_layout.view != layout::EXTELEV) {
 	wxFlexGridSizer* anglebox = new wxFlexGridSizer(2);
 	wxStaticText * brg_label, * tilt_label;
-	brg_label = new wxStaticText(this, -1, wmsg(/*Bearing*/259));
+	brg_label = new wxStaticText(this, wxID_ANY, wmsg(/*Bearing*/259));
 	anglebox->Add(brg_label, 0, wxALIGN_CENTRE_VERTICAL|wxALIGN_LEFT|wxALL, 5);
 	// wSP_WRAP means that you can scroll past 360 to 0, and vice versa.
 	m_bearing = new wxSpinCtrlDouble(this, svx_BEARING, wxEmptyString,
@@ -438,7 +449,7 @@ svxPrintDlg::svxPrintDlg(MainFrm* mainfrm_, const wxString & filename,
 	m_bearing->SetDigits(ANGLE_DP);
 	anglebox->Add(m_bearing, 0, wxALIGN_CENTRE|wxALL, 5);
 	/* TRANSLATORS: Used in the print dialog: */
-	tilt_label = new wxStaticText(this, -1, wmsg(/*Tilt angle*/263));
+	tilt_label = new wxStaticText(this, wxID_ANY, wmsg(/*Tilt angle*/263));
 	anglebox->Add(tilt_label, 0, wxALIGN_CENTRE_VERTICAL|wxALIGN_LEFT|wxALL, 5);
 	m_tilt = new wxSpinCtrlDouble(this, svx_TILT, wxEmptyString,
 		wxDefaultPosition, wxDefaultSize,
@@ -810,7 +821,17 @@ svxPrintDlg::SomethingChanged(int control_id) {
 	RecalcBounds();
 
 	if (m_scale) {
-	    if (!(m_scale->GetValue()).ToDouble(&(m_layout.Scale)) ||
+	    // Remove the comment part (e.g. `(1":20')`).
+	    wxString value = m_scale->GetValue();
+	    auto comment = value.find('(');
+	    if (comment != value.npos) value.resize(comment);
+	    // Strip spaces as trailing spaces cause wxWidgets to fail to
+	    // parse.
+	    value.Replace(" ", "");
+	    // Convert `,` to `.` and parse with ToCDouble() so either decimal
+	    // separator works regardless of locale settings.
+	    value.Replace(",", ".");
+	    if (!value.ToCDouble(&(m_layout.Scale)) ||
 		m_layout.Scale == 0.0) {
 		m_layout.pick_scale(1, 1);
 	    }
@@ -925,8 +946,8 @@ svxPrintDlg::RecalcBounds()
 		// get the coordinates of this vertex
 		const XSect & pt_v = *i++;
 		if (m_layout.tilt == 0.0) {
-		    Double u = pt_v.GetU();
-		    Double d = pt_v.GetD();
+		    double u = pt_v.GetU();
+		    double d = pt_v.GetD();
 
 		    if (u >= 0 || d >= 0) {
 			if (filter && !filter->CheckVisible(pt_v.GetLabel()))
@@ -1014,8 +1035,8 @@ svxPrintDlg::RecalcBounds()
 		    // Scale to unit vectors in the LRUD plane.
 		    right.normalise();
 
-		    Double l = pt_v.GetL();
-		    Double r = pt_v.GetR();
+		    double l = pt_v.GetL();
+		    double r = pt_v.GetR();
 
 		    if (l >= 0 || r >= 0) {
 			if (!filter || filter->CheckVisible(pt_v.GetLabel())) {
@@ -1786,8 +1807,6 @@ svxPrintout::DrawTo(long x, long y)
     }
 }
 
-#define POINTS_PER_INCH 72.0
-#define POINTS_PER_MM (POINTS_PER_INCH / MM_PER_INCH)
 #define PWX_CROSS_SIZE (int)(2 * m_layout->scX / POINTS_PER_MM)
 
 void
@@ -2105,8 +2124,8 @@ svxPrintout::PlotLR(const vector<XSect> & centreline)
 	// Scale to unit vectors in the LRUD plane.
 	right.normalise();
 
-	Double l = pt_v.GetL();
-	Double r = pt_v.GetR();
+	double l = pt_v.GetL();
+	double r = pt_v.GetR();
 
 	if (l >= 0 || r >= 0) {
 	    if (!filter || filter->CheckVisible(pt_v.GetLabel())) {
@@ -2190,8 +2209,8 @@ svxPrintout::PlotUD(const vector<XSect> & centreline)
 	// get the coordinates of this vertex
 	const XSect & pt_v = *i++;
 
-	Double u = pt_v.GetU();
-	Double d = pt_v.GetD();
+	double u = pt_v.GetU();
+	double d = pt_v.GetD();
 
 	if (u >= 0 || d >= 0) {
 	    if (filter && !filter->CheckVisible(pt_v.GetLabel()))

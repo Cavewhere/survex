@@ -1,2 +1,1 @@
-disable-testcase-which-fails-on-i386.patch
-fix-s390x-tests.patch
+Fix-regexp-to-normalise-DXF-output.patch

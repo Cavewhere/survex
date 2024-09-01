@@ -31,6 +31,7 @@
 #include "message.h"
 #include "netartic.h"
 #include "netbits.h"
+#include "netskel.h"
 #include "matrix.h"
 #include "out.h"
 
@@ -374,38 +375,32 @@ articulate(void)
        */
       check_node_stats();
 
-      /* Actually this error is fatal, but we want to list the survey
-       * stations which aren't connected, so we report it as an error
-       * and die after listing them...
-       */
       bool fNotAttached = false;
       /* TRANSLATORS: At the end of processing (or if a *SOLVE command is used)
-       * cavern will issue this error if there are any sections of the survey
+       * cavern will issue this warning if there are any sections of the survey
        * network which are hanging. */
-      error(/*Survey not all connected to fixed stations*/45);
+      warning(/*Survey not all connected to fixed stations*/45);
       FOR_EACH_STN(stn, stnlist) {
-	 /* Anonymous stations must be at the end of a trailing traverse (since
-	  * the same anonymous station can't be referred to more than once),
-	  * and trailing traverses have been removed at this point.
-	  *
-	  * However, we may remove a trailing traverse back to an anonymous
-	  * station.  FIXME: It's not helpful to fail to point to a station
-	  * in such a case - it would be much nicer to look through the list
-	  * of trailing traverses in such a case to find a relevant traverse
-	  * and then report a station name from there.
-	  */
-	 /* SVX_ASSERT(!TSTBIT(stn->name->sflags, SFLAGS_ANON)); */
-	 if (stn->name->ident) {
+	 prefix *name = find_non_anon_stn(stn)->name;
+	 if (TSTBIT(name->sflags, SFLAGS_HANGING)) {
+	     /* Already reported this name as hanging. */
+	     continue;
+	 }
+	 name->sflags |= BIT(SFLAGS_HANGING);
+	 if (name->ident) {
 	    if (!fNotAttached) {
 	       fNotAttached = true;
 	       /* TRANSLATORS: Here "station" is a survey station, not a train
 		* station. */
 	       puts(msg(/*The following survey stations are not attached to a fixed point:*/71));
 	    }
-	    puts(sprint_prefix(stn->name));
+	    printf("%s:%d: %s: ", name->filename, name->line, msg(/*info*/485));
+	    print_prefix(name);
+	    putnl();
 	 }
       }
-      exit(EXIT_FAILURE);
+      stnlist = NULL;
+      hanging_surveys = true;
    }
 
    {

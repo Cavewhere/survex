@@ -7,7 +7,8 @@
  * - Survex ".3d" image files
  * - Survex ".pos" files
  * - Compass Plot files (".plt" and ".plf")
- * - CMAP XYZ files (".sht", ".adj", ".una", ".xyz")
+ * - CMAP XYZ files (".sht", ".adj", ".una"; ".xyz" also recognised though
+ *   it seems this is a misunderstanding)
  *
  * Writing Survex ".3d" image files is supported.
  *
@@ -172,10 +173,10 @@ typedef struct {
    int fRead;        /* 1 for reading, 0 for writing */
    long start;
    /* version of file format:
-    *  -4 => CMAP .xyz file, shot format
-    *  -3 => CMAP .xyz file, station format
-    *  -2 => Compass .plt file
-    *  -1 => .pos file
+    *  IMG_VERSION_CMAP_SHOT => CMAP XYZ file, shot variant (.sht)
+    *  IMG_VERSION_CMAP_STATION => CMAP XYZ file, station variant (.adj, .una)
+    *  IMG_VERSION_COMPASS_PLT => Compass .plt file
+    *  IMG_VERSION_SURVEX_POS => .pos file
     *   0 => 0.01 ascii
     *   1 => 0.01 binary,
     *   2 => byte actions and flags
@@ -202,6 +203,15 @@ typedef struct {
    /* Pointer to extra data reading some formats requires. */
    void *data;
 } img;
+
+/* Fake "version numbers" for non-3d formats we can read, used in
+ * the version member of the img struct.  These are not valid in
+ * img_output_version.
+ */
+#define IMG_VERSION_CMAP_SHOT		-4
+#define IMG_VERSION_CMAP_STATION	-3
+#define IMG_VERSION_COMPASS_PLT		-2
+#define IMG_VERSION_SURVEX_POS		-1
 
 /* Which version of the file format to output (defaults to newest) */
 extern unsigned int img_output_version;
@@ -482,6 +492,12 @@ img_datum img_parse_compass_datum_string(const char *s, size_t len);
  * for calling free().
  */
 char *img_compass_utm_proj_str(img_datum datum, int utm_zone);
+
+/* Return EPSG code for geodetic CRS (i.e. long/lat) with datum img_datum.
+ *
+ * Returns -1 for img_DATUM_UNKNOWN.
+ */
+int img_compass_longlat_epsg_code(img_datum datum);
 
 #ifdef __cplusplus
 }

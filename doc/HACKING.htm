@@ -46,38 +46,51 @@ very stable release - automake 1.6.1 is a better bet)
 and autoconf 2.50 or later (autoconf 2.52, 2.53, 2.64 and 2.71 have all
 been used successfully).
 
-<p>The wxWidgets library is used for aven's UI.  Currently >= 3.0.0 is
+<p>The wxWidgets library is used for aven's UI.  Currently &gt;= 3.0.0 is
 supported.
 
-<p>The PROJ library is used for coordinate conversions.  Currently >= 6.2.0 is
+<p>The PROJ library is used for coordinate conversions.  Currently &gt;= 6.2.0 is
 supported.
 
 <P>The Perl Locale::PO module is used for process message translation files.
 
-<P>For building the documentation you'll need docbook-utils (also
-known as docbook-tools) and w3m.
+<P>For building the documentation you'll need sphinx-doc (Debian/Ubuntu package
+<tt>python3-sphinx</tt>) and w3m.
 
 <P>And for building unifont.pixelfont, you'll need unifont installed.
 
 <P>On Debian, you can install the required packages using:
 
 <pre>
-sudo apt-get install autoconf automake liblocale-po-perl libproj-dev libwxgtk3.0-gtk3-dev inkscape netpbm docbook-utils w3m unifont
+sudo apt-get install autoconf automake liblocale-po-perl libproj-dev libwxgtk3.0-gtk3-dev inkscape netpbm python3-sphinx w3m unifont
 </pre>
 
 <H2>Building on Non-Unix Platforms</H2>
 
 <H3>Mingw (Microsoft Windows)</H3>
 
-<P>Currently I build this with a Linux hosted cross-compiler.  I use
-the packaged cross-compiler in the debian testing/unstable distribution:
+<p>Survex can be built in an MSYS2+mingw64 environment - since 1.4.9 the
+pre-built installer for Microsoft Windows is built in such an environment
+by a CI job running on Github Actions.
+</p>
+
+<p>
+It should also be possible to use a Linux-hosted cross-compiler, which is
+how we used to built releases, but this requires cross-building a lot of
+required libraries so we gave up on doing this.  Some notes on this are
+left below in case anyone wants to try.
+</p>
+
+<p>
+I use the packaged cross-compiler in the debian testing/unstable distribution:
+</p>
 
 <pre>
 sudo apt-get install mingw-w64-i686-dev
 </pre>
 
 <p>
-I then install the various libraries by compiling from source.  For wxWidgets
+Then install the various libraries by compiling from source.  For wxWidgets
 I apply a
 <a href="https://survex.com/software/wxWidgets-3.2.4.patch">patch</a> to
 disable a pointless and annoying compiler ABI check
@@ -90,7 +103,7 @@ Then I configure, build and install with:
 </p>
 
 <pre>
-./configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --with-msw --with-opengl --enable-display --disable-shared host_alias=i686-w64-mingw32 DOCBOOK_TO_MAN="xmlto man --skip-validation"
+./configure --prefix=/usr/i686-w64-mingw32 --host i686-w64-mingw32 --with-msw --with-opengl --enable-display --disable-shared host_alias=i686-w64-mingw32
 make
 sudo make install
 </pre>
@@ -123,7 +136,7 @@ make
 sudo make install
 </pre>
 
-<p>where <tt>mingw.cmake</tt> contains:</p>
+<p>where <tt>cross-mingw.cmake</tt> contains:</p>
 
 <pre>
 # the name of the target operating system
@@ -158,18 +171,25 @@ make
 sudo make install
 </pre>
 
-<P>Building on Windows in a native mingw environment will probably
-require tinkering.  Best bet is probably to install bash and use the
-current configure script.  I'm happy to help if you want to try this,
-and I'll incorporate patches provided they're fairly clean.
+<p>
+You'll also need to install GDAL, which requires a lot of other libraries
+installed to build.  I gave up at this point.
+</p>
 
 <H2>Microsoft Windows Installer Builder</H2>
 
-<P>We use <A HREF="http://www.jrsoftware.org/isinfo.php">InnoSetup</A> to
-build the MS Windows Installer.  Survex 1.4.2 was built using InnoSetup
-6.2.0.
+<p>We use <A HREF="http://www.jrsoftware.org/isinfo.php">InnoSetup</A> to
+build the MS Windows Installer.  Since 1.4.9 we use the InnoSetup version
+which is pre-installed in the Github CI images.
+</p>
 
-<P>Here are some random notes:
+<p>
+Survex 1.4.8 was built using InnoSetup 6.2.2.
+</p>
+
+<p>
+Here are some random notes on the old cross-building approach:
+</p>
 
 <H3>Packages Needed</H3>
 
@@ -182,7 +202,7 @@ sudo apt-get install wine wx3.0-i18n
 <P>And then run:
 
 <pre>
-wine ~/Downloads/innosetup-6.2.0.exe
+wine ~/Downloads/innosetup-6.2.2.exe
 </pre>
 
 <H3>Translations</H3>
@@ -196,9 +216,8 @@ source tree:
 <li>ChineseTraditional.isl (6.1.0+)
 <li>EnglishBritish.isl (6.1.0+)
 <li>Greek.isl (6.1.0+)
-<li>Hungarian.isl (6.1.0+)
 <li>Indonesian.isl (6.1.0+)
-<li>Romanian.isl (5.5.3+)
+<li>Romanian.isl (6.1.0+)
 </UL>
 
 These are taken from the <a href="https://jrsoftware.org/files/istrans/">Inno

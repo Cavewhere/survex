@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.4.8], [https://trac.survex.com/])
+AC_INIT([survex], [1.4.11], [https://trac.survex.com/])
 AM_INIT_AUTOMAKE([1.5 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
@@ -52,11 +52,11 @@ esac
 PKGDOCDIR="$enableval"
 ]
 )
-PKGDOCDIR_EXPANDED=`(
+PKGDOCDIR_EXPANDED=`
  test NONE = "$prefix" && prefix="$ac_default_prefix"
  test NONE = "$exec_prefix" && exec_prefix="$prefix"
  eval echo "$PKGDOCDIR"
-)`
+`
 AC_SUBST(PKGDOCDIR)
 AC_SUBST(PKGDOCDIR_EXPANDED)
 
@@ -96,7 +96,7 @@ AC_CHECK_LIB(m, sqrt)
 AC_PATH_XTRA
 
 dnl The wxWidgets libraries we need:
-wx_libs="core,gl,html"
+wx_libs="core,gl"
 
 AC_ARG_VAR(WXCONFIG, [Old name for WX_CONFIG, accepted for compatibility])
 AC_ARG_VAR(WX_CONFIG, [wxWidgets configuration script to use to build Aven])
@@ -152,12 +152,16 @@ esac
 WX_LIBS=`$WX_CONFIG --libs "$wx_libs"`
 dnl Needed for nvidia drivers on linux (for some setups anyway).
 AC_CHECK_LIB(Xxf86vm, XF86VidModeQueryVersion, [WX_LIBS="$WX_LIBS -lXxf86vm"], [], [$WX_LIBS])
-dnl We use functions from libGLU so always link -lGLU explicitly if it's
-dnl present.
-AC_CHECK_LIB([GLU], [gluProject], [WX_LIBS="$WX_LIBS -lGLU"], [], [$WX_LIBS])
-dnl We use functions from libGL so always link -lGL explicitly if it's
-dnl present.
-AC_CHECK_LIB([GL], [glPushMatrix], [WX_LIBS="$WX_LIBS -lGL"], [], [$WX_LIBS])
+
+save_LIBS=$LIBS
+dnl Check if we need a library for OpenGL functions.  Usually it's the "GL"
+dnl library, but it's called opengl32 on Microsoft Windows).
+AC_SEARCH_LIBS([glPushMatrix], [GL opengl32], [WX_LIBS="$WX_LIBS $ac_cv_search_glPushMatrix"], [], [$WX_LIBS])
+dnl Check if we need a library for GLU functions.  Usually it's the "GLU"
+dnl library, but it's called glu32 on Microsoft Windows).
+AC_SEARCH_LIBS([gluProject], [GLU glu32], [WX_LIBS="$WX_LIBS $ac_cv_search_gluProject"], [], [$WX_LIBS])
+LIBS=$save_LIBS
+
 AC_SUBST(WX_LIBS)
 dnl macOS has OpenGL/gl.h.
 AC_CHECK_HEADERS([GL/gl.h OpenGL/gl.h], [], [], [ ])
@@ -214,10 +218,18 @@ PKG_CHECK_MODULES([PROJ], [proj >= 6.2.0], [
 AC_SUBST([PROJ_LIBS])
 AC_SUBST([PROJ_CFLAGS])
 
+dnl Check for GDAL.
+PKG_CHECK_MODULES([GDAL], [gdal >= 2.3], [
+], [
+  AC_MSG_ERROR([GDAL required for geodata handling])
+])
+AC_SUBST([GDAL_LIBS])
+AC_SUBST([GDAL_CFLAGS])
+
 dnl Checks for header files.
 
 dnl don't use AC_CHECK_FUNCS for setjmp - mingw #define-s it to _setjmp
-AC_CHECK_HEADERS(limits.h string.h setjmp.h sys/select.h)
+AC_CHECK_HEADERS(limits.h string.h setjmp.h)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
@@ -241,11 +253,19 @@ AC_CHECK_FUNCS([getc_unlocked putc_unlocked])
 
 AC_CHECK_FUNCS([setenv unsetenv])
 
-AC_PATH_PROG([JW], [jw], [$MISSING jw])
-AC_ARG_VAR([JW], [jw from docbook-utils/docbook-tools])
+AC_CHECK_FUNCS([fmemopen])
+
+dnl Microsoft-specific functions which support positional argument specifiers.
+AC_CHECK_FUNCS([_vfprintf_p _vsprintf_p])
+
+AC_PATH_PROG([SPHINX_BUILD], [sphinx-build], [$MISSING sphinx-build])
+AC_ARG_VAR([SPHINX_BUILD], [sphinx-build from python3-sphinx])
+
+AC_PATH_PROG([MSGFMT], [msgfmt], [$MISSING msgfmt])
+AC_ARG_VAR([MSGFMT], [msgfmt from gettext])
 
 AC_ARG_ENABLE([werror],
-  [AS_HELP_STRING([--enable-werror], [enable treating compiler warnings as errors [default=maintainer-mode]])],
+  [AS_HELP_STRING([--enable-werror], [enable treating compiler warnings as errors [default=no]])],
   [case ${enableval} in
     yes|no) ;;
   *) AC_MSG_ERROR([bad value ${enableval} for --enable-werror]) ;;
@@ -302,9 +322,6 @@ AC_ARG_ENABLE(profiling,
   *) AC_MSG_ERROR(bad value $enableval for --enable-profiling) ;;
 esac])
 
-HTMLFILES="AUTHORS.htm HACKING.htm NEWS.htm OLDNEWS.htm TODO.htm index.htm 3dformat.htm 3dformat-old.htm"
-AC_SUBST(HTMLFILES)
-
 EXTRA_TEXT="AUTHORS COPYING NEWS TODO ChangeLog"
 AC_SUBST(EXTRA_TEXT)
 
@@ -346,7 +363,7 @@ AH_BOTTOM(
 AC_CONFIG_FILES([
  Makefile src/Makefile doc/Makefile lib/Makefile lib/icons/Makefile
  lib/images/Makefile
- tests/Makefile vim/Makefile survex.iss doc/index.htm doc/survex.7
+ tests/Makefile vim/Makefile survex.iss doc/index.htm
  survex.spec lib/Info.plist
  ])
 AC_OUTPUT

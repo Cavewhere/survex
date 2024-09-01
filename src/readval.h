@@ -20,7 +20,7 @@
 extern int root_depr_count;
 
 enum {
-    /* Can the prefix be omitted? */
+    /* Can the prefix be omitted?  If it is, read_prefix() returns NULL. */
     PFX_OPT = 1,
     /* Read a survey? */
     PFX_SURVEY = 2,
@@ -32,13 +32,25 @@ enum {
     PFX_WARN_SEPARATOR = 16,
     /* Anonymous stations OK? */
     PFX_ANON = 32,
-    /* */
-    PFX_NEW = 64,
     /* Read a station? */
     PFX_STATION = 0
 };
 
 prefix *read_prefix(unsigned flags);
+
+// Read a sequence of NAMES characters.  Returns NULL if none.
+// Caller is responsible for calling osfree() on the returned value.
+char *read_walls_prefix(void);
+
+prefix *read_walls_station(char * const walls_prefix[3],
+			   bool anon_allowed,
+			   bool *p_new);
+
+// Like read_numeric() but doesn't skipblanks() first and can be told to not
+// allow a sign.
+real read_number(bool f_optional, bool f_unsigned);
+
+real read_quadrant(bool f_optional);
 
 real read_numeric(bool f_optional);
 real read_numeric_multi(bool f_optional, bool f_quadrants, int *p_n_readings);
@@ -51,3 +63,5 @@ int read_int(int min_val, int max_val);
 void read_string(string *pstr);
 
 void read_date(int *py, int *pm, int *pd);
+
+void read_walls_srv_date(int *py, int *pm, int *pd);

@@ -91,10 +91,8 @@ find_package(Python3 COMPONENTS Interpreter)
 find_package(Perl)
 find_package(GLEW REQUIRED)
 find_package(proj REQUIRED)
+find_package(GDAL REQUIRED)
 
-#For macOS only system wxwidgets from brew
-#You also seet to set the PATH to /usr/local/opt/wxwidgets/bin so wxWidgets can find wx-config
-set(CMAKE_FIND_ROOT_PATH "/usr/local/opt/wxwidgets/bin")
 find_package(wxWidgets REQUIRED COMPONENTS core base adv gl html)
 
 SET(CMAKE_REQUIRED_INCLUDES ${proj_INCLUDE_DIRS_DEBUG} ${proj_INCLUDE_DIRS_RELEASE})
@@ -263,14 +261,6 @@ target_compile_definitions(extend PUBLIC
     _CRT_SECURE_NO_WARNINGS
     )
 
-
-add_custom_command(
-    OUTPUT ${PROJECT_BINARY_DIR}/img2aven.h
-    COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gen_img2aven > img2aven.h
-    DEPENDS ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gen_img2aven
-    )
-add_custom_target(img2aven DEPENDS ${PROJECT_BINARY_DIR}/img2aven.h)
-
 add_executable(survexport
     ${SRC_DIR}/survexport.cc
     ${SRC_DIR}/model.cc
@@ -293,7 +283,6 @@ target_compile_definitions(survexport PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
     )
-add_dependencies(survexport img2aven)
 
 set(FONT_FILES
     ${PROJECT_BINARY_DIR}/unifont.hex
@@ -345,7 +334,6 @@ add_executable(aven WIN32
     ${SRC_DIR}/cavernlog.cc
     ${SRC_DIR}/avenprcore.cc
     ${SRC_DIR}/printing.cc
-    ${SRC_DIR}/buttontaghandler.cc
     ${SRC_DIR}/pos.cc
     ${SRC_DIR}/date.c
     ${SRC_DIR}/img_hosted.c
@@ -358,7 +346,6 @@ add_dependencies(aven
     make-pixel-font
     gdtconvert
     messageFiles
-    img2aven
     )
 
 target_include_directories(aven PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
@@ -366,6 +353,7 @@ target_link_libraries(aven
     wxWidgets::wxWidgets
     GLEW::GLEW
     PROJ::proj
+    GDAL::GDAL
     survex_core)
 target_compile_definitions(aven PUBLIC
     HAVE_CONFIG_H

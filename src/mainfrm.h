@@ -4,7 +4,7 @@
 //  Main frame handling for Aven.
 //
 //  Copyright (C) 2000-2003,2005 Mark R. Shinwell
-//  Copyright (C) 2001-2003,2004,2005,2006,2010,2011,2012,2013,2014,2015,2016,2018 Olly Betts
+//  Copyright (C) 2001-2024 Olly Betts
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -64,6 +64,7 @@ using namespace std;
 enum {
     menu_FILE_LOG = 1000,
     menu_FILE_OPEN_TERRAIN,
+    menu_FILE_OVERLAY_GEODATA,
     menu_FILE_PAGE_SETUP,
     menu_FILE_SCREENSHOT,
     menu_FILE_EXPORT,
@@ -229,6 +230,7 @@ public:
     void OnPresStopUpdate(wxUpdateUIEvent& event);
     void OnPresExportMovieUpdate(wxUpdateUIEvent& event);
     void OnOpenTerrainUpdate(wxUpdateUIEvent& event);
+    void OnOverlayGeodataUpdate(wxUpdateUIEvent& event);
 
     void DoFind();
     void OnFind(wxCommandEvent& event);
@@ -239,6 +241,7 @@ public:
 
     void OnOpen(wxCommandEvent& event);
     void OnOpenTerrain(wxCommandEvent&);
+    void OnOverlayGeodata(wxCommandEvent&);
     void HideLog(wxWindow * log_window);
     void OnScreenshot(wxCommandEvent& event);
     void OnScreenshotUpdate(wxUpdateUIEvent& event);
@@ -423,8 +426,8 @@ public:
     void ClearCoords();
     void SetCoords(const Vector3 &v);
     const LabelInfo * GetTreeSelection() const;
-    void SetCoords(Double x, Double y, const LabelInfo * there);
-    void SetAltitude(Double z, const LabelInfo * there);
+    void SetCoords(double x, double y, const LabelInfo * there);
+    void SetAltitude(double z, const LabelInfo * there);
 
     void ShowInfo(const LabelInfo *here = NULL, const LabelInfo *there = NULL);
     void DisplayTreeInfo(const wxTreeItemData* data = NULL);
@@ -446,6 +449,15 @@ public:
 	m_Gfx->InvalidateAllLists();
 	m_Gfx->ForceRefresh();
     }
+
+    void InvalidateOverlays() {
+	m_Gfx->InvalidateOverlays();
+    }
+
+    wxTreeItemId FirstOverlay() { return m_Tree->FirstOverlay(); }
+    wxTreeItemId NextOverlay(wxTreeItemId id) { return m_Tree->NextOverlay(id); }
+    wxTreeItemId RemoveOverlay(wxTreeItemId id) { return m_Tree->RemoveOverlay(id); }
+    const wxString& GetOverlayFilename(wxTreeItemId id) { return m_Tree->GetOverlayFilename(id); }
 
 private:
     DECLARE_EVENT_TABLE()

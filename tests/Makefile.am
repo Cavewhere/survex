@@ -22,7 +22,7 @@ calibrate_tape.svx calibrate_tape.pos\
 delatenda.pos delatendb.pos delatend.out\
 addatenda.pos addatendb.pos addatend.out\
 begin_no_end.svx end_no_begin.svx end_no_begin_nest.svx\
-require_fail.svx\
+require_fail.out require_fail.svx\
 extend.svx extendx.3d\
 revcomplist.svx\
 exporterr1.svx exporterr2.svx exporterr3.svx exporterr4.svx exporterr5.svx\
@@ -38,20 +38,28 @@ badinc5.mak badinc5.out\
 export.svx export2.svx\
 singlefix.svx singlefix.out singlefix.pos singlereffix.svx singlereffix.pos\
 singlefixerr.svx singlefixerr.pos singlereffixerr.svx singlereffixerr.pos\
-includecomment.svx reenterwarn.svx\
+includecomment.svx\
+reenterwarn.svx reenterwarn.out\
 angleunits.svx angleunits.pos\
 lengthunits.svx lengthunits.out lengthunits.pos\
 cmd_alias.svx cmd_alias.out cmd_alias.pos\
 cmd_alias_bad.svx cmd_alias_bad.out\
-cmd_default.svx cmd_prefix.svx cmd_truncate.svx cmd_truncate.pos\
-cmd_case.svx cmd_case.pos cmd_fix.svx cmd_fix.out cmd_fix.pos cmd_solve.svx cmd_solve.pos\
+cmd_default.svx\
+cmd_default_bad.svx cmd_default_bad.out\
+cmd_prefix.svx cmd_truncate.svx cmd_truncate.pos\
+cmd_truncate_bad.svx cmd_truncate_bad.out\
+cmd_case.svx cmd_case.pos\
+cmd_case_bad.svx cmd_case_bad.out\
+cmd_cartesian.svx cmd_cartesian.dump cmd_cartesian.out\
+cmd_cartesian_bad.svx cmd_cartesian_bad.out\
+cmd_fix.svx cmd_fix.out cmd_fix.pos cmd_solve.svx cmd_solve.pos\
 cmd_entrance.svx\
 stnsurvey1.svx stnsurvey2.svx\
 tapelessthandepth.svx longname.svx\
-chinabug.svx chinabug2.svx\
+chinabug.svx chinabug.out chinabug2.svx\
 multinormal.svx multinormal.pos\
 multinormignall.svx multinormignall.pos\
-multidiving.svx multidiving.pos\
+multidiving.svx multidiving.out multidiving.pos\
 multicylpolar.svx multicylpolar.pos\
 multicartesian.svx multicartesian.pos multicartesian.out\
 multinosurv.svx multinosurv.pos multinosurv.out\
@@ -67,7 +75,7 @@ normignall.svx normignall.pos\
 nosurv.svx nosurv.pos nosurv.out\
 quadrant_bearing.svx quadrant_bearing.pos\
 bad_quadrant_bearing.svx bad_quadrant_bearing.out\
-cmd_flags.svx bad_cmd_flags.svx\
+cmd_flags.svx bad_cmd_flags.svx bad_cmd_flags.out\
 plumb.svx plumb.pos\
 cmd_begin_bad.svx cmd_begin_bad.out\
 cmd_equate_bad.svx cmd_equate_bad.out\
@@ -80,7 +88,8 @@ cmd_set_dot_in_name.svx cmd_set_dot_in_name.dump\
 unusedstation.svx exportnakedbegin.svx\
 oldestyle.svx\
 pos.pos v0.3d v0b.3d v1.3d v2.3d v3.3d\
-baddatacylpolar.svx bugdz.svx bugdz.pos badnewline.svx\
+baddatacylpolar.svx baddatacylpolar.out\
+bugdz.svx bugdz.pos badnewline.svx\
 badquantities.svx imgoffbyone.svx imgoffbyone.pos\
 infereqtopofil.svx infereqtopofil.pos\
 3sdfixbug.svx 3sdfixbug.pos\
@@ -89,7 +98,7 @@ omitclino.svx omitclino.pos\
 back.svx back.out back.pos\
 back2.svx back2.out back2.pos\
 bad_back.svx bad_back.out\
-notentranceorexport.svx inferunknown.svx inferexports.svx\
+notentranceorexport.svx inferunknown.svx inferunknown.out inferexports.svx\
 bad_units_factor.svx bad_units_factor.out\
 bad_units_qlist.svx bad_units_qlist.out\
 percent_gradient.svx percent_gradient.pos\
@@ -107,7 +116,11 @@ badmak.mak badmak.out\
 fixfeet.mak fixfeet.pos\
 folder.mak subdir/cave1a.dat subdir/cave1b.dat subdir/subsubdir/cave2.dat\
 utm.mak utm.out utm.dump\
-dot17.svx dot17.pos 3dcorner.svx 3dcorner.pos surfequate.svx surfequate.dxf\
+walls.srv walls.out walls.dump\
+wallsbaddatum.out wallsbaddatum.wpj\
+wallsdecl.wpj wallsdecl.srv wallsdecl.out wallsdecl.dump\
+badopts.srv badopts.out\
+dot17.svx dot17.pos 3dcorner.svx 3dcorner.pos\
 nosurveyhanging.svx nosurveyhanging.out\
 cmd_solve_hanging.svx passage.svx hanging_lrud.svx\
 cmd_solve_nothing.svx cmd_solve_nothing_implicit.svx\
@@ -148,8 +161,15 @@ utf8bom.out utf8bom.svx\
 nonewlineateof.out nonewlineateof.svx\
 suspectreadings.out suspectreadings.svx\
 cmd_data_default.svx\
+cmd_data_ignore.out cmd_data_ignore.pos cmd_data_ignore.svx\
 samename.svx\
+tabinhighlight.out tabinhighlight.svx\
+legacytokens.out legacytokens.svx\
+3dexport.dump 3dexport.svx\
+dxffullcoords.dxf dxffullcoords.svx\
+dxfsurfequate.svx dxfsurfequate.dxf\
 gpxexport.gpx gpxexport.svx\
+hpglexport.hpgl hpglexport.svx\
 jsonexport.json jsonexport.svx\
 kmlexport.kml kmlexport.svx\
 pltexport.plt pltexport.svx\
@@ -160,6 +180,8 @@ imgtest_simple.svx\
 imgtest_survey.svx
 
 EXTRA_DIST +=\
+cmapstn.adj cmapstn.dump\
+cmap.sht cmap.dump\
 multisection.plt multisection.dump\
 multisurvey.plt multisurvey.dump\
 pre1970.plt pre1970.dump

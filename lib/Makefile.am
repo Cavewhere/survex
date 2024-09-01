@@ -8,7 +8,7 @@ check-local: survex.pot
 	    echo 'Duplicate message code(s) in survex.pot'; exit 1;\
 	fi
 	for po in $(po_files) ; do\
-	    msgfmt -c --check-accelerators -o /dev/null "$(srcdir)/$$po" || exit 1;\
+	    $(MSGFMT) -c --check-accelerators -o /dev/null "$(srcdir)/$$po" || exit 1;\
 	done
 	if cd "$(srcdir)" && grep 'msgstr "[0-9][0-9]*"' $(po_files); then\
 	    echo '.po file with numeric code'; exit 1;\
@@ -27,7 +27,6 @@ EXTRA_DIST = survex.pot $(po_files)\
  ChineseTraditional.isl\
  EnglishBritish.isl\
  Greek.isl\
- Hungarian.isl\
  Indonesian.isl\
  Romanian.isl\
  make-pixel-font preload_font.h
@@ -59,6 +58,11 @@ merge-pos:
 
 generate-todo:
 	cd '$(srcdir)' && ./generate-po-todo $(po_files)
+
+launchpad-upload.tar.bz2: survex.pot $(po_files)
+	cd '$(srcdir)' && tar --transform='s!^!survex/!' -jcf $@ $^
+	@echo 'Upload $@ to'
+	@echo 'https://translations.launchpad.net/survex/trunk/+translations-upload'
 
 launchpad-diff:
 	rm -rf lib

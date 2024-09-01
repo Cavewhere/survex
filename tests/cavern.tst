@@ -19,17 +19,33 @@
 
 testdir=`echo $0 | sed 's!/[^/]*$!!' || echo '.'`
 
-# allow us to run tests standalone more easily
-: ${srcdir="$testdir"}
-
-# force VERBOSE if we're run on a subset of tests
-test -n "$*" && VERBOSE=1
-
 test -x "$testdir"/../src/cavern || testdir=.
 
 # Make testdir absolute, so we can cd before running cavern to get a consistent
 # path in diagnostic messages.
-testdir=`(cd "$testdir" && pwd)`
+testdir=`cd "$testdir" && pwd`
+
+# allow us to run tests standalone more easily
+: ${srcdir="$testdir"}
+if [ -z "$SURVEXLIB" ] ; then
+  SURVEXLIB=`cd "$srcdir/../lib" && pwd`
+  export SURVEXLIB
+fi
+
+# force VERBOSE if we're run on a subset of tests
+test -n "$*" && VERBOSE=1
+
+case `uname -a` in
+  MINGW*)
+    DIFF='diff --strip-trailing-cr'
+    QUIET_DIFF='diff -q --strip-trailing-cr'
+    ;;
+  *)
+    DIFF=diff
+    # Use cmp when we can as a small optimisation.
+    QUIET_DIFF='cmp -s'
+    ;;
+esac
 
 : ${CAVERN="$testdir"/../src/cavern}
 : ${DIFFPOS="$testdir"/../src/diffpos}
@@ -38,12 +54,14 @@ testdir=`(cd "$testdir" && pwd)`
 
 : ${TESTS=${*:-"singlefix singlereffix oneleg midpoint noose cross firststn\
  deltastar deltastar2 bug3 calibrate_tape nosurvey2 cartesian cartesian2\
- lengthunits angleunits cmd_alias cmd_alias_bad cmd_truncate cmd_case cmd_fix\
+ lengthunits angleunits cmd_alias cmd_alias_bad cmd_truncate cmd_truncate_bad\
+ cmd_case cmd_case_bad cmd_fix\
  cmd_solve cmd_entrance cmd_entrance_bad cmd_sd cmd_sd_bad cmd_fix_bad cmd_set\
  cmd_set_bad cmd_set_dot_in_name\
  beginroot revcomplist break_replace_pfx bug0 bug1 bug2 bug4 bug5\
  expobug require export export2 includecomment\
- self_loop self_eq_loop reenterwarn cmd_default cmd_prefix cmd_prefix_bad\
+ self_loop self_eq_loop reenterwarn cmd_default cmd_default_bad\
+ cmd_prefix cmd_prefix_bad\
  cmd_begin_bad cmd_equate_bad cmd_export_bad\
  singlefixerr singlereffixerr\
  begin_no_end end_no_begin end_no_begin_nest require_fail\
@@ -63,6 +81,7 @@ testdir=`(cd "$testdir" && pwd)`
  bad_units_qlist\
  percent_gradient dotinsurvey leandroclino lowsd revdir gettokennullderef\
  nosurveyhanging cmd_solve_nothing cmd_solve_nothing_implicit\
+ cmd_cartesian cmd_cartesian_bad\
  cmd_calibrate cmd_declination cmd_declination_auto cmd_declination_auto_bad\
  cmd_declination_conv cmd_declination_conv_proj_bug\
  lech level 2fixbug dot17 3dcorner\
@@ -72,14 +91,21 @@ testdir=`(cd "$testdir" && pwd)`
  badmak.mak\
  fixfeet.mak utm.mak\
  clptest.dat clptest.clp\
- surfequate passage hanging_lrud equatenosuchstn surveytypo\
+ walls.srv\
+ badopts.srv\
+ wallsbaddatum.wpj\
+ wallsdecl.wpj\
+ passage hanging_lrud equatenosuchstn surveytypo\
  skipafterbadomit passagebad badreadingdotplus badcalibrate calibrate_clino\
  badunits badbegin anonstn anonstnbad anonstnrev doubleinc reenterlots\
  cs csbad csbadsdfix csfeet cslonglat omitfixaroundsolve repeatreading\
  mixedeols utf8bom nonewlineateof suspectreadings cmd_data_default\
+ cmd_data_ignore\
  quadrant_bearing bad_quadrant_bearing\
- samename\
- gpxexport jsonexport kmlexport pltexport svgexport\
+ samename tabinhighlight legacytokens\
+ 3dexport \
+ dxffullcoords dxfsurfequate\
+ gpxexport hpglexport jsonexport kmlexport pltexport svgexport\
 "}}
 
 # Test file stnsurvey3.svx missing: pos=fail # We exit before the error count.
@@ -142,6 +168,7 @@ for file in $TESTS ; do
   # yes : diffpos 3D file output with <testcase_name>.pos
   # no : Check that a 3D file is produced, but not positions in it
   # fail : Check that a 3D file is NOT produced
+  # 3d : Convert to 3D with survexport, compare dump3d to <testcase_name>.dump
   # dxf : Convert to DXF with survexport and compare with <testcase_name>.dxf
   # gpx : Convert to GPX with survexport and compare with <testcase_name>.gpx
   # json : Convert to JSON with survexport and compare with <testcase_name>.json
@@ -165,6 +192,17 @@ for file in $TESTS ; do
       # These testcase files don't exist (or for ONELEG exist with a different
       # case).  They all have the same settings.
       pos=fail
+      ;;
+    wallsbaddatum.wpj)
+      # .wpj files can't start with a comment.
+      pos=fail
+      warn=0
+      err=1
+      ;;
+    *.wpj)
+      # .wpj files can't start with a comment.
+      pos=dump
+      warn=0
       ;;
     *)
       survexportopts=
@@ -271,12 +309,12 @@ for file in $TESTS ; do
     [ "$exitcode" = 0 ] || exit 1
 
     if test -n "$VERBOSE" ; then
-      diff "$expectedfile" "$tmpfile" || exit 1
+      $DIFF "$expectedfile" "$tmpfile" || exit 1
     else
-      cmp -s "$expectedfile" "$tmpfile" || exit 1
+      $QUIET_DIFF "$expectedfile" "$tmpfile" || exit 1
     fi
     ;;
-  dxf|gpx|json|kml|plt|svg)
+  dxf|gpx|hpgl|json|kml|plt|svg)
     # $pos gives us the file extension here.
     expectedfile=$basefile.$pos
     tmpfile=tmp.$pos
@@ -299,6 +337,11 @@ for file in $TESTS ; do
 
     # Normalise exported file if required.
     case $pos in
+      dxf)
+	# On x86 excess precision can result in -0.00 for some coordinates.
+	sed 's/-0\.00\>/ 0.00/g' < "$tmpfile" > tmp.tmp
+	mv tmp.tmp "$tmpfile"
+	;;
       gpx)
 	sed 's,<time>[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z</time>,<time>REDACTED</time>,;s,survex [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*,survex REDACTED,' < "$tmpfile" > tmp.tmp
 	mv tmp.tmp "$tmpfile"
@@ -306,9 +349,36 @@ for file in $TESTS ; do
     esac
 
     if test -n "$VERBOSE" ; then
-      diff "$expectedfile" "$tmpfile" || exit 1
+      $DIFF "$expectedfile" "$tmpfile" || exit 1
     else
-      cmp -s "$expectedfile" "$tmpfile" || exit 1
+      $QUIET_DIFF "$expectedfile" "$tmpfile" || exit 1
+    fi
+    ;;
+  3d)
+    expectedfile=$basefile.dump
+    tmpfile=tmp.dump
+    if test -n "$VERBOSE" ; then
+      SOURCE_DATE_EPOCH=1 $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile.3d"
+      exitcode=$?
+    else
+      SOURCE_DATE_EPOCH=1 $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile.3d" > /dev/null
+      exitcode=$?
+    fi
+    $DUMP3D --show-dates --legs "$tmpfile.3d" > "$tmpfile"
+    if [ -n "$VALGRIND" ] ; then
+      if [ $exitcode = "$vg_error" ] ; then
+	cat "$vg_log"
+	rm "$vg_log"
+	exit 1
+      fi
+      rm "$vg_log"
+    fi
+    [ "$exitcode" = 0 ] || exit 1
+
+    if test -n "$VERBOSE" ; then
+      $DIFF "$expectedfile" "$tmpfile" || exit 1
+    else
+      $QUIET_DIFF "$expectedfile" "$tmpfile" || exit 1
     fi
     ;;
   no)
@@ -329,12 +399,12 @@ for file in $TESTS ; do
     sed '1,/^Copyright/d;/^\(CPU \)*[Tt]ime used  *[0-9][0-9.]*s$/d;s!.*/src/\(cavern: \)!\1!' tmp.out > tmp.out2
     mv tmp.out2 tmp.out
     # Check output is as expected.
-    if cmp -s "$outfile" tmp.out ; then
+    if $QUIET_DIFF "$outfile" tmp.out ; then
       : # Matches.
-    elif [ -f "$outfile2" ] && cmp -s "$outfile2" tmp.out ; then
+    elif [ -f "$outfile2" ] && $QUIET_DIFF "$outfile2" tmp.out ; then
       : # Matches alternative output (e.g. due to older PROJ).
     else
-      test -z "$VERBOSE" || diff "$outfile" tmp.out
+      test -z "$VERBOSE" || $DIFF "$outfile" tmp.out
       exit 1
     fi
   fi

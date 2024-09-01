@@ -1,6 +1,6 @@
 /* cavern.c
  * SURVEX Cave surveying software: data reduction main and related functions
- * Copyright (C) 1991-2023 Olly Betts
+ * Copyright (C) 1991-2024 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -60,6 +60,7 @@ prefix *root;
 prefix *anon_list = NULL;
 long cLegs, cStns;
 long cComponents;
+bool hanging_surveys = false;
 bool fExportUsed = false;
 char * proj_str_out = NULL;
 PJ * pj_cached = NULL;
@@ -188,6 +189,7 @@ main(int argc, char **argv)
    pcs->proj_str = NULL;
    pcs->declination = HUGE_REAL;
    pcs->convergence = HUGE_REAL;
+   pcs->input_convergence = HUGE_REAL;
    pcs->dec_filename = NULL;
    pcs->dec_line = 0;
    pcs->dec_context = NULL;
@@ -196,6 +198,8 @@ main(int argc, char **argv)
    pcs->dec_alt = HUGE_VAL;
    pcs->min_declination = HUGE_VAL;
    pcs->max_declination = -HUGE_VAL;
+   pcs->cartesian_north = TRUE_NORTH;
+   pcs->cartesian_rotation = 0.0;
 
    /* Set up root of prefix hierarchy */
    root = osnew(prefix);
@@ -219,6 +223,12 @@ main(int argc, char **argv)
       pfxHi[d] = pfxLo[d] = NULL;
    }
 
+   // TRANSLATORS: Here "survey" is a "cave map" rather than list of questions
+   // - it should be translated to the terminology that cavers using the
+   // language would use.
+   //
+   // Part of cavern --help
+   cmdline_set_syntax_message(/*[SURVEY_DATA_FILE]*/507, 0, NULL);
    /* at least one argument must be given */
    cmdline_init(argc, argv, short_opts, long_opts, NULL, help, 1, -1);
    while (1) {
@@ -466,20 +476,24 @@ do_stats(void)
 
    putnl();
 
-   if (cLoops == 1) {
-      fputs(msg(/*There is 1 loop.*/138), stdout);
-   } else {
-      printf(msg(/*There are %ld loops.*/139), cLoops);
-   }
+   // FIXME: We potentially need to adjust cComponents if there are hanging
+   // surveys for these statistics to be correct.
+   if (!hanging_surveys) {
+      if (cLoops == 1) {
+	 fputs(msg(/*There is 1 loop.*/138), stdout);
+      } else {
+	 printf(msg(/*There are %ld loops.*/139), cLoops);
+      }
 
-   putnl();
-
-   if (cComponents != 1) {
-      /* TRANSLATORS: "Connected component" in the graph theory sense - it
-       * means there are %ld bits of survey with no connections between them.
-       * This message is only used if there are more than 1. */
-      printf(msg(/*Survey has %ld connected components.*/178), cComponents);
       putnl();
+
+      if (cComponents != 1) {
+	 /* TRANSLATORS: "Connected component" in the graph theory sense - it
+	  * means there are %ld bits of survey with no connections between them.
+	  * This message is only used if there are more than 1. */
+	 printf(msg(/*Survey has %ld connected components.*/178), cComponents);
+	 putnl();
+      }
    }
 
    printf(msg(/*Total length of survey legs = %7.2f%s (%7.2f%s adjusted)*/132),

@@ -234,6 +234,43 @@ mktime_with_tz(struct tm * tm, const char * tz)
 #endif
     tzset();
     r = mktime(tm);
+    if (r == (time_t)-1 && tm->tm_year < 70 &&
+	(sizeof(time_t) > 4 || tm->tm_year >= 1)) {
+	/* Microsoft's mktime() treats years before 1970 as an error, unlike
+	 * most other implementations.
+	 *
+	 * We workaround this to support older years by calling mktime() for a
+	 * date offset such that it's after 1970 (but before 3000 which is the
+	 * highest year Microsoft's mktime() handles, and also before 2038 for
+	 * 32-bit time_t), and such that the leap year pattern matches.  For
+	 * 32-bit time_t we just need to add a multiple of 4, but for 64-bit
+	 * time_t we need to add a multiple of 400.
+	 *
+	 * We require the year to be >= 1901 for 32-bit time_t since the
+	 * oldest representable date in signed 32-bit time_t is in 1901
+	 * so there's no point retrying anything older:
+	 *
+	 *   Fri 13 Dec 1901 20:45:52 UTC
+	 *
+	 * For larger time_t we support any tm_year value which fits in an int.
+	 * This is somewhat dubious before the adoption of the Gregorian
+	 * calendar but it matches what most mktime() implementations seem to
+	 * do.
+	 */
+	int y = tm->tm_year;
+	int y_offset = sizeof(time_t) > 4 ?
+	    ((-1 - y) / 400 + 1) * 400 :
+	    (76 - y) & ~3;
+	tm->tm_year = y + y_offset;
+	r = mktime(tm);
+	tm->tm_year = y;
+	if (r != (time_t)-1) {
+	    // The two magic numbers are the average number of seconds in a
+	    // year for a 400 year cycle and for a 4 year cycle (one which
+	    // includes a leap year).
+	    r -= y_offset * (time_t)(sizeof(time_t) > 4 ? 31556952 : 31557600);
+	}
+    }
     if (old_tz) {
 #ifdef _MSC_VER
 	_putenv_s("TZ", old_tz);
@@ -303,19 +340,13 @@ static img_errcode img_errno = IMG_NONE;
 /* Attempt to string paste to ensure we are passed a literal string */
 #define LITLEN(S) (sizeof(S"") - 1)
 
-/* Fake "version numbers" for non-3d formats we can read. */
-#define VERSION_CMAP_SHOT	-4
-#define VERSION_CMAP_STATION	-3
-#define VERSION_COMPASS_PLT	-2
-#define VERSION_SURVEX_POS	-1
-
 /* Flags bitwise-or-ed into pending to track XSECTs. */
 #define PENDING_XSECT_END	0x100
-#define PENDING_HAD_XSECT	0x001 /* Only for VERSION_COMPASS_PLT */
-#define PENDING_MOVE		0x002 /* Only for VERSION_COMPASS_PLT */
-#define PENDING_LINE		0x004 /* Only for VERSION_COMPASS_PLT */
-#define PENDING_XSECT		0x008 /* Only for VERSION_COMPASS_PLT */
-#define PENDING_FLAGS_SHIFT	9 /* Only for VERSION_COMPASS_PLT */
+#define PENDING_HAD_XSECT	0x001 /* Only for IMG_VERSION_COMPASS_PLT */
+#define PENDING_MOVE		0x002 /* Only for IMG_VERSION_COMPASS_PLT */
+#define PENDING_LINE		0x004 /* Only for IMG_VERSION_COMPASS_PLT */
+#define PENDING_XSECT		0x008 /* Only for IMG_VERSION_COMPASS_PLT */
+#define PENDING_FLAGS_SHIFT	9 /* Only for IMG_VERSION_COMPASS_PLT */
 
 /* Days from start of 1900 to start of 1970. */
 #define DAYS_1900 25567
@@ -389,7 +420,7 @@ compass_plt_update_station(img *pimg, const char *name, int name_len,
 		p->flags |= flags;
 		if (p->flags & COMPASS_SFLAG_DIFFERENT_SURVEY)
 		    p->flags |= img_SFLAG_EXPORTED;
-		return 0;
+		return 1;
 	    }
 	}
     }
@@ -596,7 +627,7 @@ compass_plt_open(img *pimg)
     char *from = NULL;
     int from_len = 0;
 
-    pimg->version = VERSION_COMPASS_PLT;
+    pimg->version = IMG_VERSION_COMPASS_PLT;
     /* Spaces aren't legal in Compass station names, but dots are, so
      * use space as the level separator */
     pimg->separator = ' ';
@@ -934,6 +965,11 @@ cmap_xyz_open(img *pimg)
 	return IMG_OUTOFMEMORY;
     }
 
+    pimg->data = compass_plt_allocate_hash();
+    if (!pimg->data) {
+	return IMG_OUTOFMEMORY;
+    }
+
     /* Spaces aren't legal in CMAP station names, but dots are, so
      * use space as the level separator. */
     pimg->separator = ' ';
@@ -963,6 +999,10 @@ cmap_xyz_open(img *pimg)
 	unsigned long v;
 	char * p;
 	pimg->datestamp = my_strdup(line + 45);
+	if (!pimg->datestamp) {
+	    osfree(line);
+	    return IMG_OUTOFMEMORY;
+	}
 	p = pimg->datestamp;
 	v = strtoul(p, &p, 10);
 	if (v <= 50) {
@@ -1008,8 +1048,13 @@ cmap_xyz_open(img *pimg)
 	pimg->datestamp_numeric = mktime_with_tz(&tm, "");
     } else {
 	pimg->datestamp = my_strdup(TIMENA);
+	if (!pimg->datestamp) {
+	    osfree(line);
+	    return IMG_OUTOFMEMORY;
+	}
     }
 bad_cmap_date:
+    // The first line either has a survey name or some stock text.
     if (strncmp(line, "  Cave Survey Data Processed by CMAP ",
 		LITLEN("  Cave Survey Data Processed by CMAP ")) != 0) {
 	if (len > 45) {
@@ -1020,12 +1065,13 @@ bad_cmap_date:
 	if (len > 2) {
 	    line[len] = '\0';
 	    pimg->title = my_strdup(line + 2);
+	    if (!pimg->title) {
+		osfree(line);
+		return IMG_OUTOFMEMORY;
+	    }
 	}
     }
     osfree(line);
-    if (!pimg->datestamp || !pimg->title) {
-	return IMG_OUTOFMEMORY;
-    }
     line = getline_alloc(pimg->fh);
     if (!line) {
 	return IMG_OUTOFMEMORY;
@@ -1034,9 +1080,9 @@ bad_cmap_date:
 	return IMG_BADFORMAT;
     }
     if (line[1] == 'S') {
-	pimg->version = VERSION_CMAP_STATION;
+	pimg->version = IMG_VERSION_CMAP_STATION;
     } else {
-	pimg->version = VERSION_CMAP_SHOT;
+	pimg->version = IMG_VERSION_CMAP_SHOT;
     }
     osfree(line);
     line = getline_alloc(pimg->fh);
@@ -1094,9 +1140,9 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
    pimg->data = NULL;
 
    /* for version >= 3 we use label_buf to store the prefix for reuse */
-   /* for VERSION_COMPASS_PLT, 0 value indicates we haven't
+   /* for IMG_VERSION_COMPASS_PLT, 0 value indicates we haven't
     * entered a survey yet */
-   /* for VERSION_CMAP_SHOT, we store the last station here
+   /* for IMG_VERSION_CMAP_SHOT, we store the last station here
     * to detect whether we MOVE or LINE */
    pimg->label_len = 0;
    pimg->label_buf[0] = '\0';
@@ -1144,10 +1190,11 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
       pimg->survey_len = len;
    }
 
-   /* [VERSION_COMPASS_PLT] bitwise-or of PENDING_* values, or -1.
-    * [VERSION_CMAP_STATION, VERSION_CMAP_SHOT] pending IMG_LINE or IMG_MOVE -
-    * both have 4 added.
-    * [VERSION_SURVEX_POS] already skipped heading line, or there wasn't one
+   /* [IMG_VERSION_COMPASS_PLT] bitwise-or of PENDING_* values, or -1.
+    * [IMG_VERSION_CMAP_STATION, IMG_VERSION_CMAP_SHOT] pending IMG_LINE or
+    * IMG_MOVE - both have 4 added.
+    * [IMG_VERSION_SURVEX_POS] already skipped heading line, or there wasn't
+    * one.
     * [version 0] not in the middle of a 'LINE' command
     * [version >= 3] not in the middle of turning a LINE into a MOVE
     */
@@ -1167,7 +1214,7 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
    switch (ext) {
      case EXT3('p', 'o', 's'): /* Survex .pos */
 pos_file:
-       pimg->version = VERSION_SURVEX_POS;
+       pimg->version = IMG_VERSION_SURVEX_POS;
        pimg->datestamp = my_strdup(TIMENA);
        if (!pimg->datestamp) {
 	   goto out_of_memory_error;
@@ -1219,16 +1266,17 @@ xyz_file:
       rewind(pimg->fh);
       if (buf[1] == ' ') {
 	 if (buf[0] == ' ') {
-	    /* Looks like a CMAP .xyz file ... */
+	    /* Looks like a CMAP XYZ file. */
 	    goto xyz_file;
 	 } else if (strchr("ZSNF", buf[0])) {
-	    /* Looks like a Compass .plt file ... */
-	    /* Almost certainly it'll start "Z " */
+	    /* Looks like a Compass .plt file (almost certainly it'll start
+	     * "Z " but the other letters are possible too).
+	     */
 	    goto plt_file;
 	 }
       }
       if (buf[0] == '(') {
-	 /* Looks like a Survex .pos file ... */
+	 /* Looks like a Survex .pos file. */
 	 goto pos_file;
       }
       img_errno = IMG_BADFORMAT;
@@ -1473,7 +1521,8 @@ img_rewind(img *pimg)
       return 0;
    }
    clearerr(pimg->fh);
-   /* [VERSION_SURVEX_POS] already skipped heading line, or there wasn't one
+   /* [IMG_VERSION_SURVEX_POS] already skipped heading line, or there wasn't
+    * one.
     * [version 0] not in the middle of a 'LINE' command
     * [version >= 3] not in the middle of turning a LINE into a MOVE */
    pimg->pending = 0;
@@ -1481,10 +1530,10 @@ img_rewind(img *pimg)
    img_errno = IMG_NONE;
 
    /* for version >= 3 we use label_buf to store the prefix for reuse */
-   /* for VERSION_COMPASS_PLT, 0 value indicates we haven't entered a survey
-    * yet */
-   /* for VERSION_CMAP_SHOT, we store the last station here to detect whether
-    * we MOVE or LINE */
+   /* for IMG_VERSION_COMPASS_PLT, 0 value indicates we haven't entered a
+    * survey yet */
+   /* for IMG_VERSION_CMAP_SHOT, we store the last station here to detect
+    * whether we MOVE or LINE */
    pimg->label_len = 0;
    pimg->style = img_STYLE_UNKNOWN;
    return 1;
@@ -1643,12 +1692,12 @@ read_xyz_station_coords(img_point *pt, const char *line)
    char num[12];
    memcpy(num, line + 6, 9);
    num[9] = '\0';
-   pt->x = atof(num) / METRES_PER_FOOT;
+   pt->x = atof(num) * METRES_PER_FOOT;
    memcpy(num, line + 15, 9);
-   pt->y = atof(num) / METRES_PER_FOOT;
+   pt->y = atof(num) * METRES_PER_FOOT;
    memcpy(num, line + 24, 8);
    num[8] = '\0';
-   pt->z = atof(num) / METRES_PER_FOOT;
+   pt->z = atof(num) * METRES_PER_FOOT;
 }
 
 static void
@@ -1657,12 +1706,12 @@ read_xyz_shot_coords(img_point *pt, const char *line)
    char num[12];
    memcpy(num, line + 40, 10);
    num[10] = '\0';
-   pt->x = atof(num) / METRES_PER_FOOT;
+   pt->x = atof(num) * METRES_PER_FOOT;
    memcpy(num, line + 50, 10);
-   pt->y = atof(num) / METRES_PER_FOOT;
+   pt->y = atof(num) * METRES_PER_FOOT;
    memcpy(num, line + 60, 9);
    num[9] = '\0';
-   pt->z = atof(num) / METRES_PER_FOOT;
+   pt->z = atof(num) * METRES_PER_FOOT;
 }
 
 static void
@@ -1671,12 +1720,12 @@ subtract_xyz_shot_deltas(img_point *pt, const char *line)
    char num[12];
    memcpy(num, line + 15, 9);
    num[9] = '\0';
-   pt->x -= atof(num) / METRES_PER_FOOT;
+   pt->x -= atof(num) * METRES_PER_FOOT;
    memcpy(num, line + 24, 8);
    num[8] = '\0';
-   pt->y -= atof(num) / METRES_PER_FOOT;
+   pt->y -= atof(num) * METRES_PER_FOOT;
    memcpy(num, line + 32, 8);
-   pt->z -= atof(num) / METRES_PER_FOOT;
+   pt->z -= atof(num) * METRES_PER_FOOT;
 }
 
 static int
@@ -2485,7 +2534,7 @@ img_read_item_ascii(img *pimg, img_point *p)
       }
 
       return result;
-   } else if (pimg->version == VERSION_SURVEX_POS) {
+   } else if (pimg->version == IMG_VERSION_SURVEX_POS) {
       /* Survex .pos file */
       int ch;
       size_t off;
@@ -2543,7 +2592,7 @@ img_read_item_ascii(img *pimg, img_point *p)
       if (!stn_included(pimg)) goto againpos;
 
       return img_LABEL;
-   } else if (pimg->version == VERSION_COMPASS_PLT) {
+   } else if (pimg->version == IMG_VERSION_COMPASS_PLT) {
       /* Compass .plt file */
       if ((pimg->pending & ~PENDING_HAD_XSECT) > 0) {
 	 /* -1 signals we've entered the first survey we want to read, and
@@ -2885,7 +2934,7 @@ no_xsect:
 	 }
       }
    } else {
-      /* CMAP .xyz file */
+      /* CMAP XYZ file */
       char *line = NULL;
       char *q;
       size_t len;
@@ -2916,12 +2965,14 @@ no_xsect:
 	 return r;
       }
 
+cmap_xyz_next_line:
       pimg->label = pimg->label_buf;
       do {
 	 osfree(line);
 	 if (feof(pimg->fh)) return img_STOP;
 	 line = getline_alloc(pimg->fh);
 	 if (!line) {
+out_of_memory_error:
 	    img_errno = IMG_OUTOFMEMORY;
 	    return img_BAD;
 	 }
@@ -2929,7 +2980,7 @@ no_xsect:
       if (line[0] == '\x1a') return img_STOP;
 
       len = strlen(line);
-      if (pimg->version == VERSION_CMAP_STATION) {
+      if (pimg->version == IMG_VERSION_CMAP_STATION) {
 	 /* station variant */
 	 if (len < 37) {
 	    osfree(line);
@@ -2940,14 +2991,21 @@ no_xsect:
 	 q = (char *)memchr(pimg->label, ' ', 6);
 	 if (!q) q = pimg->label + 6;
 	 *q = '\0';
+	 int label_len = q - pimg->label;
 
+	 int r = compass_plt_update_station(pimg, pimg->label, label_len, 0);
+	 if (r < 0)
+	     goto out_of_memory_error;
+	 if (r > 0) {
+	     // We've already emitted img_LABEL for this station.
+	     goto cmap_xyz_next_line;
+	 }
 	 read_xyz_station_coords(p, line);
-
+	 pimg->flags = img_SFLAG_UNDERGROUND;
 	 /* FIXME: look at prev for lines (line + 32, 5) */
-	 /* FIXME: duplicate stations... */
 	 return img_LABEL;
       } else {
-	 /* Shot variant (VERSION_CMAP_SHOT) */
+	 /* Shot variant (IMG_VERSION_CMAP_SHOT) */
 	 char old[8], new_[8];
 	 if (len < 61) {
 	    osfree(line);
@@ -2959,34 +3017,70 @@ no_xsect:
 	 q = (char *)memchr(old, ' ', 7);
 	 if (!q) q = old + 7;
 	 *q = '\0';
+	 size_t old_len = q - old;
 
 	 memcpy(new_, line + 7, 7);
 	 q = (char *)memchr(new_, ' ', 7);
 	 if (!q) q = new_ + 7;
 	 *q = '\0';
+	 size_t new_len = q - new_;
 
 	 pimg->flags = img_SFLAG_UNDERGROUND;
 
-	 if (strcmp(old, new_) == 0) {
-	    pimg->pending = img_MOVE + 4;
+	 if (old_len == new_len && memcmp(old, new_, old_len) == 0) {
 	    read_xyz_shot_coords(p, line);
-	    strcpy(pimg->label, new_);
+	    int r = compass_plt_update_station(pimg, new_, new_len, 0);
+	    if (r < 0)
+		goto out_of_memory_error;
+	    if (r > 0) {
+		// We've already emitted img_LABEL for this station.
+		osfree(line);
+		pimg->label[0] = '\0';
+		pimg->flags = 0;
+		return img_MOVE;
+	    }
+	    memcpy(pimg->label, new_, new_len + 1);
 	    osfree(line);
+	    pimg->pending = img_MOVE + 4;
 	    return img_LABEL;
 	 }
 
 	 if (strcmp(old, pimg->label) == 0) {
-	    pimg->pending = img_LINE + 4;
 	    read_xyz_shot_coords(p, line);
-	    strcpy(pimg->label, new_);
+	    int r = compass_plt_update_station(pimg, new_, new_len, 0);
+	    if (r < 0)
+		goto out_of_memory_error;
+	    if (r > 0) {
+		// We've already emitted img_LABEL for this station.
+		osfree(line);
+		pimg->label = pimg->label_buf + strlen(pimg->label_buf);
+		pimg->flags = 0;
+		return img_LINE;
+	    }
+	    memcpy(pimg->label, new_, new_len + 1);
 	    osfree(line);
+	    pimg->pending = img_LINE + 4;
 	    return img_LABEL;
 	 }
 
-	 pimg->pending = img_LABEL + 4;
 	 read_xyz_shot_coords(p, line);
-	 strcpy(pimg->label, new_);
+	 int r = compass_plt_update_station(pimg, new_, new_len, 0);
+	 if (r < 0)
+	     goto out_of_memory_error;
 	 memcpy(pimg->label + 16, line, 70);
+	 if (r > 0) {
+	     // We've already emitted img_LABEL for this station.
+	     osfree(line);
+	     pimg->label = pimg->label_buf + strlen(pimg->label_buf);
+	     pimg->flags = 0;
+	     read_xyz_shot_coords(p, pimg->label_buf + 16);
+	     subtract_xyz_shot_deltas(p, pimg->label_buf + 16);
+	     pimg->pending = img_STOP + 4;
+	     return img_MOVE;
+	 }
+
+	 memcpy(pimg->label, new_, new_len + 1);
+	 pimg->pending = img_LABEL + 4;
 
 	 osfree(line);
 	 return img_LABEL;
@@ -3509,7 +3603,7 @@ img_close(img *pimg)
       }
       if (pimg->data) {
 	  switch (pimg->version) {
-	    case VERSION_COMPASS_PLT:
+	    case IMG_VERSION_COMPASS_PLT:
 	      compass_plt_free_data(pimg);
 	      break;
 	    default:
@@ -3670,4 +3764,40 @@ img_compass_utm_proj_str(img_datum datum, int utm_zone)
     }
 
     return NULL;
+}
+
+int
+img_compass_longlat_epsg_code(img_datum datum)
+{
+    switch (datum) {
+      case img_DATUM_UNKNOWN:
+	break;
+      case img_DATUM_ADINDAN:
+	return 4201;
+      case img_DATUM_ARC1950:
+	return 4209;
+      case img_DATUM_ARC1960:
+	return 4210;
+      case img_DATUM_CAPE:
+	return 4222;
+      case img_DATUM_EUROPEAN1950:
+	return 4230;
+      case img_DATUM_NZGD49:
+	return 4272;
+      case img_DATUM_HUTZUSHAN1950:
+	return 4236;
+      case img_DATUM_INDIAN1960:
+	return 4131;
+      case img_DATUM_NAD27:
+	return 4267;
+      case img_DATUM_NAD83:
+	return 4269;
+      case img_DATUM_TOKYO:
+	return 4301;
+      case img_DATUM_WGS72:
+	return 4322;
+      case img_DATUM_WGS84:
+	return 4326;
+    }
+    return -1;
 }

@@ -4,7 +4,7 @@
 //  Main frame handling for Aven.
 //
 //  Copyright (C) 2000-2002,2005,2006 Mark R. Shinwell
-//  Copyright (C) 2001-2003,2004,2005,2006,2010,2011,2012,2013,2014,2015,2016,2018 Olly Betts
+//  Copyright (C) 2001-2024 Olly Betts
 //  Copyright (C) 2005 Martin Green
 //
 //  This program is free software; you can redistribute it and/or modify
@@ -102,7 +102,8 @@ class AvenSplitterWindow : public wxSplitterWindow {
 
     public:
 	explicit AvenSplitterWindow(MainFrm *parent_)
-	    : wxSplitterWindow(parent_, -1, wxDefaultPosition, wxDefaultSize,
+	    : wxSplitterWindow(parent_, wxID_ANY,
+			       wxDefaultPosition, wxDefaultSize,
 			       wxSP_3DSASH),
 	      parent(parent_)
 	{
@@ -117,7 +118,7 @@ class AvenSplitterWindow : public wxSplitterWindow {
 };
 
 BEGIN_EVENT_TABLE(AvenSplitterWindow, wxSplitterWindow)
-    EVT_SPLITTER_DCLICK(-1, AvenSplitterWindow::OnSplitterDClick)
+    EVT_SPLITTER_DCLICK(wxID_ANY, AvenSplitterWindow::OnSplitterDClick)
 END_EVENT_TABLE()
 
 class EditMarkDlg : public wxDialog {
@@ -501,6 +502,7 @@ BEGIN_EVENT_TABLE(MainFrm, wxFrame)
 
     EVT_MENU(wxID_OPEN, MainFrm::OnOpen)
     EVT_MENU(menu_FILE_OPEN_TERRAIN, MainFrm::OnOpenTerrain)
+    EVT_MENU(menu_FILE_OVERLAY_GEODATA, MainFrm::OnOverlayGeodata)
     EVT_MENU(menu_FILE_LOG, MainFrm::OnShowLog)
     EVT_MENU(wxID_PRINT, MainFrm::OnPrint)
     EVT_MENU(menu_FILE_PAGE_SETUP, MainFrm::OnPageSetup)
@@ -601,6 +603,7 @@ BEGIN_EVENT_TABLE(MainFrm, wxFrame)
     EVT_MENU(wxID_ABOUT, MainFrm::OnAbout)
 
     EVT_UPDATE_UI(menu_FILE_OPEN_TERRAIN, MainFrm::OnOpenTerrainUpdate)
+    EVT_UPDATE_UI(menu_FILE_OVERLAY_GEODATA, MainFrm::OnOverlayGeodataUpdate)
     EVT_UPDATE_UI(menu_FILE_LOG, MainFrm::OnShowLogUpdate)
     EVT_UPDATE_UI(wxID_PRINT, MainFrm::OnPrintUpdate)
     EVT_UPDATE_UI(menu_FILE_SCREENSHOT, MainFrm::OnScreenshotUpdate)
@@ -792,6 +795,7 @@ void MainFrm::CreateMenuBar()
     /* TRANSLATORS: Open a "Terrain file" - i.e. a digital model of the
      * terrain. */
     filemenu->Append(menu_FILE_OPEN_TERRAIN, wmsg(/*Open &Terrain...*/453));
+    filemenu->Append(menu_FILE_OVERLAY_GEODATA, wmsg(/*Overlay &Geodata...*/494));
     filemenu->AppendCheckItem(menu_FILE_LOG, wmsg(/*Show &Log*/144));
     filemenu->AppendSeparator();
     // wxID_PRINT stock label lacks the ellipses
@@ -1189,19 +1193,19 @@ MainFrm::FixLRUD(traverse & centreline)
 {
     assert(centreline.size() > 1);
 
-    Double last_size = 0;
+    double last_size = 0;
     vector<PointInfo>::iterator i = centreline.begin();
     while (i != centreline.end()) {
 	// Get the coordinates of this vertex.
 	Point & pt_v = *i++;
-	Double size;
+	double size;
 
 	if (i != centreline.end()) {
-	    Double h = sqrd(i->GetX() - pt_v.GetX()) +
+	    double h = sqrd(i->GetX() - pt_v.GetX()) +
 		       sqrd(i->GetY() - pt_v.GetY());
-	    Double v = sqrd(i->GetZ() - pt_v.GetZ());
+	    double v = sqrd(i->GetZ() - pt_v.GetZ());
 	    if (h + v > 30.0 * 30.0) {
-		Double scale = 30.0 / sqrt(h + v);
+		double scale = 30.0 / sqrt(h + v);
 		h *= scale;
 		v *= scale;
 	    }
@@ -1221,10 +1225,10 @@ MainFrm::FixLRUD(traverse & centreline)
 	    size = last_size;
 	}
 
-	Double & l = pt_v.l;
-	Double & r = pt_v.r;
-	Double & u = pt_v.u;
-	Double & d = pt_v.d;
+	double & l = pt_v.l;
+	double & r = pt_v.r;
+	double & u = pt_v.u;
+	double & d = pt_v.d;
 
 	if (l == 0 && r == 0 && u == 0 && d == 0) {
 	    l = r = u = d = -size;
@@ -1282,7 +1286,7 @@ void MainFrm::OpenFile(const wxString& file, const wxString& survey)
 	wxString ext(file, file.length() - 3, 3);
 	ext.MakeLower();
 	if (ext == wxT("svx") || ext == wxT("dat") || ext == wxT("mak") ||
-	    ext == wxT("clp")) {
+	    ext == wxT("clp") || ext == wxT("srv") || ext == wxT("wpj")) {
 	    CavernLogWindow * log = new CavernLogWindow(this, survey, m_Splitter);
 	    wxWindow * win = m_Splitter->GetWindow1();
 	    m_Splitter->ReplaceWindow(win, log);
@@ -1409,6 +1413,8 @@ void MainFrm::OnOpen(wxCommandEvent&)
 		     "|%s|*.mak" CASE("*.MAK")
 		     "|%s|*.dat" CASE("*.DAT")
 		     "|%s|*.clp" CASE("*.CLP")
+		     "|%s|*.wpj" CASE("*.WPJ")
+		     "|%s|*.srv" CASE("*.SRV")
 		     "|%s|*.adj;*.sht;*.una;*.xyz" CASE("*.ADJ;*.SHT;*.UNA;*.XYZ")
 		     "|%s|%s"),
 		     /* TRANSLATORS: Here "survey" is a "cave map" rather than
@@ -1438,6 +1444,14 @@ void MainFrm::OnOpen(wxCommandEvent&)
 		      * surveying package, so should not be translated
 		      */
 		     wmsg(/*Compass CLP files*/491).c_str(),
+		     /* TRANSLATORS: "Walls" is David McKenzie's cave
+		      * surveying package, so should not be translated
+		      */
+		     wmsg(/*Walls project files*/504).c_str(),
+		     /* TRANSLATORS: "Walls" is David McKenzie's cave
+		      * surveying package, so should not be translated
+		      */
+		     wmsg(/*Walls survey data files*/505).c_str(),
 		     /* TRANSLATORS: "CMAP" is Bob Thrun’s cave surveying
 		      * package, so don’t translate it. */
 		     wmsg(/*CMAP XYZ files*/325).c_str(),
@@ -1483,6 +1497,36 @@ void MainFrm::OnOpenTerrain(wxCommandEvent&)
 		     filetypes, wxFD_OPEN|wxFD_FILE_MUST_EXIST);
     if (dlg.ShowModal() == wxID_OK && m_Gfx->LoadDEM(dlg.GetPath())) {
 	if (!m_Gfx->DisplayingTerrain()) m_Gfx->ToggleTerrain();
+    }
+}
+
+void MainFrm::OnOverlayGeodata(wxCommandEvent&)
+{
+    if (!m_Gfx) return;
+
+    if (GetCSProj().empty()) {
+	wxMessageBox(wxT("No coordinate system specified in survey data"));
+	return;
+    }
+
+#ifdef __WXMOTIF__
+    wxString filetypes = wxT("*.*");
+#else
+    wxString filetypes;
+    // FIXME: Add more extensions here?
+    filetypes.Printf(wxT("%s|*.gpx;*.kml;*.geojson;*.json;*.shp"
+		       CASE("*.GPX;*.KML;*.GEOJSON;*.JSON;*.SHP")
+		     "|%s|%s"),
+		     wmsg(/*Geodata files*/495).c_str(),
+		     wmsg(/*All files*/208).c_str(),
+		     wxFileSelectorDefaultWildcardStr);
+#endif
+    wxFileDialog dlg(this, wmsg(/*Select a geodata file to overlay*/496),
+		     wxString(), wxString(),
+		     filetypes, wxFD_OPEN|wxFD_FILE_MUST_EXIST);
+    if (dlg.ShowModal() == wxID_OK) {
+	m_Tree->AddOverlay(dlg.GetPath());
+	m_Gfx->InvalidateOverlays();
     }
 }
 
@@ -1687,9 +1731,9 @@ void MainFrm::ClearCoords()
 
 void MainFrm::SetCoords(const Vector3 &v)
 {
-    Double x = v.GetX();
-    Double y = v.GetY();
-    Double z = v.GetZ();
+    double x = v.GetX();
+    double y = v.GetY();
+    double z = v.GetZ();
     int units;
     if (m_Gfx->GetMetric()) {
 	units = /*m*/424;
@@ -1719,7 +1763,7 @@ const LabelInfo * MainFrm::GetTreeSelection() const {
     return data->GetLabel();
 }
 
-void MainFrm::SetCoords(Double x, Double y, const LabelInfo * there)
+void MainFrm::SetCoords(double x, double y, const LabelInfo * there)
 {
     wxString & s = coords_text;
     if (m_Gfx->GetMetric()) {
@@ -1735,8 +1779,8 @@ void MainFrm::SetCoords(Double x, Double y, const LabelInfo * there)
 	auto offset = GetOffset();
 	Vector3 delta(x - offset.GetX() - there->GetX(),
 		      y - offset.GetY() - there->GetY(), 0);
-	Double dh = sqrt(delta.GetX()*delta.GetX() + delta.GetY()*delta.GetY());
-	Double brg = deg(atan2(delta.GetX(), delta.GetY()));
+	double dh = sqrt(delta.GetX()*delta.GetX() + delta.GetY()*delta.GetY());
+	double brg = deg(atan2(delta.GetX(), delta.GetY()));
 	if (brg < 0) brg += 360;
 
 	wxString from_str;
@@ -1769,7 +1813,7 @@ void MainFrm::SetCoords(Double x, Double y, const LabelInfo * there)
     UpdateStatusBar();
 }
 
-void MainFrm::SetAltitude(Double z, const LabelInfo * there)
+void MainFrm::SetAltitude(double z, const LabelInfo * there)
 {
     double alt = z;
     int units;
@@ -1785,7 +1829,7 @@ void MainFrm::SetAltitude(Double z, const LabelInfo * there)
     wxString & t = distfree_text;
     t = wxString();
     if (m_Gfx->ShowingMeasuringLine() && there) {
-	Double dz = z - GetOffset().GetZ() - there->GetZ();
+	double dz = z - GetOffset().GetZ() - there->GetZ();
 
 	wxString from_str;
 	from_str.Printf(wmsg(/*From %s*/339), there->name_or_anon().c_str());
@@ -1818,9 +1862,9 @@ void MainFrm::ShowInfo(const LabelInfo *here, const LabelInfo *there)
 
     Vector3 v = *here + GetOffset();
     wxString & s = here_text;
-    Double x = v.GetX();
-    Double y = v.GetY();
-    Double z = v.GetZ();
+    double x = v.GetX();
+    double y = v.GetY();
+    double z = v.GetZ();
     int units;
     if (m_Gfx->GetMetric()) {
 	units = /*m*/424;
@@ -1841,15 +1885,15 @@ void MainFrm::ShowInfo(const LabelInfo *here, const LabelInfo *there)
     if (m_Gfx->ShowingMeasuringLine() && there) {
 	Vector3 delta = *here - *there;
 
-	Double d_horiz = sqrt(delta.GetX()*delta.GetX() +
+	double d_horiz = sqrt(delta.GetX()*delta.GetX() +
 			      delta.GetY()*delta.GetY());
-	Double dr = delta.magnitude();
-	Double dz = delta.GetZ();
+	double dr = delta.magnitude();
+	double dz = delta.GetZ();
 
-	Double brg = deg(atan2(delta.GetX(), delta.GetY()));
+	double brg = deg(atan2(delta.GetX(), delta.GetY()));
 	if (brg < 0) brg += 360;
 
-	Double grd = deg(atan2(delta.GetZ(), d_horiz));
+	double grd = deg(atan2(delta.GetZ(), d_horiz));
 
 	wxString from_str;
 	from_str.Printf(wmsg(/*From %s*/339), there->name_or_anon().c_str());
@@ -1923,11 +1967,13 @@ void MainFrm::DisplayTreeInfo(const wxTreeItemData* item)
     if (data) {
 	if (data->IsStation()) {
 	    m_Gfx->SetHereFromTree(data->GetLabel());
-	} else {
+	    return;
+	}
+	if (data->IsSurvey()) {
 	    m_Gfx->SetHereSurvey(data->GetSurvey());
 	    ShowInfo();
+	    return;
 	}
-	return;
     }
     m_Gfx->SetHereSurvey(wxString());
     ShowInfo();
@@ -1954,8 +2000,10 @@ void MainFrm::TreeItemSelected(const wxTreeItemData* item)
 	    // Must be the root.
 	    wxCommandEvent dummy;
 	    OnDefaults(dummy);
-	} else {
+	} else if (data->IsSurvey()) {
 	    m_Gfx->ZoomToSurvey(data->GetSurvey());
+	} else {
+	    // FIXME: Click on overlay
 	}
     }
     UpdateStatusBar();
@@ -2110,6 +2158,11 @@ void MainFrm::RestrictTo(const wxString & survey)
 }
 
 void MainFrm::OnOpenTerrainUpdate(wxUpdateUIEvent& event)
+{
+    event.Enable(!m_File.empty());
+}
+
+void MainFrm::OnOverlayGeodataUpdate(wxUpdateUIEvent& event)
 {
     event.Enable(!m_File.empty());
 }
@@ -2320,12 +2373,12 @@ void MainFrm::OnGotoFound(wxCommandEvent&)
 	return;
     }
 
-    Double xmin = DBL_MAX;
-    Double xmax = -DBL_MAX;
-    Double ymin = DBL_MAX;
-    Double ymax = -DBL_MAX;
-    Double zmin = DBL_MAX;
-    Double zmax = -DBL_MAX;
+    double xmin = DBL_MAX;
+    double xmax = -DBL_MAX;
+    double ymin = DBL_MAX;
+    double ymax = -DBL_MAX;
+    double zmin = DBL_MAX;
+    double zmax = -DBL_MAX;
 
     list<LabelInfo*>::iterator pos = m_Labels.begin();
     while (pos != m_Labels.end()) {

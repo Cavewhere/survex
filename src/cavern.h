@@ -156,6 +156,7 @@ typedef enum {
    SFLAGS_SURFACE = 0, SFLAGS_UNDERGROUND, SFLAGS_ENTRANCE, SFLAGS_EXPORTED,
    SFLAGS_FIXED, SFLAGS_ANON, SFLAGS_WALL,
    /* These values don't need to match img.h, but mustn't clash. */
+   SFLAGS_HANGING = 10,
    SFLAGS_USED = 11,
    SFLAGS_SOLVED = 12, SFLAGS_SUSPECTTYPO = 13, SFLAGS_SURVEY = 14, SFLAGS_PREFIX_ENTERED = 15
 } sflags;
@@ -197,7 +198,13 @@ typedef enum {
    CompassDATFr, CompassDATTo,
    CompassDATComp, CompassDATClino, CompassDATBackComp, CompassDATBackClino,
    CompassDATLeft, CompassDATRight, CompassDATUp, CompassDATDown,
-   CompassDATFlags
+   CompassDATFlags,
+
+   WallsSRVFr, WallsSRVTo, WallsSRVTape, WallsSRVComp, WallsSRVClino,
+   // Optional pair of readings giving heights above stations on CT surveys.
+   WallsSRVHeights,
+   // Optional delimited LRUD and variance overrides.
+   WallsSRVExtras
 } reading;
 
 /* if IgnoreAll is >= 32, the compiler will choke on this */
@@ -221,6 +228,10 @@ typedef struct Prefix {
    struct Node *stn;
    struct Pos *pos;
    const char *ident;
+   // A filename:line where this name was used.  If it's a station used in *fix
+   // then this will be the location of such a *fix, otherwise if it's a
+   // station used in *equate then it's the location of such a *equate.
+   // Otherwise it's the first place it was used.
    const char *filename;
    unsigned int line;
    /* If (min_export == 0) then max_export is max # levels above is this
@@ -288,6 +299,12 @@ typedef struct Node {
    struct Prefix *name;
    struct Link *leg[3];
    struct Node *prev, *next;
+   // Used in netartic.c to identify unconnected components and articulation
+   // points within components.
+   //
+   // Used in matrix.c to record the matrix row corresponding to this node
+   // or -1 for nodes already fixed (more than one node may map to the same
+   // row).
    long colour;
 } node;
 
@@ -346,7 +363,9 @@ typedef struct Settings {
    real sc[Q_MAC];
    real units[Q_MAC];
    const reading *ordering;
+   long begin_lpos; /* File offset for start of BEGIN line */
    int begin_lineno; /* 0 means no block started in this file */
+   int begin_col; /* Column of prefix in BEGIN line (or 0 if none) */
    int flags;
    char* proj_str;
    /* Location at which we calculate the declination if
@@ -368,6 +387,12 @@ typedef struct Settings {
    char* dec_context;
    /* Grid convergence in radians. */
    real convergence;
+   /* Input grid convergence in radians. */
+   real input_convergence;
+   /* Rotation from North for `*data cartesian`. */
+   real cartesian_rotation;
+   /* Which North to use for `*data cartesian`. */
+   enum { TRUE_NORTH, GRID_NORTH, MAGNETIC_NORTH } cartesian_north;
    meta_data * meta;
 } settings;
 
@@ -384,6 +409,7 @@ extern string survey_title;
 
 extern bool fExplicitTitle;
 extern long cLegs, cStns, cComponents;
+extern bool hanging_surveys;
 extern FILE *fhErrStat;
 extern img *pimg;
 extern real totadj, total, totplan, totvert;

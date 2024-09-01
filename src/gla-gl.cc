@@ -653,7 +653,7 @@ void GLACanvas::ClearNative()
     CHECK_GL_ERROR("ClearNative", "glClearColor (2)");
 }
 
-void GLACanvas::SetScale(Double scale)
+void GLACanvas::SetScale(double scale)
 {
     if (scale != m_Scale) {
 	for (auto & i : drawing_lists) {
@@ -689,8 +689,8 @@ void GLACanvas::OnSize(wxSizeEvent & event)
 
     wxSize size = event.GetSize();
 
-    auto new_w = size.GetWidth() * content_scale_factor;
-    auto new_h = size.GetHeight() * content_scale_factor;
+    int new_w = size.GetWidth() * content_scale_factor;
+    int new_h = size.GetHeight() * content_scale_factor;
     // The width and height go to zero when the panel is dragged right
     // across so we clamp them to be at least 1 to avoid problems.
     if (new_w < 1) new_w = 1;
@@ -862,19 +862,19 @@ void GLACanvas::SetDataTransform()
 
     double aspect = double(y_size) / double(x_size);
 
-    Double near_plane = 1.0;
+    GLdouble near_plane = 1.0;
     if (m_Perspective) {
-	Double lr = near_plane * tan(rad(25.0));
-	Double far_plane = m_VolumeDiameter * 5 + near_plane; // FIXME: work out properly
-	Double tb = lr * aspect;
+	GLdouble lr = near_plane * tan(rad(25.0));
+	GLdouble far_plane = m_VolumeDiameter * 5 + near_plane; // FIXME: work out properly
+	GLdouble tb = lr * aspect;
 	glFrustum(-lr, lr, -tb, tb, near_plane, far_plane);
 	CHECK_GL_ERROR("SetViewportAndProjection", "glFrustum");
     } else {
 	near_plane = 0.0;
 	assert(m_Scale != 0.0);
-	Double lr = m_VolumeDiameter / m_Scale * 0.5;
-	Double far_plane = m_VolumeDiameter + near_plane;
-	Double tb = lr;
+	GLdouble lr = m_VolumeDiameter / m_Scale * 0.5;
+	GLdouble far_plane = m_VolumeDiameter + near_plane;
+	GLdouble tb = lr;
 	if (aspect >= 1.0) {
 	    tb *= aspect;
 	} else {
@@ -1071,7 +1071,7 @@ void GLACanvas::DrawListZPrepass(unsigned int l)
     glDepthFunc(GL_LESS);
 }
 
-void GLACanvas::DrawList2D(unsigned int l, glaCoord x, glaCoord y, Double rotation)
+void GLACanvas::DrawList2D(unsigned int l, glaCoord x, glaCoord y, double rotation)
 {
     glMatrixMode(GL_PROJECTION);
     CHECK_GL_ERROR("DrawList2D", "glMatrixMode");
@@ -1249,6 +1249,27 @@ void GLACanvas::EndPolygon()
 
     glEnd();
     CHECK_GL_ERROR("EndPolygon", "glEnd GL_POLYGON");
+}
+
+void GLACanvas::BeginPoints()
+{
+    // Commence drawing points.
+
+    glPushAttrib(GL_POINT_BIT);
+    CHECK_GL_ERROR("BeginPoints", "glPushAttrib");
+    glPointSize(3);
+    CHECK_GL_ERROR("BeginPoints", "glPointSize");
+    glBegin(GL_POINTS);
+}
+
+void GLACanvas::EndPoints()
+{
+    // Finish drawing points.
+
+    glEnd();
+    CHECK_GL_ERROR("EndPoints", "glEnd GL_POINTS");
+    glPopAttrib();
+    CHECK_GL_ERROR("EndPoints", "glPopAttrib");
 }
 
 void GLACanvas::PlaceVertex(glaCoord x, glaCoord y, glaCoord z)
@@ -1604,7 +1625,7 @@ void GLACanvas::DisableDashedLines()
 }
 
 bool GLACanvas::Transform(const Vector3 & v,
-			  double* x_out, double* y_out, double* z_out) const
+			  glaCoord* x_out, glaCoord* y_out, glaCoord* z_out) const
 {
     // Convert from data coordinates to screen coordinates.
 
@@ -1614,8 +1635,8 @@ bool GLACanvas::Transform(const Vector3 & v,
 		      x_out, y_out, z_out);
 }
 
-void GLACanvas::ReverseTransform(Double x, Double y,
-				 double* x_out, double* y_out, double* z_out) const
+void GLACanvas::ReverseTransform(double x, double y,
+				 glaCoord* x_out, glaCoord* y_out, glaCoord* z_out) const
 {
     // Convert from screen coordinates to data coordinates.
 
@@ -1625,14 +1646,14 @@ void GLACanvas::ReverseTransform(Double x, Double y,
     CHECK_GL_ERROR("ReverseTransform", "gluUnProject");
 }
 
-Double GLACanvas::SurveyUnitsAcrossViewport() const
+double GLACanvas::SurveyUnitsAcrossViewport() const
 {
     // Measure the current viewport in survey units, taking into account the
     // current display scale.
 
     assert(m_Scale != 0.0);
     list_flags |= INVALIDATE_ON_SCALE;
-    Double result = m_VolumeDiameter / m_Scale;
+    double result = m_VolumeDiameter / m_Scale;
     if (y_size < x_size) {
 	result = result * x_size / y_size;
     }

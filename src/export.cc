@@ -1,8 +1,8 @@
 /* export.cc
- * Export to CAD-like formats (DXF, Skencil, SVG, EPS) and also Compass PLT.
+ * Export to CAD-like formats (DXF, SVG, EPS) and also Compass PLT.
  */
 
-/* Copyright (C) 1994-2022 Olly Betts
+/* Copyright (C) 1994-2024 Olly Betts
  * Copyright (C) 2004 John Pybus (SVG Output code)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -61,9 +61,6 @@
 #include "message.h"
 #include "useful.h"
 
-#define POINTS_PER_INCH	72.0
-#define POINTS_PER_MM (POINTS_PER_INCH / MM_PER_INCH)
-
 #define SQRT_2		1.41421356237309504880168872420969
 
 // Order here needs to match order of export_format enum in export.h.
@@ -88,7 +85,7 @@ const format_info export_format_info[] = {
      * on a (usually large) sheet of paper using a pen mounted in a motorised
      * mechanism. */
     { ".hpgl", /*HPGL for plotters*/414,
-      LABELS|LEGS|SURF|SPLAYS|STNS|CENTRED|ORIENTABLE,
+      LABELS|LEGS|SURF|SPLAYS|STNS|CENTRED|SCALE|ORIENTABLE,
       LABELS|LEGS|STNS },
     { ".json", /*JSON files*/445,
       LEGS|SURF|SPLAYS|CENTRED,
@@ -98,16 +95,10 @@ const format_info export_format_info[] = {
       LABELS|LEGS },
     /* TRANSLATORS: "Compass" and "Carto" are the names of software packages,
      * so should not be translated:
-     * http://www.fountainware.com/compass/
-     * http://www.psc-cavers.org/carto/ */
+     * http://www.fountainware.com/compass/ */
     { ".plt", /*Compass PLT for use with Carto*/415,
       LABELS|LEGS|SURF|SPLAYS|ORIENTABLE,
       LABELS|LEGS },
-    /* TRANSLATORS: "Skencil" is the name of a software package, so should not be
-     * translated: http://www.skencil.org/ */
-    { ".sk", /*Skencil files*/416,
-      LABELS|LEGS|SURF|SPLAYS|STNS|MARKER_SIZE|GRID|SCALE|ORIENTABLE,
-      LABELS|LEGS|STNS },
     /* TRANSLATORS: Survex is the name of the software, and "pos" refers to a
      * file extension, so neither should be translated. */
     { ".pos", /*Survex pos files*/166,
@@ -142,7 +133,7 @@ html_escape(FILE *fh, const char *s)
     }
 }
 
-// Used by Skencil and SVG.
+// Used by SVG.
 static const char *layer_name(int mask) {
     switch (mask) {
 	case LEGS: case LEGS|SURF:
@@ -182,19 +173,19 @@ class DXF : public ExportFilter {
   public:
     explicit DXF(double text_height_)
 	: to_close(0), text_height(text_height_) { pending[0] = '\0'; }
-    const int * passes() const;
-    bool fopen(const wxString& fnm_out);
+    const int * passes() const override;
+    bool fopen(const wxString& fnm_out) override;
     void header(const char *, const char *, time_t,
 		double min_x, double min_y, double min_z,
-		double max_x, double max_y, double max_z);
-    void line(const img_point *, const img_point *, unsigned, bool);
-    void label(const img_point *, const wxString&, bool, int);
-    void cross(const img_point *, const wxString&, bool);
-    void xsect(const img_point *, double, double, double);
-    void wall(const img_point *, double, double);
-    void passage(const img_point *, double, double, double);
-    void tube_end();
-    void footer();
+		double max_x, double max_y, double max_z) override;
+    void line(const img_point *, const img_point *, unsigned, bool) override;
+    void label(const img_point *, const wxString&, int, int) override;
+    void cross(const img_point *, const wxString&, int) override;
+    void xsect(const img_point *, double, double, double) override;
+    void wall(const img_point *, double, double) override;
+    void passage(const img_point *, double, double, double) override;
+    void tube_end() override;
+    void footer() override;
 };
 
 const int *
@@ -369,12 +360,15 @@ DXF::line(const img_point *p1, const img_point *p, unsigned flags, bool fPending
 }
 
 void
-DXF::label(const img_point *p, const wxString& str, bool fSurface, int)
+DXF::label(const img_point *p, const wxString& str, int sflags, int)
 {
+   // Use !UNDERGROUND as the criterion - we want stations where a surface and
+   // underground survey meet to be in the underground layer.
+   bool surface = !(sflags & img_SFLAG_UNDERGROUND);
    /* write station label to dxf file */
    const char* s = str.utf8_str();
    fprintf(fh, "0\nTEXT\n");
-   fprintf(fh, fSurface ? "8\nSurfaceLabels\n" : "8\nLabels\n"); /* Layer */
+   fprintf(fh, surface ? "8\nSurfaceLabels\n" : "8\nLabels\n"); /* Layer */
    fprintf(fh, "10\n%6.2f\n", p->x);
    fprintf(fh, "20\n%6.2f\n", p->y);
    fprintf(fh, "30\n%6.2f\n", p->z);
@@ -383,11 +377,14 @@ DXF::label(const img_point *p, const wxString& str, bool fSurface, int)
 }
 
 void
-DXF::cross(const img_point *p, const wxString&, bool fSurface)
+DXF::cross(const img_point *p, const wxString&, int sflags)
 {
+   // Use !UNDERGROUND as the criterion - we want stations where a surface and
+   // underground survey meet to be in the underground layer.
+   bool surface = !(sflags & img_SFLAG_UNDERGROUND);
    /* write station marker to dxf file */
    fprintf(fh, "0\nPOINT\n");
-   fprintf(fh, fSurface ? "8\nSurfaceStations\n" : "8\nStations\n"); /* Layer */
+   fprintf(fh, surface ? "8\nSurfaceStations\n" : "8\nStations\n"); /* Layer */
    fprintf(fh, "10\n%6.2f\n", p->x);
    fprintf(fh, "20\n%6.2f\n", p->y);
    fprintf(fh, "30\n%6.2f\n", p->z);
@@ -466,101 +463,6 @@ DXF::footer()
 {
    fprintf(fh, "000\nENDSEC\n");
    fprintf(fh, "000\nEOF\n");
-}
-
-class Skencil : public ExportFilter {
-    double factor;
-  public:
-    explicit Skencil(double scale)
-	: factor(POINTS_PER_MM * 1000.0 / scale) { }
-    const int * passes() const;
-    void header(const char *, const char *, time_t,
-		double min_x, double min_y, double min_z,
-		double max_x, double max_y, double max_z);
-    void start_pass(int layer);
-    void line(const img_point *, const img_point *, unsigned, bool);
-    void label(const img_point *, const wxString&, bool, int);
-    void cross(const img_point *, const wxString&, bool);
-    void footer();
-};
-
-const int *
-Skencil::passes() const
-{
-    static const int skencil_passes[] = { LEGS|SURF, STNS, LABELS, 0 };
-    return skencil_passes;
-}
-
-void
-Skencil::header(const char *, const char *, time_t,
-		double min_x, double min_y, double /*min_z*/,
-		double max_x, double max_y, double /*max_z*/)
-{
-   fprintf(fh, "##Sketch 1 2\n"); /* File format version */
-   fprintf(fh, "document()\n");
-   fprintf(fh, "layout((%.3f,%.3f),0)\n",
-	   (max_x - min_x) * factor, (max_y - min_y) * factor);
-}
-
-void
-Skencil::start_pass(int layer)
-{
-   fprintf(fh, "layer('%s',1,1,0,0,(0,0,0))\n", layer_name(layer));
-}
-
-void
-Skencil::line(const img_point *p1, const img_point *p, unsigned flags, bool fPendingMove)
-{
-   (void)flags; /* unused */
-   if (fPendingMove) {
-       fprintf(fh, "b()\n");
-       fprintf(fh, "bs(%.3f,%.3f,%.3f)\n", p1->x * factor, p1->y * factor, 0.0);
-   }
-   fprintf(fh, "bs(%.3f,%.3f,%.3f)\n", p->x * factor, p->y * factor, 0.0);
-}
-
-void
-Skencil::label(const img_point *p, const wxString& str, bool fSurface, int)
-{
-   const char* s = str.utf8_str();
-   (void)fSurface; /* unused */
-   fprintf(fh, "fp((0,0,0))\n");
-   fprintf(fh, "le()\n");
-   fprintf(fh, "Fn('Times-Roman')\n");
-   fprintf(fh, "Fs(5)\n");
-   fprintf(fh, "txt('");
-   while (*s) {
-      int ch = *s++;
-      if (ch == '\'' || ch == '\\') PUTC('\\', fh);
-      PUTC(ch, fh);
-   }
-   fprintf(fh, "',(%.3f,%.3f))\n", p->x * factor, p->y * factor);
-}
-
-void
-Skencil::cross(const img_point *p, const wxString&, bool fSurface)
-{
-   (void)fSurface; /* unused */
-   fprintf(fh, "b()\n");
-   fprintf(fh, "bs(%.3f,%.3f,%.3f)\n",
-	   p->x * factor - marker_size, p->y * factor - marker_size, 0.0);
-   fprintf(fh, "bs(%.3f,%.3f,%.3f)\n",
-	   p->x * factor + marker_size, p->y * factor + marker_size, 0.0);
-   fprintf(fh, "bn()\n");
-   fprintf(fh, "bs(%.3f,%.3f,%.3f)\n",
-	   p->x * factor + marker_size, p->y * factor - marker_size, 0.0);
-   fprintf(fh, "bs(%.3f,%.3f,%.3f)\n",
-	   p->x * factor - marker_size, p->y * factor + marker_size, 0.0);
-}
-
-void
-Skencil::footer(void)
-{
-   fprintf(fh, "guidelayer('Guide Lines',1,0,0,1,(0,0,1))\n");
-   if (grid) {
-      fprintf(fh, "grid((0,0,%.3f,%.3f),1,(0,0,1),'Grid')\n",
-	      grid * factor, grid * factor);
-   }
 }
 
 typedef struct point {
@@ -642,19 +544,19 @@ class SVG : public ExportFilter {
 	  text_height(text_height_) {
 	pending[0] = '\0';
     }
-    const int * passes() const;
+    const int * passes() const override;
     void header(const char *, const char *, time_t,
 		double min_x, double min_y, double min_z,
-		double max_x, double max_y, double max_z);
-    void start_pass(int layer);
-    void line(const img_point *, const img_point *, unsigned, bool);
-    void label(const img_point *, const wxString&, bool, int);
-    void cross(const img_point *, const wxString&, bool);
-    void xsect(const img_point *, double, double, double);
-    void wall(const img_point *, double, double);
-    void passage(const img_point *, double, double, double);
-    void tube_end();
-    void footer();
+		double max_x, double max_y, double max_z) override;
+    void start_pass(int layer) override;
+    void line(const img_point *, const img_point *, unsigned, bool) override;
+    void label(const img_point *, const wxString&, int, int) override;
+    void cross(const img_point *, const wxString&, int) override;
+    void xsect(const img_point *, double, double, double) override;
+    void wall(const img_point *, double, double) override;
+    void passage(const img_point *, double, double, double) override;
+    void tube_end() override;
+    void footer() override;
 };
 
 const int *
@@ -741,10 +643,10 @@ SVG::line(const img_point *p1, const img_point *p, unsigned flags, bool fPending
 }
 
 void
-SVG::label(const img_point *p, const wxString& str, bool fSurface, int)
+SVG::label(const img_point *p, const wxString& str, int sflags, int)
 {
    const char* s = str.utf8_str();
-   (void)fSurface; /* unused */
+   (void)sflags; /* unused */
    fprintf(fh, "<text transform=\"translate(%.3f %.3f)\">",
 	   p->x * factor, p->y * -factor);
    html_escape(fh, s);
@@ -753,10 +655,10 @@ SVG::label(const img_point *p, const wxString& str, bool fSurface, int)
 }
 
 void
-SVG::cross(const img_point *p, const wxString& str, bool fSurface)
+SVG::cross(const img_point *p, const wxString& str, int sflags)
 {
    const char* s = str.utf8_str();
-   (void)fSurface; /* unused */
+   (void)sflags; /* unused */
    fprintf(fh, "<circle id=\"%s\" cx=\"%.3f\" cy=\"%.3f\" r=\"%.3f\"/>\n",
 	   s, p->x * factor, p->y * -factor, marker_size * SQRT_2);
    fprintf(fh, "<path d=\"M%.3f %.3fL%.3f %.3fM%.3f %.3fL%.3f %.3f\"/>\n",
@@ -838,15 +740,17 @@ class PLT : public ExportFilter {
 
     double min_N, max_N, min_E, max_E, min_A, max_A;
 
+    unsigned anon_counter = 0;
+
   public:
     PLT() { }
-    const int * passes() const;
+    const int * passes() const override;
     void header(const char *, const char *, time_t,
 		double min_x, double min_y, double min_z,
-		double max_x, double max_y, double max_z);
-    void line(const img_point *, const img_point *, unsigned, bool);
-    void label(const img_point *, const wxString&, bool, int);
-    void footer();
+		double max_x, double max_y, double max_z) override;
+    void line(const img_point *, const img_point *, unsigned, bool) override;
+    void label(const img_point *, const wxString&, int, int) override;
+    void footer() override;
 };
 
 const int *
@@ -893,11 +797,11 @@ PLT::line(const img_point *p1, const img_point *p, unsigned flags, bool fPending
 	   p->y / METRES_PER_FOOT, p->x / METRES_PER_FOOT, p->z / METRES_PER_FOOT);
    /* dummy passage dimensions are required to avoid compass bug */
    fprintf(fh, "S%s P -9 -9 -9 -9", find_name_plt(p));
-   if (flags & (SURF|SPLAYS)) {
-       fprintf(fh, " #|");
-       if (flags & SURF) PUTC('P', fh);
-       if (flags & SPLAYS) PUTC('S', fh);
-       PUTC('#', fh);
+   if (flags & (MASK_)) {
+       fprintf(fh, " F");
+       if (flags & img_FLAG_DUPLICATE) PUTC('L', fh);
+       if (flags & img_FLAG_SURFACE) PUTC('P', fh);
+       if (flags & img_FLAG_SPLAY) PUTC('S', fh);
    }
    fprintf(fh, "\r\n");
 }
@@ -908,20 +812,11 @@ PLT::find_name_plt(const img_point *p)
     const char * s = find_name(p);
     escaped.resize(0);
     if (*s == '\0') {
-	// Anonymous station - generate a name based on the coordinates as
-	// that's at least reproducible.  We start it with "%+" or "%-" since
-	// escape any % in a real station name below, but only insert %
-	// followed by two hex digits.  We encode the coordinates in
-	// centimetres with the sign encoded as - or + followed by the absolute
-	// value in hex.
-	int x = int(p->x * 100.0);
-	int y = int(p->y * 100.0);
-	int z = int(p->z * 100.0);
-	char buf[64];
-	snprintf(buf, sizeof(buf), "%%%c%x%c%x%c%x",
-		 (x < 0 ? '-' : '+'), abs(x),
-		 (y < 0 ? '-' : '+'), abs(y),
-		 (z < 0 ? '-' : '+'), abs(z));
+	// Anonymous station - number sequentially using a counter.  We start
+	// the name with "%:" since we escape any % in a real station name
+	// below, but only insert % followed by two hex digits.
+	char buf[32];
+	snprintf(buf, sizeof(buf), "%%:%u", ++anon_counter);
 	escaped = buf;
 	return escaped.c_str();
     }
@@ -948,10 +843,10 @@ PLT::find_name_plt(const img_point *p)
 }
 
 void
-PLT::label(const img_point *p, const wxString& str, bool fSurface, int)
+PLT::label(const img_point *p, const wxString& str, int sflags, int)
 {
    const char* s = str.utf8_str();
-   (void)fSurface; /* unused */
+   (void)sflags; /* unused */
    set_name(p, s);
 }
 
@@ -972,19 +867,19 @@ class EPS : public ExportFilter {
   public:
     explicit EPS(double scale)
 	: factor(POINTS_PER_MM * 1000.0 / scale) { }
-    const int * passes() const;
+    const int * passes() const override;
     void header(const char *, const char *, time_t,
 		double min_x, double min_y, double min_z,
-		double max_x, double max_y, double max_z);
-    void start_pass(int layer);
-    void line(const img_point *, const img_point *, unsigned, bool);
-    void label(const img_point *, const wxString&, bool, int);
-    void cross(const img_point *, const wxString&, bool);
-    void xsect(const img_point *, double, double, double);
-    void wall(const img_point *, double, double);
-    void passage(const img_point *, double, double, double);
-    void tube_end();
-    void footer();
+		double max_x, double max_y, double max_z) override;
+    void start_pass(int layer) override;
+    void line(const img_point *, const img_point *, unsigned, bool) override;
+    void label(const img_point *, const wxString&, int, int) override;
+    void cross(const img_point *, const wxString&, int) override;
+    void xsect(const img_point *, double, double, double) override;
+    void wall(const img_point *, double, double) override;
+    void passage(const img_point *, double, double, double) override;
+    void tube_end() override;
+    void footer() override;
 };
 
 const int *
@@ -1255,7 +1150,7 @@ EPS::line(const img_point *p1, const img_point *p, unsigned flags, bool fPending
 }
 
 void
-EPS::label(const img_point *p, const wxString& str, bool /*fSurface*/, int)
+EPS::label(const img_point *p, const wxString& str, int /*sflags*/, int)
 {
    const char* s = str.utf8_str();
    fprintf(fh, "%.2f %.2f M\n", p->x, p->y);
@@ -1276,9 +1171,9 @@ EPS::label(const img_point *p, const wxString& str, bool /*fSurface*/, int)
 }
 
 void
-EPS::cross(const img_point *p, const wxString&, bool fSurface)
+EPS::cross(const img_point *p, const wxString&, int sflags)
 {
-   (void)fSurface; /* unused */
+   (void)sflags; /* unused */
    fprintf(fh, "%.2f %.2f X\n", p->x, p->y);
 }
 
@@ -1418,8 +1313,7 @@ Export(const wxString &fnm_out, const wxString &title,
 	   need_bounds = false;
 	   break;
        case FMT_HPGL:
-	   filt = new HPGL;
-	   // factor = POINTS_PER_MM * 1000.0 / scale;
+	   filt = new HPGL(scale);
 	   // HPGL doesn't use the bounds itself, but they are needed to set
 	   // the origin to the centre of lower left.
 	   break;
@@ -1428,7 +1322,7 @@ Export(const wxString &fnm_out, const wxString &title,
 	   break;
        case FMT_KML: {
 	   bool clamp_to_ground = (show_mask & CLAMP_TO_GROUND);
-	   filt = new KML(model.GetCSProj().c_str(), clamp_to_ground);
+       filt = new survex::KML(model.GetCSProj().c_str(), clamp_to_ground);
 	   show_mask |= FULL_COORDS;
 	   need_bounds = false;
 	   break;
@@ -1441,9 +1335,6 @@ Export(const wxString &fnm_out, const wxString &title,
 	   filt = new POS(model.GetSeparator(), false);
 	   show_mask |= FULL_COORDS;
 	   need_bounds = false;
-	   break;
-       case FMT_SK:
-	   filt = new Skencil(scale);
 	   break;
        case FMT_SVG:
 	   filt = new SVG(scale, text_height);
@@ -1472,7 +1363,7 @@ Export(const wxString &fnm_out, const wxString &title,
 		// Not showing traverse because of surface/underground status.
 		continue;
 	    }
-	    if ((f & img_FLAG_SPLAY) && (show_mask & SPLAYS) == 0) {
+	    if ((f & show_mask & SPLAYS) == 0) {
 		// Not showing because it's a splay.
 		continue;
 	    }
@@ -1559,18 +1450,19 @@ Export(const wxString &fnm_out, const wxString &title,
       if (!pass_mask)
 	  continue;
       filt->start_pass(*pass);
-      if (pass_mask & (LEGS|SURF)) {
+      int leg_mask = pass_mask & (LEGS|SURF);
+      if (leg_mask) {
 	  for (int f = 0; f != 8; ++f) {
-	      unsigned flags = (f & img_FLAG_SURFACE) ? SURF : LEGS;
-	      if ((pass_mask & flags) == 0) {
+	      unsigned flags = f;
+	      if (!(flags & img_FLAG_SURFACE)) flags |= LEGS;
+	      if ((leg_mask & flags) == 0) {
 		  // Not showing traverse because of surface/underground status.
 		  continue;
 	      }
-	      if ((f & img_FLAG_SPLAY) && (show_mask & SPLAYS) == 0) {
+	      if ((flags & SPLAYS) && (show_mask & SPLAYS) == 0) {
 		  // Not showing because it's a splay.
 		  continue;
 	      }
-	      if (f & img_FLAG_SPLAY) flags |= SPLAYS;
 	      list<traverse>::const_iterator trav = model.traverses_begin(f, filter);
 	      list<traverse>::const_iterator tend = model.traverses_end(f);
 	      for ( ; trav != tend; trav = model.traverses_next(f, filter, trav)) {
@@ -1617,15 +1509,12 @@ Export(const wxString &fnm_out, const wxString &title,
 	      } else if (pass_mask & LABELS) {
 		  type = LABELS;
 	      }
-	      /* Use !UNDERGROUND as the criterion - we want stations where a
-	       * surface and underground survey meet to be in the underground
-	       * layer */
-	      bool f_surface = !(*pos)->IsUnderground();
+	      int sflags = (*pos)->get_flags();
 	      if (type) {
-		  filt->label(&p, (*pos)->GetText(), f_surface, type);
+		  filt->label(&p, (*pos)->GetText(), sflags, type);
 	      }
 	      if (pass_mask & STNS) {
-		  filt->cross(&p, (*pos)->GetText(), f_surface);
+		  filt->cross(&p, (*pos)->GetText(), sflags);
 	      }
 	  }
       }

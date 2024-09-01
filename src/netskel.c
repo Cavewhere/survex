@@ -1,7 +1,7 @@
 /* netskel.c
  * Survex network reduction - remove trailing traverses and concatenate
  * traverses between junctions
- * Copyright (C) 1991-2004,2005,2006,2010,2011,2012,2013,2014,2015 Olly Betts
+ * Copyright (C) 1991-2024 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@
 #include "debug.h"
 #include "cavern.h"
 #include "commands.h"
+#include "datain.h"
 #include "filename.h"
 #include "message.h"
 #include "filelist.h"
@@ -134,9 +135,9 @@ solve_network(void /*node *stnlist*/)
 		     "no fixed stns, but we've got a zero node!");
 	 SVX_ASSERT2(stnFirst, "no stations left in net!");
 	 stn = stnFirst;
-	 printf(msg(/*Survey has no fixed points. Therefore I’ve fixed %s at (0,0,0)*/72),
-		sprint_prefix(stn->name));
-	 putnl();
+	 compile_diagnostic_pfx(DIAG_INFO, stn->name,
+				/*Survey has no fixed points. Therefore I’ve fixed %s at (0,0,0)*/72,
+				sprint_prefix(stn->name));
 	 POS(stn,0) = (real)0.0;
 	 POS(stn,1) = (real)0.0;
 	 POS(stn,2) = (real)0.0;
@@ -549,7 +550,10 @@ replace_travs(void)
       printf("<%p>[%d]\n", stn2, j);
 #endif
 
-      SVX_ASSERT(fixed(stn1));
+      if (!fixed(stn1)) {
+	  SVX_ASSERT(!fixed(stn2));
+	  goto skip_hanging_traverse;
+      }
       SVX_ASSERT(fixed(stn2));
 
       /* calculate scaling factors for error distribution */
@@ -724,6 +728,7 @@ replace_travs(void)
 	 err_stat(cLegsTrav, lenTrav, eTot, eTotTheo,
 		  hTot, hTotTheo, vTot, vTotTheo);
 
+skip_hanging_traverse:
       ptrOld = ptr;
       ptr = ptr->next;
       osfree(ptrOld);
@@ -785,6 +790,10 @@ replace_trailing_travs(void)
       leg = ptrTrail->join1;
       leg = reverse_leg(leg);
       stn1 = leg->l.to;
+      if (!fixed(stn1)) {
+	  // This happens in a component which wasn't attached to fixed points.
+	  goto skip;
+      }
       i = reverse_leg_dirn(leg);
 #if PRINT_NETBITS
       printf(" Trailing trav ");
@@ -805,7 +814,6 @@ replace_trailing_travs(void)
 	 stn1->leg[j] = stn1->leg[i];
       }
       stn1->leg[i] = ptrTrail->join1;
-      SVX_ASSERT(fixed(stn1));
       img_write_item(pimg, img_MOVE, 0, NULL,
 		     POS(stn1, 0), POS(stn1, 1), POS(stn1, 2));
 
@@ -863,6 +871,7 @@ replace_trailing_travs(void)
 	 i = j ^ 1; /* flip direction for other leg of 2 node */
       }
 
+skip:
       ptrOld = ptrTrail;
       ptrTrail = ptrTrail->next;
       osfree(ptrOld);
@@ -871,8 +880,9 @@ replace_trailing_travs(void)
    /* write out connections with no survey data */
    while (nosurveyhead) {
       nosurveylink *p = nosurveyhead;
-      SVX_ASSERT(fixed(p->fr));
-      SVX_ASSERT(fixed(p->to));
+      if (!fixed(p->fr) || !fixed(p->to)) {
+	  goto skip_nosurvey;
+      }
       if (TSTBIT(p->flags, FLAGS_SURFACE)) {
 	 p->fr->name->sflags |= BIT(SFLAGS_SURFACE);
 	 p->to->name->sflags |= BIT(SFLAGS_SURFACE);
@@ -892,6 +902,7 @@ replace_trailing_travs(void)
       img_write_item(pimg, img_LINE, (p->flags & FLAGS_MASK),
 		     sprint_prefix(p->fr->name->up),
 		     POS(p->to, 0), POS(p->to, 1), POS(p->to, 2));
+skip_nosurvey:
       nosurveyhead = p->next;
       osfree(p);
    }
@@ -1059,9 +1070,9 @@ write_passage_models(void)
 	     /* TRANSLATORS: e.g. the user specifies a passage cross-section at
 	      * station "entrance.27", but there is no station "entrance.27" in
 	      * the centre-line. */
-	     error_in_file(pfx->filename, pfx->line,
-			   /*Cross section specified at non-existent station “%s”*/83,
-			   name);
+	     compile_diagnostic_pfx(DIAG_ERR, pfx,
+				    /*Cross section specified at non-existent station “%s”*/83,
+				    name);
 	 } else {
 	     if (xsect == NULL) xflags = img_XFLAG_END;
 	     img_write_item(pimg, img_XSECT, xflags, name, 0, 0, 0);
@@ -1072,4 +1083,29 @@ write_passage_models(void)
       osfree(oldp);
    }
    model = NULL;
+}
+
+node *
+find_non_anon_stn(node *stn)
+{
+    if (TSTBIT(stn->name->sflags, SFLAGS_ANON)) {
+	/* An anonymous stations must be at the end of a trailing traverse
+	 * (since the same anonymous station can't be referred to more
+	 * than once), and trailing traverses have been removed at this
+	 * point.
+	 *
+	 * However, we may remove a hanging trailing traverse back to an
+	 * anonymous station.  It's not helpful to fail to point to a
+	 * station in such a case so we look through the list of trailing
+	 * traverses to find the one which would reattach to this station
+	 * and report a station from that traverse instead.
+	 */
+	for (stackTrail* p = ptrTrail; p; p = p->next) {
+	    linkfor *leg = ptrTrail->join1;
+	    if (reverse_leg(leg)->l.to == stn) {
+		return leg->l.to;
+	    }
+	}
+    }
+    return stn;
 }

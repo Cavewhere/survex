@@ -1,3 +1,511 @@
+Changes in 1.4.11 (2024-08-14):
+
+* aven:
+
+  + Add imperial scales for export and printing.  Fixes #132, reported by Eric
+    C. Landgraf.
+
+* aven/survexport:
+
+  + HPGL export now uses pen 2 for splays and pen 3 for surface legs.  Partly
+    addresses #60.
+
+  + HPGL export now supports scaling (previous the scale was always
+    1:40000).
+
+  + KML export now distinguishes surface legs and splays using different
+    line styles.  Partly addresses #60.
+
+  + Remove Skencil export support.  The last release of Skencil was in 2005.
+    There was an attempt to revive the project in 2010, but that didn't lead to
+    another release and seems to have petered out.  No current Linux distro (or
+    other package system) seems to have Skencil packages, and the current git
+    version still appears to require Python 2 which is being phased out.
+
+* cavern:
+
+  + Support `*data ignore` to allow ignoring a block of survey data lines.
+    Closes #114, reported by Alastair Gott.
+
+  + Report error for bad final reading in `*data` command (previously such a
+    bad reading was quietly ignored).
+
+  + If the survey in `*end` doesn't match that in `*begin` the location of
+    that `*begin` is now reported as well - the second message here is new
+    for example:
+
+     badbegin.svx:6:8: error: Survey name doesn't match BEGIN
+      *end   bar
+             ^~~
+     badbegin.svx:4:13: info: Corresponding BEGIN was here
+      *begin      foo
+                  ^~~
+
+  + Now shows a context line for a reading which was on the previous line,
+    which can happen for interleaved data styles.
+
+  + Warn when a token is not followed by a blank, comment or end of line.
+    This is an unintentional tokenisation oddity which has been present
+    for a really long time.  We don't want to break files that rely on this
+    (even if they likely only do accidentally) so emit a warning rather than
+    an error.
+
+    This warning can easily be eliminated by adding a space where indicated,
+    which will work with old and new Survex versions.  Fixes #135.
+
+  + Errors and warnings which report an unexpected token now report a
+    contiguous span of letters and numbers rather than just letters in cases
+    where a number can't follow (which is the majority of cases).
+
+  + If `*require` isn't satisfied, the `*require` line is now shown for
+    context (especially helpful if there's a comment after the command noting
+    the reason for the requirement, as we now suggest in the manual).
+
+  + `*require` version parsing improved - spaces are no longer tolerated in
+    a version number and trailing junk after the version number is now
+    handled more consistently.
+
+  + Fixed several situations in which the highlighting of the context for a
+    diagnostic was off by a small number of columns.
+
+  + Optimise building of matrix during network solving.
+
+  + Enhancements and fixes to reading Walls WPJ and SRV files:
+
+    - After reporting an error for an unsupported datum, we now set the datum
+      to WGS84 to prevent triggering further errors from code which tries to
+      use the datum.
+
+    - Parse Walls WPJ commands as alphanumeric rather than alphabetic tokens,
+      which better matches how Walls parses them.  This only makes a difference
+      in the error message when we don't recognise a WPJ command.
+
+* Documentation:
+
+  + Note `feet` are international feet and how to select a different
+    definition in `*units` docs.
+
+  + Document `grads` are also known as "neugrads" and "gons" in `*units` docs.
+
+* Assorted translation updates.
+
+* testsuite:
+
+  + Fix bug in normalisation of `-0.00` to `0.00` in DXF output before
+    comparing with expected output.
+
+* Update and improve vim syntax highlighting:
+
+  + `*cartesian` added
+
+  + `*data ignore` added
+
+  + `mils` units now highlighted as deprecated
+
+  + `UP` and `DOWN` are no longer highlighted anywhere in a command
+
+  + `U`, `D`, `LEVEL`, `-V`, `+V`, `.`, `..` and `...` now highlighted in data
+    lines
+
+  + Repeated `NOT` in `*flags` is now highlighted as an error
+
+  + Fix error highlighting for unquoted `*include` to not flag an error just
+    because there's a comment after the filename
+
+  + Fix error highlighting for unquoted `*include` to work when there's
+    whitespace between `*` and `include`
+
+Changes in 1.4.10 (2024-08-05):
+
+* aven:
+
+  + Use a fixed rotation rate for rotating the view to North, South, East or
+    West (shortcut keys `N`, `S`, `E` and `W`).  We were using the same
+    variable rate which auto-rotation does for this case, but really these are
+    just animations to help the user see the change that's happening, so a
+    fixed rate makes more sense (and is what tilting to plan or elevation
+    does).  The new fixed rotation rate for this is double what the default
+    variable rate was, which means the longest rotation (e.g. from S to N)
+    takes 3 seconds rather than 6.
+
+* aven/survexport:
+
+  + Fix syntax of shot flags in PLT export (incorrect since introduced in
+    1.4.6).
+
+  + Map Survex duplicate flag to `L` shot flag in PLT export.
+
+  + Invent shorter names for anonymous stations in PLT export.  The PLT file
+    format documentation says station names can be up to 12 characters, but the
+    ones we generated were longer than this which is liable to trip up
+    consumers of this format that only allow for the specified length.
+    We now generate names using a sequential counter with a two character
+    prefix so they should fit in the 12 character limit for any cave
+    survey.
+
+  + 3D export now includes all leg and station flags.
+
+* cavern:
+
+  + Unconnected survey stations are now handled as a warning, whereas
+    previously this was an error.  This is necessary when processing Walls data
+    where it seems having hanging surveys is the norm, and Walls itself only
+    warns about them.
+
+    The support is also enabled for native Survex data since it allows viewing
+    the connected parts of a survey with missing connections without having to
+    comment out the unconnected parts (and then remember to fully uncomment
+    once connections are surveyed).  Fixes #16, reported by Duncan Collis.
+
+    Currently the component count and loop count are not shown in this case.
+
+  + Avoid multiple reports of an unconnected survey station.  This could happen
+    in some cases where a group of equated stations had more than four legs
+    connected to it.
+
+  + Fix missing report of unconnected survey station.  We aim to report at
+    least one station in every unconnected piece of survey, but if a piece had
+    been simplified to a single station which was anonymous (e.g. a disto splay
+    shot) then we wouldn't report anything for that piece.  Now we find the
+    traverse that was attached to it and report the next station along that
+    traverse.
+
+  + Report file and line location each unconnected survey station.
+
+  + This warning now says either `*entrance` or `*export` depending on which
+    it actually was:
+
+      Station "bar.1" referred to by *entrance or *export but never used
+
+  + Fix several cases of mishandling comments without blanks before them:
+
+    - After an anonymous station.
+
+    - After an ignored reading.  The `ignore` would incorrectly also skip the
+      comment character and any characters which followed up to the next blank
+      or end of line.
+
+    - In a `*alias` command.
+
+    - Diagnostic highlighting could continue into a comment.
+
+  + New `*cartesian` command which supports different orientations of
+    `cartesian` style data.
+
+  + Anonymous stations are now supported in `cartesian` style data.
+
+  + `*fix a reference` (without any coordinates) is now an error.  The
+    `reference` token provides a way to have a list of known fixed points which
+    are not expected to all be currently used, while omitting the coordinates
+    provides a way to specify a point to arbitrarily fix rather than rely on
+    cavern picking one.  Allowing both together doesn't really make sense.
+
+  + Improve check for 180° backclino to suppress the warning about a compass
+    reading on a plumbed leg (introduced in 1.4.8) to allow a small tolerance
+    on the value.  Previously the check wasn't working on x86 Linux for
+    example.
+
+  + When showing a line as the location of a diagnostic we now render any
+    tab character as a single space which means the `^~~~~` highlight length
+    is now correct even when the highlighted part contains tabs.  This only
+    affects use from a terminal as the highlight was already correctly handled
+    when viewing the log in aven.
+
+  + Enhancements and fixes to reading Walls WPJ and SRV files (thanks to Eric
+    C. Landgraf and Joe for a lot of great feedback from testing with large
+    datasets):
+
+    - The `RECT=` option is now fully supported.
+
+    - Fix `#DATE` with an active `.REF` to act like `DECL=`.  This matches what
+      the documentation says and what Walls seems to actually do.
+
+    - Allow completely omitting the clino on a wall shot (with `ORDER=DAV` or
+      `ORDER=ADV`).
+
+    - Resolve WPJ `.PATH` relative to innermost containing book.
+
+    - Handle an empty Walls station name.  Walls allows a station with an
+      explicit prefix to have an empty name, e.g. `PEP:`.  The Walls
+      documentation doesn't mention this, though it also doesn't explicitly say
+      the name can't be empty.  This quirk seems unlikely to be intentionally
+      used and Survex doesn't allow an empty station name, so we issue a
+      warning and use the name `empty name` (which has a space in, so can't
+      collide with a real Walls station name which can't contain a space) - so
+      `PEP:` in Walls becomes `PEP.empty name` in Survex.
+
+    - Flag stations with explicit Walls prefix as exported.
+
+    - Fix setting empty Walls macro with a comment right after it.
+
+    - Walls quietly ignores junk after the numeric argument in `TYPEAB=`,
+      `TYPEVB=`, `UV=`, `UVH=`, and `UVV=`.  This seems to be an undocumented
+      feature/bug so Survex emits a warning and skips the junk.
+
+    - After an unknown Walls option we now process the rest of the line.
+      Previously we were skipping the rest of the line.
+
+    - We no longer skip the rest of the line after a bad Walls `ORDER=` option.
+
+    - Correct the reported column for some Walls option diagnostics.
+
+    - Support explicit units on Walls clino readings.
+
+    - Allow `#` in Walls station names.  This is explicitly documented as not
+      allowed, but the documentation doesn't match the implementation and `#`
+      is present in some real-world data.
+
+    - Improve handling of Walls `RESTORE` error.  Highlight the position in the
+      line and don't skip the rest of the line.
+
+    - Don't warn about `INCH=` with a zero argument since that's the one case
+      of it we do handle!
+
+    - Fix not to skip the rest of the line after Walls `INCH=` option.
+      We currently don't support `INCH=` so we warn about it, but we were
+      skipping the rest of the line, then trying to read and discard the
+      argument to `INCH=` which gave an error.
+
+    - Relax handling of Walls `CASE=`.  It's not documented, but Walls32.exe
+      quietly treats unknown values as "Mixed".
+
+    - Support DM and DMS format for latitude and longitude in Walls `#FIX`,
+      e.g. `W97:43.875` and `W97:43:52.5` .
+
+    - Treat a zero length leg with finite variance like a Survex `*equate`.
+
+    - Apply Walls variance overrides to survey legs.
+
+    - The optional instrument and target heights are now parsed, but their
+      values are currently ignored.
+
+    - The delimiters around LRUD data are now parsed, but the LRUD data between
+      them is currently ignored.
+
+    - If a `#SEGMENT` value looks like a set of Compass shot flags (i.e. consists
+      only of upper case characters from `CLPSX`, optionally prefixed with a
+      `/` or `\`) then we interpret them as Compass shot flags (except that `X`
+      is mapped the same way as `L`).  This is apparently a common way to use
+      `#SEGMENT`, and unlikely to be triggered accidentally.
+
+    - Avoid a doubled directory separator when building Walls path names.
+
+* documentation:
+
+  + The manual has been converted from DocBook to reStructured Text.  The
+    plain-text format is much easier for making changes, and for users the
+    output from sphinx looks nicer and has extra features (like built-in
+    "Quick search" in the HTML output).
+
+    The plain text version of the manual is no longer generated.  Sphinx can
+    produce one but the .rst sources actually seem more readable for anyone
+    wanting to read the manual in plain text.
+
+    The extra targets to generate the manual in RTF and PostScript
+    have been dropped as I doubt they are still used (we stopped
+    providing them on the website years ago).  They could probably be
+    reinstated if there's a demand for them.
+
+    The conversion was partly automated followed by a full pass over the
+    result fixing issues with the automated conversion.  We took the
+    opportunity to also review the content and update or remove out of
+    date and other incorrect information, and to reorder some of the content.
+
+  + Document all the statistics in the `.err` file
+
+  + Document PLT export.
+
+  + Minor improvements to --help output
+
+  + The HTML version of the 1.4.9 manual was missing the Walls chapter
+    and had messed up paging links around it (due to the new CMAP chapter
+    accidentally also being given the filename `walls.htm`).  Reported by Eric
+    C. Landgraf.
+
+  + Document we don't enforce Walls' station or prefix length limits.
+
+  + Document handling of Walls `#NOTE`.
+
+  + Fix documentation of Walls `FLAG=` which is correctly handled, not skipped.
+
+  + Document how to compare Walls and Survex output via Shapefile.
+
+  + Document how to suppress unused fixed point warning in Walls SRV.
+
+* testsuite:
+
+  + Add testcase for Walls `#units order=da`.
+
+  + Add expected output for more testcases
+
+  + Add testcase for exporting .3d files.
+
+  + Normalise `-0.00` to `0.00` in DXF output before comparing to avoid bogus
+    test failures due to excess precision on x86 when using 387 FP
+    instructions.
+
+  + Add test of DXF export with full coordinates.
+
+* translations:
+
+  + Diagnostics can now use positional arguments which sometimes allows a
+    more natural word order in a translated message.
+
+Changes in 1.4.9 (2024-07-04):
+
+* aven:
+
+  + Support showing geodata overlays in Aven.  We use the GDAL library to load
+    the data, so this should work for any format which GDAL supports so long as
+    it can be read from the filing system and is geo-referenced vector data -
+    see https://gdal.org/drivers/vector/index.html for a list.  Currently the
+    dialog to select a file defaults to showing GPX, KML, GeoJSON and shape
+    files - set the filter to "All Files" to chose other formats.
+
+  + Reimplement display of cavern output.  The old version turned the log into
+    HTML and displayed it using wxHtmlWindow, but that adds a lot of overhead
+    and is especially inefficient if there are many diagnostics - cavern could
+    finish almost instantly yet aven could take many seconds to process the
+    output.  The new version renders directly from the log data.  It should
+    have most of the features from before - the only missing feature I'm
+    currently aware of is that you can't now select and copy text from the log
+    window, which wxHtmlWindow provided for free.  If people miss this feature,
+    we could add it to the new implementation.
+
+  + (Microsoft Windows version): Clicks in the cavern log window which load
+    files into an editor now protect the filename if it starts with a dash
+    to prevent it being interpreted as a command line option.  We already
+    do this for other platforms, but weren't on Microsoft Windows on the
+    assumption that it isn't needed because the filenames will be fully
+    qualified, but that may not be the case if aven if run by hand from the
+    command line or from some other launcher.
+
+* cavern:
+
+  + Add support for processing Walls format survey data (.SRV and .WPJ files).
+    This support is somewhat experimental but at a point where it seems useful
+    to make it easier for people to try out.  See the manual for a list of
+    known shortcomings.  Thanks to Eric C. Landgraf for a lot of testing and
+    encouragement.
+
+  + Fix bug with Compass DAT diving data.  If a survey uses the depth gauge
+    then since 1.4.6 we set its style to "diving", but we weren't clearing that
+    so all surveys after than in the same DAT file were also set as "diving".
+
+  + When parsing of Compass DAT files we report errors in more cases if the
+    input doesn't conform to the format we expect, rather than potentially
+    quietly misinterpreting the data.
+
+  + *entrance now suppresses "Unused fixed point" warning.  This warning is
+    intended to catch typos, which is much less likely for a station named
+    twice.  It's also reasonable to use only *fix and *entrance on a station at
+    the entrance of an unsurveyed cave.
+
+  + Highlight plumbed clino readings fully in diagnostics.  Now the full reading
+    is highlighted instead of just the first character.
+
+  + Report location of previous fix after "already fixed" error/warning.
+
+  + Use "info" diagnostic category for "Originally entered here" message.  This
+    is more logical as the original *begin isn't something to be warned about,
+    only the reentering is.  This was only a warning before because we didn't
+    used to have "info" diagnostics.
+
+  + Use "info" diagnostic category for message about not reporting further
+    uses of a deprecated feature.  Previously this was a warning, but the newer
+    "info" category is more appropriate here.
+
+  + The message about inventing a fixed point is now an "info" diagnostic which
+    allows us to report a location which is where that station is defined,
+    which may be useful to the user.
+
+  + Make highlighting position in error reporting more robust.  We no longer
+    try to highIight if we calculate a negative column offset, when previously
+    we would print billions of spaces.  As far as I know this has never
+    happened in a released version.
+
+  + Error messages which report the program name now remove any ".exe" suffix.
+    This helps the testsuite by making the expected output the same
+    cross-platform, but also seems slightly nicer for users.
+
+* dump3d:
+
+  + The timestamp reported by DATE_NUMERIC is now printed portably.  Previously
+    we were assuming that a time_t is the same size as a long int, which is not
+    true on all platforms.
+
+* manual:
+
+  + (Microsoft Windows version): Update information about installation
+    with/without admin rights.
+
+  + Summarise support for reading CMAP data and its assumptions and
+    limitations.
+
+  + Mention Compass, Walls and CMAP support in the importing data howto
+    section.
+
+  + Drop mention of Rosetta Stal from the manual.  The referred to link from
+    our website was removed in 2015 because Rosetta Stal hadn't been updated
+    for 13.5 years at that point.  Now the domain it was available from has
+    lapsed and is a domain squatter "for sale" page.
+
+* img library:
+
+  + The coordinates in CMAP data are in feet but we were dividing rather
+    than multiplying by the conversion factor to get metres so all
+    coordinates were about 10.76 times too large.
+
+  + Stations in CMAP "station" variant XYZ files are now flagged as
+    underground (as they always have been for "shot" variant XYZ files).
+
+  + When reading CMAP XYZ files, we no longer emit duplicate img_LABEL for
+    stations in loops.
+
+  + A CMAP XYZ file without a survey title is now handled correctly (this was
+    reporting a bogus "Out of memory" error).
+
+  + The img.h header now defines constants IMG_VERSION_SURVEX_POS, etc for the
+    values reported in the version field for non-.3d formats.
+
+  + (Microsoft Windows version): Workaround limitation of Microsoft's C
+    library so we handle dates before 1970 in Compass PLT files, CMAP XYZ
+    files, and older format .3d files.  Previously these were reported
+    as "unknown date".
+
+* We now support overriding the location of support files by setting the
+  SURVEXLIB environment variable.  We no longer look at the srcdir
+  environment variable for this.
+
+* (Microsoft Windows version): The installer is now created automatically
+  on Github actions, which has required a few changes.  It now packages a
+  64-bit build, and is created with Innosetup 6.3.2 which no longer supports
+  Vista.  The installer is also now significantly larger, which is mostly
+  because we now need to include a large number of DLLs, most of which are
+  dependencies of the mingw64 FFmpeg and GDAL packages.
+
+* (Microsoft Windows version): If the directory where we expect the PROJ
+  support files to be does not exist for some reason we now avoid triggering
+  a segmentation fault in PROJ.
+
+* Build system:
+
+  + The GDAL library is now required to build Survex.
+
+  + (Microsoft Windows version): The probe for GL and GLU libraries now also
+    checks for Microsoft's non-standard library names.
+
+  + Correct configure --help output for --enable-werror for which the default
+    is actually "no" rather than "maintainer-mode".
+
+* testsuite:
+
+  + aven.tst: Skip a testcase when running on mingw as it seems to hang there.
+    We already skip this testcase on macos for what appears to be the same
+    problem.
+
+  + Fix comparison of output to work on platforms using DOS line endings.
+
 Changes in 1.4.8 (2024-04-23):
 
 * cavern:
@@ -443,9 +951,9 @@ Changes in 1.4.2 (2022-02-25):
   running on the Continuous Integration system.
 
 * (Microsoft Windows version): The installer is now generated with a much
-  newer version of Innosetup.  Most notably, it now supports installing as a
-  non-admin user.  This also means Microsoft Windows Vista is now the minimum
-  supported version but 2000 and XP are both many years out of support anyway.
+  newer version of Innosetup.  This means Microsoft Windows Vista is now the
+  minimum supported version but 2000 and XP are both many years out of support
+  anyway.
 
 * (Microsoft Windows version): The coordinate system database for PROJ is
   now included so "*cs" now works (broken since 1.4.0).
