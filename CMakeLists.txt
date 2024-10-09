@@ -90,19 +90,14 @@ include("${CMAKE_CURRENT_BINARY_DIR}/../conan-dependencies/conan_paths.cmake")
 find_package(Python3 COMPONENTS Interpreter)
 find_package(Perl)
 find_package(GLEW REQUIRED)
-find_package(proj REQUIRED)
+find_package(PROJ REQUIRED)
 find_package(GDAL REQUIRED)
 
 find_package(wxWidgets REQUIRED COMPONENTS core base adv gl html)
 
-SET(CMAKE_REQUIRED_INCLUDES ${proj_INCLUDE_DIRS_DEBUG} ${proj_INCLUDE_DIRS_RELEASE})
-check_include_file("proj.h" HAVE_PROJ_H)
+#message( FATAL_ERROR "proj dir:" ${proj_INCLUDE_DIRS_DEBUG} ${proj_INCLUDE_DIRS_RELEASE} )
+get_target_property(PROJ_INCLUDE_DIRS PROJ::proj INTERFACE_INCLUDE_DIRECTORIES)
 
-if(HAVE_PROJ_H)
-    set(HAVE_PROJ_H 1)
-else()
-    set(HAVE_PROJ_H 0)
-endif()
 
 SET(CMAKE_REQUIRED_INCLUDES ${wxWidgets_INCLUDE_DIRS})
 SET(CMAKE_EXTRA_INCLUDE_FILES "wx/chartype.h")
@@ -377,14 +372,15 @@ else()
     set(PROJ_D "")
 endif()
 
-if(WIN32)
-    add_custom_command(TARGET survexport POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_gl_vc_custom.dll"
-            "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_core_vc_custom.dll"
-            "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_html_vc_custom.dll"
-            "${WX_VC_X64_DLL_PATH}/wxbase315${WX_DLL_TYPE}_vc_custom.dll"
-            "${CONAN_BIN_DIRS_PROJ}/proj_9_2${PROJ_D}.dll"
-            "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
-            $<TARGET_FILE_DIR:aven>)
-endif()
+#TODO - this should be done in a more general way
+# if(WIN32)
+#     add_custom_command(TARGET survexport POST_BUILD
+#         COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#             "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_gl_vc_custom.dll"
+#             "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_core_vc_custom.dll"
+#             "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_html_vc_custom.dll"
+#             "${WX_VC_X64_DLL_PATH}/wxbase315${WX_DLL_TYPE}_vc_custom.dll"
+#             "${CONAN_BIN_DIRS_PROJ}/proj_9_2${PROJ_D}.dll"
+#             "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
+#             $<TARGET_FILE_DIR:aven>)
+# endif()
