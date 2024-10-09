@@ -3,6 +3,7 @@ require 5.008;
 use bytes;
 use strict;
 use Locale::PO;
+use File::Basename;
 
 use integer;
 
@@ -69,7 +70,8 @@ for my $po_file (@ARGV) {
     my $language = $po_file;
     $language =~ s/\.po$//;
 
-    $file = "$srcdir/$po_file";
+    $file = "$po_file";
+    print "Processing: $file -> \n";
     my $po_hash = Locale::PO->load_file_ashash($file);
 
     if (exists $$po_hash{'""'}) {
@@ -122,7 +124,15 @@ foreach $lang (@langs) {
    my $fnm = $lang;
    $file = "$srcdir/$lang.po";
    $fnm =~ s/(_.*)$/\U$1/;
-   open OUT, ">$fnm.msg" or die $!;
+
+    # Use basename to strip the path and keep only the filename
+    my $base_fnm = basename($fnm);
+
+    # Writing to current directory
+    my $output_file = "$base_fnm.msg";
+
+   print "Writing: $output_file\n";
+   open OUT, ">$output_file" or die $!;
 
    #This is need for generating msg file on windows perl because of CRLF instead
    #of just LF on unix systems

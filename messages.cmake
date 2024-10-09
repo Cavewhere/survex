@@ -1,50 +1,29 @@
 function(svx_add_messages target_name)
-
-    set(message_files_without_dir)
     set(output_files)
+    set(absolute_po_files)
     foreach(current IN LISTS ARGN)
-        get_filename_component(filename_with_ext ${current} NAME)
-        list(APPEND message_files_without_dir ${filename_with_ext})
+        # Get the absolute path of the .po file
+        get_filename_component(absolute_po_file ${current} ABSOLUTE)
+        list(APPEND absolute_po_files ${absolute_po_file})
 
+        # Get the filename without extension
         get_filename_component(filename ${current} NAME_WE)
-       # string(REGEX REPLACE "(.+)_.+" "\\1" filename ${filename})
-        list(APPEND output_files ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${filename}.msg)
+        # Define the output .msg file path
+        set(output_file ${PROJECT_BINARY_DIR}/${filename}.msg)
+        message(STATUS "Output msg:" ${output_file})
+        list(APPEND output_files ${output_file})
     endforeach()
 
+    # Ensure the output directory exists
+    # file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
     add_custom_command(
-        OUTPUT ${output_files} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/en.msg
-
-        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl ${message_files_without_dir}
-
-        DEPENDS ${MESSAGE_FILES}
-        )
+        OUTPUT ${output_files}
+        COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl ${absolute_po_files}
+        DEPENDS ${absolute_po_files} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+        VERBATIM
+    )
 
     add_custom_target(${target_name} DEPENDS ${output_files})
-
-
-
-#    set(message_output_files)
-
-#    foreach(infilename IN LISTS ARGN)
-#        get_filename_component(filename ${infilename} NAME_WE)
-
-#        string(REGEX REPLACE "(.+)_.+" "\\1" filename ${filename})
-
-#        set(outfilename ${filename}.msg)
-
-#        set(infile_path ${CMAKE_CURRENT_SOURCE_DIR}/${infilename})
-#        set(outfile_path ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${outfilename})
-
-#        add_custom_command(
-#            OUTPUT ${outfile_path}
-#            WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-#            COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl ${infile}
-#            DEPENDS ${infile_path} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl
-#            )
-
-#        list(APPEND message_output_files ${outfile_path})
-#    endforeach()
-
-#    add_custom_target(${target_name} DEPENDS ${message_output_files})
 endfunction()
