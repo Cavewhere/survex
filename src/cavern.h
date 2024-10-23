@@ -39,21 +39,9 @@
 #include "str.h"
 #include "useful.h"
 
-/* Set EXPLICIT_FIXED_FLAG to 1 to force an explicit fixed flag to be used
- * in each pos struct, rather than using p[0]==UNFIXED_VAL to indicate
- * unfixed-ness.  This may be slightly faster, but uses more memory.
- */
-#ifndef EXPLICIT_FIXED_FLAG
-# define EXPLICIT_FIXED_FLAG 0
-#endif
-
 typedef double real; /* so we can change the precision used easily */
 #define HUGE_REAL HUGE_VAL
 #define REAL_EPSILON DBL_EPSILON
-
-#if (!EXPLICIT_FIXED_FLAG)
-# define UNFIXED_VAL HUGE_VAL /* if p[0]==UNFIXED_VAL, station is unfixed */
-#endif
 
 #define SPECIAL_EOL		0x0001
 #define SPECIAL_BLANK		0x0002
@@ -156,9 +144,14 @@ typedef enum {
    SFLAGS_SURFACE = 0, SFLAGS_UNDERGROUND, SFLAGS_ENTRANCE, SFLAGS_EXPORTED,
    SFLAGS_FIXED, SFLAGS_ANON, SFLAGS_WALL,
    /* These values don't need to match img.h, but mustn't clash. */
-   SFLAGS_HANGING = 10,
-   SFLAGS_USED = 11,
-   SFLAGS_SOLVED = 12, SFLAGS_SUSPECTTYPO = 13, SFLAGS_SURVEY = 14, SFLAGS_PREFIX_ENTERED = 15
+   SFLAGS_HANGING = 9,
+   SFLAGS_USED = 10,
+   SFLAGS_SOLVED = 11,
+   SFLAGS_SUSPECTTYPO = 12,
+   SFLAGS_SURVEY = 13,
+   SFLAGS_PREFIX_ENTERED = 14,
+   // If set, use ident.i; if unset, use ident.p
+   SFLAGS_IDENT_INLINE = 15
 } sflags;
 
 /* Mask to AND with to get bits to pass to img library. */
@@ -227,7 +220,10 @@ typedef struct Prefix {
    struct Prefix *up, *down, *right;
    struct Node *stn;
    struct Pos *pos;
-   const char *ident;
+   union {
+       const char *p;
+       char i[sizeof(const char*)];
+   } ident;
    // A filename:line where this name was used.  If it's a station used in *fix
    // then this will be the location of such a *fix, otherwise if it's a
    // station used in *equate then it's the location of such a *equate.
@@ -250,6 +246,10 @@ typedef struct Prefix {
    unsigned short sflags;
    short shape;
 } prefix;
+
+static inline const char *prefix_ident(const prefix *p) {
+    return TSTBIT(p->sflags, SFLAGS_IDENT_INLINE) ? p->ident.i : p->ident.p;
+}
 
 /* survey metadata */
 typedef struct Meta_data {
@@ -311,9 +311,6 @@ typedef struct Node {
 /* station position */
 typedef struct Pos {
    delta p; /* Position */
-#if EXPLICIT_FIXED_FLAG
-   unsigned char fFixed; /* flag indicating if station is a fixed point */
-#endif
 } pos;
 
 /*
@@ -346,6 +343,7 @@ typedef struct Settings {
    bool f_bearing_quadrants;
    bool f_backbearing_quadrants;
    bool dash_for_anon_wall_station;
+   bool from_equals_to_is_only_a_warning;
    unsigned char infer;
    enum {OFF, LOWER, UPPER} Case;
    /* STYLE_xxx value to process data as. */
@@ -428,19 +426,11 @@ extern bool fSuppress; /* only output 3d file */
 #define reverse_leg_dirn(L) ((L)->l.reverse & MASK_REVERSEDIRN)
 #define reverse_leg(L) ((L)->l.to->leg[reverse_leg_dirn(L)])
 
-#if EXPLICIT_FIXED_FLAG
-# define pfx_fixed(N) ((N)->pos->fFixed)
-# define pos_fixed(P) ((P)->fFixed)
-# define fix(S) (S)->name->pos->fFixed = (char)true
-# define fixpos(P) (P)->fFixed = (char)true
-# define unfix(S) (S)->name->pos->fFixed = (char)false
-#else
-# define pfx_fixed(N) ((N)->pos->p[0] != UNFIXED_VAL)
-# define pos_fixed(P) ((P)->p[0] != UNFIXED_VAL)
-# define fix(S) NOP
-# define fixpos(P) NOP
-# define unfix(S) POS((S), 0) = UNFIXED_VAL
-#endif
+/* if p[0]==UNFIXED_VAL, station is unfixed */
+#define UNFIXED_VAL HUGE_VAL
+#define pfx_fixed(N) ((N)->pos->p[0] != UNFIXED_VAL)
+#define pos_fixed(P) ((P)->p[0] != UNFIXED_VAL)
+#define unfix(S) POS((S), 0) = UNFIXED_VAL
 #define fixed(S) pfx_fixed((S)->name)
 
 /* macros for special chars */

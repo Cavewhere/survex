@@ -59,7 +59,6 @@ int fix_station(prefix *fix_name, double* coords) {
     POS(stn, 0) = coords[0];
     POS(stn, 1) = coords[1];
     POS(stn, 2) = coords[2];
-    fix(stn);
 
     // Make the station's file:line location reflect where it was fixed.
     fix_name->filename = file.filename;
@@ -80,7 +79,7 @@ void fix_station_with_variance(prefix *fix_name, double* coords,
 	prefix *name;
 	name = osnew(prefix);
 	name->pos = osnew(pos);
-	name->ident = NULL;
+	name->ident.p = NULL;
 	name->shape = 0;
 	fixpt->name = name;
 	name->stn = fixpt;
@@ -96,7 +95,6 @@ void fix_station_with_variance(prefix *fix_name, double* coords,
 	POS(fixpt, 0) = coords[0];
 	POS(fixpt, 1) = coords[1];
 	POS(fixpt, 2) = coords[2];
-	fix(fixpt);
 	fixpt->leg[0] = fixpt->leg[1] = fixpt->leg[2] = NULL;
 	addfakeleg(fixpt, stn, 0, 0, 0,
 		   var_x, var_y, var_z
@@ -213,7 +211,7 @@ scan_compass_station_name(prefix *stn)
      * separator_map via cmd_set() plus adding the defaults in
      * find_output_separator().
      */
-    for (const char *p = stn->ident; *p; ++p) {
+    for (const char *p = prefix_ident(stn); *p; ++p) {
 	separator_map[(unsigned char)*p] |= SPECIAL_NAMES;
     }
 }
@@ -325,8 +323,8 @@ get_token_legacy_no_blanks(void)
    s_clear(&token);
    s_clear(&uctoken);
    while (isalpha(ch)) {
-      s_catchar(&token, ch);
-      s_catchar(&uctoken, toupper(ch));
+      s_appendch(&token, ch);
+      s_appendch(&uctoken, toupper(ch));
       nextch();
    }
 
@@ -359,8 +357,8 @@ get_token_no_blanks(void)
     s_clear(&uctoken);
     if (isalpha(ch)) {
 	do {
-	    s_catchar(&token, ch);
-	    s_catchar(&uctoken, toupper(ch));
+	    s_appendch(&token, ch);
+	    s_appendch(&uctoken, toupper(ch));
 	    nextch();
 	} while (isalnum(ch));
     }
@@ -373,7 +371,7 @@ get_word(void)
    s_clear(&token);
    skipblanks();
    while (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
-      s_catchar(&token, ch);
+      s_appendch(&token, ch);
       nextch();
    }
 #if 0

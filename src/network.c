@@ -85,14 +85,14 @@ remove_subnets(void)
 #if PRINT_NETBITS
 	 printf("replacing lollipops\n");
 #endif
-	 /*      _
-	  *     ( )
-	  *      * stn
-	  *      |
-	  *      * stn2
-	  * stn /|
-	  *  4 * * stn3  -->  stn4 *-* stn3
-	  *    : :		   : :
+	 /*        _
+	  *       ( )
+	  *        * stn
+	  *        |
+	  *        * stn2
+	  *       / \
+	  * stn4 *   * stn3  -->  stn4 *---* stn3
+	  *      :   :                 :   :
 	  */
 	 /* NB can have non-fixed 0 nodes */
 	 FOR_EACH_STN(stn, stnlist) {
@@ -165,15 +165,15 @@ remove_subnets(void)
 #endif
 	 FOR_EACH_STN(stn, stnlist) {
 	    /*
-	     *  :
-	     *  * stn3
-	     *  |	     :
-	     *  * stn	     * stn3
-	     * ( )      ->   |
-	     *  * stn2       * stn4
-	     *  |	     :
-	     *  * stn4
-	     *  :
+	     *  :            :
+	     *  * stn3       * stn3
+	     *  |            |
+	     *  * stn        |
+	     * ( )      -->  |
+	     *  * stn2       |
+	     *  |            |
+	     *  * stn4       * stn4
+	     *  :            :
 	     */
 	    if (!fixed(stn) && three_node(stn)) {
 	       stn2 = stn->leg[0]->l.to;
@@ -300,15 +300,16 @@ remove_subnets(void)
 	 FOR_EACH_STN(stn, stnlist) {
 	    /*    printf("*");*/
 	    /*
-	     *		:
-	     *		* stn5		  :
-	     *		|		  * stn5
-	     *		* stn2		  |
-	     *	       / \	  ->	  O stnZ
-	     *    stn *---* stn3	 / \
-	     *       /     \       stn4 *   * stn6
-	     * stn4 *       * stn6      :   :
-	     *      :       :
+	     *          :                     :
+	     *          * stn5                * stn5
+	     *          |                     |
+	     *          * stn2                |
+	     *         / \        -->         O stnZ
+	     *        |   |                  / \
+	     *    stn *---* stn3            /   \
+	     *       /     \               /     \
+	     * stn4 *       * stn6   stn4 *       * stn6
+	     *      :       :             :       :
 	     */
 	    if (!fixed(stn) && three_node(stn)) {
 	       for (dirn0 = 0; ; dirn0++) {
@@ -469,7 +470,7 @@ remove_subnets(void)
 
 		    nameZ = osnew(prefix);
 		    nameZ->pos = osnew(pos);
-		    nameZ->ident = NULL;
+		    nameZ->ident.p = NULL;
 		    nameZ->shape = 3;
 		    stnZ = osnew(node);
 		    stnZ->name = nameZ;
@@ -594,7 +595,6 @@ replace_subnets(void)
 	       adddd(&POSD(stn2), &POSD(stn2), &tmp);
 	    }
 	 }
-	 fix(stn2);
 	 dirn2 = (dirn2 + 2) % 3; /* point back at stn again */
 	 stn = stn2->leg[dirn2]->l.to;
 #if 0
@@ -612,8 +612,6 @@ replace_subnets(void)
 	 /* the "rope" of the noose is a new articulation */
 	 stn2->leg[dirn2]->l.reverse |= FLAG_ARTICULATION;
 	 reverse_leg(stn2->leg[dirn2])->l.reverse |= FLAG_ARTICULATION;
-
-	 fix(stn);
 
 	 add_stn_to_list(&stnlist, stn);
 	 add_stn_to_list(&stnlist, stn2);
@@ -672,8 +670,6 @@ replace_subnets(void)
 	 }
 	 mulsd(&e2, &leg->v, &e);
 	 subdd(&POSD(stn2), &POSD(stn2), &e2);
-	 fix(stn);
-	 fix(stn2);
 #if 0
 	 printf("Replacing parallel with stn...stn4 = \n");
 	 print_prefix(stn->name); putnl();
@@ -745,7 +741,6 @@ replace_subnets(void)
 	       }
 	       adddd(&POSD(stn2), &POSD(stn2), &e);
 	    }
-	    fix(stn2);
 	    add_stn_to_list(&stnlist, stn2);
 	    osfree(leg);
 	    stn[i]->leg[dirn[i]] = legs[i];

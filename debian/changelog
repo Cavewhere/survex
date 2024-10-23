@@ -1,3 +1,27 @@
+survex (1.4.11-3) unstable; urgency=medium
+
+  * debian/patches/series: Actually apply new patch. (Closes: #1077514)
+
+ -- Olly Betts <olly@survex.com>  Thu, 15 Aug 2024 08:43:09 +1200
+
+survex (1.4.11-2) unstable; urgency=medium
+
+  * debian/patches/skip-hpglexport-testcase.patch: Skip new testcase
+    hpglexport for now because it fails on i386 due to a small numerical
+    difference in the calculated coordinates, presumably due to excess
+    precision. (Closes: #1077514)
+
+ -- Olly Betts <olly@survex.com>  Wed, 14 Aug 2024 16:06:32 +1200
+
+survex (1.4.11-1) unstable; urgency=medium
+
+  * New upstream release:
+    + Fixes new i386 testcase failure in 1.4.10. (Closes: #1077514)
+    + debian/patches/Fix-regexp-to-normalise-DXF-output.patch: Drop patch
+      cherry-picked from upstream.
+
+ -- Olly Betts <olly@survex.com>  Wed, 14 Aug 2024 12:46:16 +1200
+
 survex (1.4.10-2) unstable; urgency=medium
 
   * debian/patches/Fix-regexp-to-normalise-DXF-output.patch: Cherry-pick fix

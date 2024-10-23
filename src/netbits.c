@@ -330,11 +330,12 @@ addlegbyname(prefix *fr_name, prefix *to_name, bool fToFirst,
 {
    node *to, *fr;
    if (to_name == fr_name) {
+      int type = pcs->from_equals_to_is_only_a_warning ? DIAG_WARN : DIAG_ERR;
       /* TRANSLATORS: Here a "survey leg" is a set of measurements between two
        * "survey stations".
        *
        * %s is replaced by the name of the station. */
-      compile_diagnostic(DIAG_ERR, /*Survey leg with same station (“%s”) at both ends - typing error?*/50,
+      compile_diagnostic(type, /*Survey leg with same station (“%s”) at both ends - typing error?*/50,
 			 sprint_prefix(to_name));
       return;
    }
@@ -597,8 +598,8 @@ fprint_prefix(FILE *fh, const prefix *ptr)
    if (ptr->up != NULL) {
       fprint_prefix(fh, ptr->up);
       if (ptr->up->up != NULL) fputc(output_separator, fh);
-      SVX_ASSERT(ptr->ident);
-      fputs(ptr->ident, fh);
+      SVX_ASSERT(prefix_ident(ptr));
+      fputs(prefix_ident(ptr), fh);
    }
 }
 
@@ -610,18 +611,19 @@ sprint_prefix_(const prefix *ptr)
 {
    OSSIZE_T len = 1;
    if (ptr->up != NULL) {
-      SVX_ASSERT(ptr->ident);
+      const char *ident = prefix_ident(ptr);
+      SVX_ASSERT(ident);
       len = sprint_prefix_(ptr->up);
       OSSIZE_T end = len - 1;
       if (ptr->up->up != NULL) len++;
-      len += strlen(ptr->ident);
+      len += strlen(ident);
       if (len > buffer_len) {
 	 buffer = osrealloc(buffer, len);
 	 buffer_len = len;
       }
       char *p = buffer + end;
       if (ptr->up->up != NULL) *p++ = output_separator;
-      strcpy(p, ptr->ident);
+      strcpy(p, ident);
    }
    return len;
 }

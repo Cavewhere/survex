@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.4.11], [https://trac.survex.com/])
+AC_INIT([survex], [1.4.12], [https://trac.survex.com/])
 AM_INIT_AUTOMAKE([1.5 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
@@ -220,8 +220,13 @@ AC_SUBST([PROJ_CFLAGS])
 
 dnl Check for GDAL.
 PKG_CHECK_MODULES([GDAL], [gdal >= 2.3], [
+  AC_DEFINE([HAVE_GDAL], [1], [Define to 1 if you have the 'GDAL' library.])
 ], [
-  AC_MSG_ERROR([GDAL required for geodata handling])
+  if test "$mswindows" = no ; then
+    AC_MSG_ERROR([GDAL required for geodata handling])
+  else
+    AC_MSG_WARN([GDAL required for geodata handling])
+  fi
 ])
 AC_SUBST([GDAL_LIBS])
 AC_SUBST([GDAL_CFLAGS])

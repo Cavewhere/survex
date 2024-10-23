@@ -184,6 +184,7 @@ main(int argc, char **argv)
 
    pcs = osnew(settings);
    pcs->next = NULL;
+   pcs->from_equals_to_is_only_a_warning = false;
    pcs->Translate = ((short*) osmalloc(ossizeof(short) * 257)) + 1;
    pcs->meta = NULL;
    pcs->proj_str = NULL;
@@ -206,7 +207,7 @@ main(int argc, char **argv)
    root->up = root->right = root->down = NULL;
    root->stn = NULL;
    root->pos = NULL;
-   root->ident = NULL;
+   root->ident.p = NULL;
    root->min_export = root->max_export = 0;
    root->sflags = BIT(SFLAGS_SURVEY);
    root->filename = NULL;
@@ -345,8 +346,8 @@ main(int argc, char **argv)
 	  if (s_empty(&survey_title)) {
 	      s_donate(&survey_title, lf);
 	  } else {
-	      s_catchar(&survey_title, ' ');
-	      s_cat(&survey_title, lf);
+	      s_appendch(&survey_title, ' ');
+	      s_append(&survey_title, lf);
 	      osfree(lf);
 	  }
       }

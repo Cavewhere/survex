@@ -219,10 +219,10 @@ grab_line(void)
       int c = GETC(file.fh);
       /* Note: isEol() is true for EOF */
       if (isEol(c)) break;
-      // Change tabs to spaces for consistency with how we should context
+      // Change tabs to spaces for consistency with how we show context
       // lines for other diagnostics.
       if (c == '\t') c = ' ';
-      s_catchar(&p, c);
+      s_appendch(&p, c);
    }
 
    /* Revert to where we were. */
@@ -406,7 +406,7 @@ compile_diagnostic_token_show(int diag_flags, int en)
    string p = S_INIT;
    skipblanks();
    while (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
-      s_catchar(&p, (char)ch);
+      s_appendch(&p, (char)ch);
       nextch();
    }
    if (!s_empty(&p)) {
@@ -602,6 +602,9 @@ initialise_common_compass_settings(void)
     pcsNew->Translate = t;
     pcsNew->Case = OFF;
     pcsNew->Truncate = INT_MAX;
+    // Compass itself appears to quietly ignore legs with the same station as
+    // `from` and `to`, but it seems like something to warn about.
+    pcsNew->from_equals_to_is_only_a_warning = true;
     pcsNew->next = pcs;
     pcs = pcsNew;
 
@@ -619,10 +622,10 @@ nextch_handling_eol(void)
 }
 
 static bool
-get_token_and_check(const char *expect)
+get_token_and_check_len(const char *expect, size_t len)
 {
     get_token();
-    if (s_eq(&token, expect))
+    if (s_eqlen(&token, expect, len))
 	return true;
     compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Expecting “%s”*/497, expect);
     return false;
@@ -640,10 +643,16 @@ check_colon(void)
 }
 
 static bool
-get_token_and_check_colon(const char *expect)
+get_token_and_check_colon_len(const char *expect, size_t len)
 {
-    return get_token_and_check(expect) && check_colon();
+    return get_token_and_check_len(expect, len) && check_colon();
 }
+
+#define GET_TOKEN_AND_CHECK(LITERAL) \
+    get_token_and_check_len(LITERAL, sizeof(LITERAL "") - 1)
+
+#define GET_TOKEN_AND_CHECK_COLON(LITERAL) \
+    get_token_and_check_colon_len(LITERAL, sizeof(LITERAL "") - 1)
 
 static void
 data_file_compass_dat_or_clp(bool is_clp)
@@ -700,8 +709,8 @@ data_file_compass_dat_or_clp(bool is_clp)
 	skipline();
 	process_eol();
 	/* SURVEY NAME: <Short name> */
-	if (get_token_and_check("SURVEY") &&
-	    get_token_and_check_colon("NAME")) {
+	if (GET_TOKEN_AND_CHECK("SURVEY") &&
+	    GET_TOKEN_AND_CHECK_COLON("NAME")) {
 	    // Survey short name currently ignored.
 	    get_token();
 	}
@@ -709,8 +718,8 @@ data_file_compass_dat_or_clp(bool is_clp)
 	process_eol();
 
 	/* SURVEY DATE: 7 10 79  COMMENT:<Long name> */
-	if (get_token_and_check("SURVEY") &&
-	    get_token_and_check_colon("DATE")) {
+	if (GET_TOKEN_AND_CHECK("SURVEY") &&
+	    GET_TOKEN_AND_CHECK_COLON("DATE")) {
 	    int days = read_compass_date_as_days_since_1900();
 	    pcs->meta->days1 = pcs->meta->days2 = days;
 	    // Ignore "COMMENT:<Long name>" part for now.
@@ -718,8 +727,8 @@ data_file_compass_dat_or_clp(bool is_clp)
 	skipline();
 	process_eol();
 	/* SURVEY TEAM: */
-	if (get_token_and_check("SURVEY") &&
-	    get_token_and_check_colon("TEAM")) {
+	if (GET_TOKEN_AND_CHECK("SURVEY") &&
+	    GET_TOKEN_AND_CHECK_COLON("TEAM")) {
 	    // Value is on the next line.
 	}
 	process_eol();
@@ -727,7 +736,7 @@ data_file_compass_dat_or_clp(bool is_clp)
 	skipline();
 	process_eol();
 	/* DECLINATION: 1.00  FORMAT: DDDDLUDRADLN  CORRECTIONS: 2.00 3.00 4.00 */
-	if (get_token_and_check_colon("DECLINATION")) {
+	if (GET_TOKEN_AND_CHECK_COLON("DECLINATION")) {
 	    if (pcs->dec_filename == NULL) {
 		pcs->z[Q_DECLINATION] = -read_numeric(false);
 		pcs->z[Q_DECLINATION] *= pcs->units[Q_DECLINATION];
@@ -861,7 +870,7 @@ data_file_compass_mak(void)
 	      nextch_handling_eol();
 	      while (ch != ',' && ch != ';' && ch != EOF) {
 		  while (isEol(ch)) process_eol();
-		  s_catchar(&dat_fnm, (char)ch);
+		  s_appendch(&dat_fnm, (char)ch);
 		  nextch_handling_eol();
 	      }
 	      if (!s_empty(&dat_fnm)) {
@@ -1005,7 +1014,7 @@ update_proj_str:
 	      nextch();
 	      skipblanks();
 	      while (ch != ';' && !isEol(ch)) {
-		  s_catchar(&p, (char)ch);
+		  s_appendch(&p, (char)ch);
 		  ++c;
 		  /* Ignore trailing blanks. */
 		  if (!isBlank(ch)) datum_len = c;
@@ -1023,13 +1032,13 @@ update_proj_str:
 	      folder_stack->next = p;
 	      folder_stack->len = s_len(&path);
 	      if (!s_empty(&path))
-		  s_catchar(&path, FNM_SEP_LEV);
+		  s_appendch(&path, FNM_SEP_LEV);
 	      nextch();
 	      while (ch != ';' && !isEol(ch)) {
 		  if (ch == '\\') {
 		      ch = FNM_SEP_LEV;
 		  }
-		  s_catchar(&path, (char)ch);
+		  s_appendch(&path, (char)ch);
 		  nextch();
 	      }
 	      if (ch == ';') nextch_handling_eol();
@@ -1122,6 +1131,7 @@ typedef struct walls_macro {
     struct walls_macro *next;
     char *name;
     char *value;
+    int name_len;
 } walls_macro;
 
 // Macros set in the WPJ persist, but those set in an SRV only apply for that
@@ -1161,7 +1171,7 @@ walls_set_macro(walls_macro ***table, string *p_name, char *val)
 		 (WALLS_MACRO_HASH_SIZE - 1);
     walls_macro *p = (*table)[h];
     while (p) {
-	if (s_eq(p_name, p->name)) {
+	if (s_eqlen(p_name, p->name, p->name_len)) {
 	    // Update existing definition of macro.
 	    s_free(p_name);
 	    osfree(p->value);
@@ -1172,6 +1182,7 @@ walls_set_macro(walls_macro ***table, string *p_name, char *val)
     }
 
     walls_macro *entry = osnew(walls_macro);
+    entry->name_len = s_len(p_name);
     entry->name = s_steal(p_name);
     entry->value = val;
     entry->next = (*table)[h];
@@ -1187,7 +1198,7 @@ walls_get_macro(walls_macro ***table, const char *name, int name_len)
     unsigned h = hash_data(name, name_len) & (WALLS_MACRO_HASH_SIZE - 1);
     walls_macro *p = (*table)[h];
     while (p) {
-	if (strcmp(p->name, name) == 0) {
+	if (name_len == p->name_len && memcmp(name, p->name, name_len) == 0) {
 	    return p->value ? p->value : "";
 	}
 	p = p->next;
@@ -1445,7 +1456,7 @@ push_walls_options(void)
 	// Actually copy path.  FIXME: Maybe copy on write?
 	string empty_string = S_INIT;
 	new_options->path = empty_string;
-	s_cats(&new_options->path, &p_walls_options->path);
+	s_appends(&new_options->path, &p_walls_options->path);
     }
 
     new_options->next = p_walls_options;
@@ -2321,7 +2332,7 @@ parse_options(void)
 		nextch();
 		string name = S_INIT;
 		while (!isBlank(ch) && !isComm(ch) && !isEol(ch) && ch != '=') {
-		    s_catchar(&name, ch);
+		    s_appendch(&name, ch);
 		    nextch();
 		}
 		if (!s_empty(&name)) {
@@ -2462,11 +2473,11 @@ next_line:
 	    // change each tab to a single space, but we do that anyway in
 	    // show_line().
 	    if (leading_blanks)
-		s_catn(&line, leading_blanks, ' ');
-	    s_catchar(&line, '#');
+		s_appendn(&line, leading_blanks, ' ');
+	    s_appendch(&line, '#');
 	    if (blanks_after_hash)
-		s_catn(&line, blanks_after_hash, ' ');
-	    s_cats(&line, &token);
+		s_appendn(&line, blanks_after_hash, ' ');
+	    s_appends(&line, &token);
 
 	    filepos fp_args;
 	    get_pos(&fp_args);
@@ -2474,13 +2485,13 @@ next_line:
 	    // Expand macros such as $(foo) in rest of line.
 	    while (!isEol(ch)) {
 		if (ch != '$') {
-		    s_catchar(&line, ch);
+		    s_appendch(&line, ch);
 		    nextch();
 		    continue;
 		}
 		nextch();
 		if (ch != '(') {
-		    s_catchar(&line, '$');
+		    s_appendch(&line, '$');
 		    continue;
 		}
 		nextch();
@@ -2488,7 +2499,7 @@ next_line:
 		// with the value of the macro.
 		int macro_start = s_len(&line);
 		while (!isEol(ch) && ch != ')') {
-		    s_catchar(&line, ch);
+		    s_appendch(&line, ch);
 		    nextch();
 		}
 		nextch();
@@ -2505,7 +2516,7 @@ next_line:
 		}
 		s_truncate(&line, macro_start);
 		if (macro)
-		    s_cat(&line, macro);
+		    s_append(&line, macro);
 		seen_macros = true;
 	    }
 
@@ -2996,7 +3007,7 @@ data_file_walls_wpj(void)
      */
 
     // Start from the location of this WPJ.
-    s_cat(&p_walls_options->path, pth);
+    s_append(&p_walls_options->path, pth);
 
 #ifdef HAVE_SETJMP_H
     /* errors in nested functions can longjmp here */
@@ -3108,9 +3119,9 @@ process_entry:
 		// full_file in the fopen_portable() call above so things
 		// align better?
 		string full_file = S_INIT;
-		s_cats(&full_file, &p_walls_options->path);
-		s_cats(&full_file, &name);
-		s_cat(&full_file, ".SRV");
+		s_appends(&full_file, &p_walls_options->path);
+		s_appends(&full_file, &name);
+		s_append(&full_file, ".SRV");
 		if (!fDirectory(s_str(&p_walls_options->path))) {
 		    // Walls appears to quietly ignore file if the
 		    // directory does not exist, but it seems worth
@@ -3204,12 +3215,12 @@ detached_or_not_srv:
 		    if (ch == '\\') {
 			ch = FNM_SEP_LEV;
 		    }
-		    s_catchar(&p_walls_options->path, ch);
+		    s_appendch(&p_walls_options->path, ch);
 		    nextch();
 		}
 		// Ensure path ends with a directory separator.
 		if (s_back(&p_walls_options->path) != FNM_SEP_LEV) {
-		    s_catchar(&p_walls_options->path, FNM_SEP_LEV);
+		    s_appendch(&p_walls_options->path, FNM_SEP_LEV);
 		}
 	    }
 	    //printf("PATH: %s\n", s_str(&p_walls_options->path));
@@ -3337,7 +3348,7 @@ detached_or_not_srv:
 	    name_lpos = file.lpos;
 	    name_lineno = file.line;
 	    while (!isEol(ch)) {
-		s_catchar(&name, ch);
+		s_appendch(&name, ch);
 		nextch();
 	    }
 	    break;
