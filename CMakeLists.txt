@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.12)
 
+#This is useful for parent projects to put survex binaries in the path
+set(SURVEX_OUTPUT_DIR "${CMAKE_BINARY_DIR}/survex" CACHE PATH "Output directory for survex targets")
+
+# Set output directories for all targets in this subdirectory
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${SURVEX_OUTPUT_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${SURVEX_OUTPUT_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${SURVEX_OUTPUT_DIR})
+
+file(MAKE_DIRECTORY ${SURVEX_OUTPUT_DIR})
+
 find_program(GIT_EXEC git REQUIRED)
 
 set(VERSION_REGEX "v?([0-9]+)\.([0-9]+)\.([0-9]+).*")

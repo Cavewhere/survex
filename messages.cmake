@@ -9,7 +9,7 @@ function(svx_add_messages target_name)
         # Get the filename without extension
         get_filename_component(filename ${current} NAME_WE)
         # Define the output .msg file path
-        set(output_file ${PROJECT_BINARY_DIR}/${filename}.msg)
+        set(output_file ${SURVEX_OUTPUT_DIR}/${filename}.msg)
         message(STATUS "Output msg:" ${output_file})
         list(APPEND output_files ${output_file})
     endforeach()
@@ -21,7 +21,7 @@ function(svx_add_messages target_name)
         OUTPUT ${output_files}
         COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl ${absolute_po_files}
         DEPENDS ${absolute_po_files} ${PROJECT_SOURCE_DIR}/${SRC_LIB_DIR}/po-to-msg.pl
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+        WORKING_DIRECTORY ${SURVEX_OUTPUT_DIR}
         VERBATIM
     )
 
