@@ -20,7 +20,7 @@
 #define SURVEX_WHICHOS_H
 
 /* Attempt to auto-detect OS. */
-#if (defined(unix) || defined(UNIX))
+#if (defined(unix) || defined(UNIX) || defined(__unix__))
 # define OS_UNIX 1
 #elif defined(__GNUC__) && defined(__APPLE_CC__)
 /* macOS is Unix for most purposes. */
