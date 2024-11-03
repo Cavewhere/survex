@@ -95,7 +95,7 @@ set(AVEN_COPYRIGHT_MSG_UTF8 copyright-message_undefined)
 
 include_directories(${PROJECT_BINARY_DIR})
 # message( FATAL_ERROR "${CMAKE_CURRENT_BINARY_DIR}/conan-dependencies/conan_paths.cmake" )
-include("${CMAKE_CURRENT_BINARY_DIR}/../conan-dependencies/conan_paths.cmake")
+#include("${CMAKE_CURRENT_BINARY_DIR}/../conan-dependencies/conan_paths.cmake")
 
 find_package(Python3 COMPONENTS Interpreter)
 find_package(Perl)
