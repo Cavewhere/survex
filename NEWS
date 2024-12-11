@@ -1,3 +1,106 @@
+Changes in 1.4.14 (2024-12-11):
+
+* aven/survexport: Add support for exporting shapefiles.  This requires GDAL so
+  currently isn't enabled in the Microsoft Windows build.  Thanks to Eric C.
+  Landgraf for testing.  Fixes #87.
+
+* cavern: If *date with just year is followed by a blank, cavern expects a date
+  range and gives an error if another date doesn't follow.  Bug was introduced
+  in 1.4.13.
+
+* aven/cavern: Use ′ and ″ for feet and inches.
+
+* Documentation: Add some details on how to handle Toporobot "serie" station
+  naming.
+
+* Updates to Bulgarian, Hugarian, Russian and Slovak translations.
+
+* Testsuite: Adjust lollipop testcase to pass on i386 where excess precision
+  was changing which station was reported as the southernmost of multiple
+  candidate stations).
+
+Changes in 1.4.13 (2024-12-01):
+
+* aven:
+
+  + Don't show crosses on anonymous stations since they just clutter up the
+    display (especially for anonymous splays).  Suggested by Andrew Atkinson.
+
+  + Fix 1.4.10 regression in plotting of station names.  Each anonymous station
+    was blocking out a small rectangle which no actual station name could
+    overlap.  Reported by Špela Borko.
+
+  + Reduced start-up time by only initialising GDAL if we have overlays to
+    show.
+
+  + (Microsoft Windows version): Avoid recurring "GDAL support not enabled in
+    this build" message box.  This message is now only shown once if you try to
+    add an overlay.  Reported by Špela Borko.
+
+* cavern:
+
+  + Update to use v14 of the IGRF model for calculating declinations.
+    This was issued in November 2024 and should give slightly more accurate
+    declinations for surveys made since 2015.  Fixes #137.
+
+  + The component count was wrong in some cases, and we calculate the number
+    of loops using this component count, so the loop count would also be wrong
+    by the same amount in these cases.
+
+  + The component count and loop count are now reported when there are
+    unconnected survey stations.
+
+  + *date now support ISO format dates.  Fixes #96, reported by Milosch.
+
+  + *date now support date types "surveyed" and "explored" (existing usage
+    without an explicit type is interpreted as "surveyed").
+
+  + If the output directory isn't writable or doesn't exist we would complain
+    that we can't create the .err file - now we try to create the .3d file
+    first so complain about that instead which seems more helpful.  Reported by
+    Eric C. Landgraf.
+
+  + When inventing a fixed point we now avoid picking a fixed point which is
+    only attached to nosurvey legs if there's another option.  The code was
+    already meant to do this but it was buggy and we lacked a testcase for this
+    situation.
+
+  + Survey network reduction now finds some delta-star opportunities which were
+    being overlooked.  This allows more complicated networks to be reduced
+    further so fewer and/or smaller matrices need solving, which is faster.
+
+  + Survey network reduction now handles a "lollipop" with a fixed stick end
+    specially which is a little bit faster.  A more visible consequence is
+    fewer "Solving one equation..." messages when solving a complex survey
+    network.
+
+  + Survey network reduction now makes use of articulating legs to split up the
+    problem a little more, so we will often now solve more but smaller matrices
+    which should be faster.
+
+  + Assigning matrix row numbers now identifies equated stations in a slightly
+    more efficient way.
+
+* dump3d: Provide a way to get ISO format dates output.
+
+* Documentation:
+
+  + Improve documentation of *date in the manual.  When a partial date is
+    specified (just a year, or a year and month only) the documentation claimed
+    the centre of that year or month is used but actually this case is treated
+    as a date range covering the whole year or month (respectively).  The end
+    result is effectively the same as what was previously documented though
+    since the centre of a date range is used as the date for calculating
+    automatic declinations and is the date used by aven.
+
+* Test suite:
+
+  + Adjust hpglexport testcase to avoid i386 excess precision causing one of
+    the HPGL coordinates to differ by one from its value calculated without
+    excess precision.
+
+* Assorted translation updates.
+
 Changes in 1.4.12 (2024-10-23):
 
 * aven:
@@ -334,11 +437,11 @@ Changes in 1.4.10 (2024-08-05):
     - The delimiters around LRUD data are now parsed, but the LRUD data between
       them is currently ignored.
 
-    - If a `#SEGMENT` value looks like a set of Compass shot flags (i.e. consists
-      only of upper case characters from `CLPSX`, optionally prefixed with a
-      `/` or `\`) then we interpret them as Compass shot flags (except that `X`
-      is mapped the same way as `L`).  This is apparently a common way to use
-      `#SEGMENT`, and unlikely to be triggered accidentally.
+    - If a `#SEGMENT` value looks like a set of Compass shot flags (i.e.
+      consists only of upper case characters from `CLPSX`, optionally prefixed
+      with a `/` or `\`) then we interpret them as Compass shot flags (except
+      that `X` is mapped the same way as `L`).  This is apparently a common way
+      to use `#SEGMENT`, and unlikely to be triggered accidentally.
 
     - Avoid a doubled directory separator when building Walls path names.
 
@@ -442,7 +545,7 @@ Changes in 1.4.9 (2024-07-04):
 
   + Fix bug with Compass DAT diving data.  If a survey uses the depth gauge
     then since 1.4.6 we set its style to "diving", but we weren't clearing that
-    so all surveys after than in the same DAT file were also set as "diving".
+    so all surveys after that in the same DAT file were also set as "diving".
 
   + When parsing of Compass DAT files we report errors in more cases if the
     input doesn't conform to the format we expect, rather than potentially

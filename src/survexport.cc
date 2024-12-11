@@ -114,6 +114,8 @@ main(int argc, char **argv)
 	{"kml", no_argument, 0, OPT_FMT_BASE + FMT_KML},
 	{"plt", no_argument, 0, OPT_FMT_BASE + FMT_PLT},
 	{"pos", no_argument, 0, OPT_FMT_BASE + FMT_POS},
+	{"shp-lines", no_argument, 0, OPT_FMT_BASE + FMT_SHP_LINES},
+	{"shp-points", no_argument, 0, OPT_FMT_BASE + FMT_SHP_POINTS},
 	{"svg", no_argument, 0, OPT_FMT_BASE + FMT_SVG},
 	{"help", no_argument, 0, HLP_HELP},
 	{"version", no_argument, 0, HLP_VERSION},
@@ -128,49 +130,51 @@ main(int argc, char **argv)
 
    static struct help_msg help[] = {
 	/*			<-- */
-	{HLP_ENCODELONG(0),   /*only load the sub-survey with this prefix*/199, 0},
+	{HLP_ENCODELONG(0),   /*only load the sub-survey with this prefix*/199, 0, 0},
 	/* TRANSLATORS: These example input values should not be translated. */
-	{HLP_ENCODELONG(1),   /*scale (50, 0.02, 1:50 and 2:100 all mean 1:50)*/217, 0},
+	{HLP_ENCODELONG(1),   /*scale (50, 0.02, 1:50 and 2:100 all mean 1:50)*/217, 0, 0},
 	/* TRANSLATORS: These example input values should not be translated. */
-	{HLP_ENCODELONG(2),   /*bearing (90, 90d, 100g all mean 90°)*/460, 0},
+	{HLP_ENCODELONG(2),   /*bearing (90, 90d, 100g all mean 90°)*/460, 0, 0},
 	/* TRANSLATORS: These example input values should not be translated. */
-	{HLP_ENCODELONG(3),   /*tilt (45, 45d, 50g, 100% all mean 45°)*/461, 0},
+	{HLP_ENCODELONG(3),   /*tilt (45, 45d, 50g, 100% all mean 45°)*/461, 0, 0},
 	/* TRANSLATORS: Don't translate example command line option --tilt=-90 */
-	{HLP_ENCODELONG(4),   /*plan view (equivalent to --tilt=-90)*/462, 0},
+	{HLP_ENCODELONG(4),   /*plan view (equivalent to --tilt=-90)*/462, 0, 0},
 	/* TRANSLATORS: Don't translate example command line option --tilt=0 */
-	{HLP_ENCODELONG(5),   /*elevation view (equivalent to --tilt=0)*/463, 0},
-	{HLP_ENCODELONG(6),   /*underground survey legs*/476, 0},
-	{HLP_ENCODELONG(7),   /*surface survey legs*/464, 0},
-	{HLP_ENCODELONG(8),   /*splay legs*/465, 0},
-	{HLP_ENCODELONG(9),   /*station markers*/474, 0},
-	{HLP_ENCODELONG(10),  /*station labels*/475, 0},
-	{HLP_ENCODELONG(11),  /*entrances*/466, 0},
-	{HLP_ENCODELONG(12),  /*fixed points*/467, 0},
-	{HLP_ENCODELONG(13),  /*exported stations*/468, 0},
-	{HLP_ENCODELONG(14),  /*cross-sections*/469, 0},
-	{HLP_ENCODELONG(15),  /*walls*/470, 0},
-	{HLP_ENCODELONG(16),  /*passages*/471, 0},
-	{HLP_ENCODELONG(17),  /*origin in centre*/472, 0},
-	{HLP_ENCODELONG(18),  /*full coordinates*/473, 0},
-	{HLP_ENCODELONG(19),  /*clamp to ground*/478, 0},
-	{HLP_ENCODELONG(20),  /*include items exported by default*/155, 0},
-	{HLP_ENCODELONG(21),  /*generate grid (default %sm)*/148, STRING(DEFAULT_GRID_SPACING)},
-	{HLP_ENCODELONG(22),  /*station labels text height (default %s)*/149, STRING(DEFAULT_TEXT_HEIGHT)},
-	{HLP_ENCODELONG(23),  /*station marker size (default %s)*/152, STRING(DEFAULT_MARKER_SIZE)},
-	{HLP_ENCODELONG(24),  /*produce Survex 3d output*/487, 0},
-	{HLP_ENCODELONG(25),  /*produce CSV output*/102, 0},
-	{HLP_ENCODELONG(26),  /*produce DXF output*/156, 0},
-	{HLP_ENCODELONG(27),  /*produce EPS output*/454, 0},
-	{HLP_ENCODELONG(28),  /*produce GPX output*/455, 0},
-	{HLP_ENCODELONG(29),  /*produce HPGL output*/456, 0},
-	{HLP_ENCODELONG(30),  /*produce JSON output*/457, 0},
-	{HLP_ENCODELONG(31),  /*produce KML output*/458, 0},
+	{HLP_ENCODELONG(5),   /*elevation view (equivalent to --tilt=0)*/463, 0, 0},
+	{HLP_ENCODELONG(6),   /*underground survey legs*/476, 0, 0},
+	{HLP_ENCODELONG(7),   /*surface survey legs*/464, 0, 0},
+	{HLP_ENCODELONG(8),   /*splay legs*/465, 0, 0},
+	{HLP_ENCODELONG(9),   /*station markers*/474, 0, 0},
+	{HLP_ENCODELONG(10),  /*station labels*/475, 0, 0},
+	{HLP_ENCODELONG(11),  /*entrances*/466, 0, 0},
+	{HLP_ENCODELONG(12),  /*fixed points*/467, 0, 0},
+	{HLP_ENCODELONG(13),  /*exported stations*/468, 0, 0},
+	{HLP_ENCODELONG(14),  /*cross-sections*/469, 0, 0},
+	{HLP_ENCODELONG(15),  /*walls*/470, 0, 0},
+	{HLP_ENCODELONG(16),  /*passages*/471, 0, 0},
+	{HLP_ENCODELONG(17),  /*origin in centre*/472, 0, 0},
+	{HLP_ENCODELONG(18),  /*full coordinates*/473, 0, 0},
+	{HLP_ENCODELONG(19),  /*clamp to ground*/478, 0, 0},
+	{HLP_ENCODELONG(20),  /*include items exported by default*/155, 0, 0},
+	{HLP_ENCODELONG(21),  /*generate grid (default %sm)*/148, STRING(DEFAULT_GRID_SPACING), 0},
+	{HLP_ENCODELONG(22),  /*station labels text height (default %s)*/149, STRING(DEFAULT_TEXT_HEIGHT), 0},
+	{HLP_ENCODELONG(23),  /*station marker size (default %s)*/152, STRING(DEFAULT_MARKER_SIZE), 0},
+	{HLP_ENCODELONG(24),  /*produce Survex 3d output*/487, 0, 0},
+	{HLP_ENCODELONG(25),  /*produce CSV output*/102, 0, 0},
+	{HLP_ENCODELONG(26),  /*produce DXF output*/156, 0, 0},
+	{HLP_ENCODELONG(27),  /*produce EPS output*/454, 0, 0},
+	{HLP_ENCODELONG(28),  /*produce GPX output*/455, 0, 0},
+	{HLP_ENCODELONG(29),  /*produce HPGL output*/456, 0, 0},
+	{HLP_ENCODELONG(30),  /*produce JSON output*/457, 0, 0},
+	{HLP_ENCODELONG(31),  /*produce KML output*/458, 0, 0},
 	/* TRANSLATORS: "Compass" and "Carto" are the names of software packages,
 	 * so should not be translated. */
-	{HLP_ENCODELONG(32),  /*produce Compass PLT output for Carto*/159, 0},
-	{HLP_ENCODELONG(33),  /*produce Survex POS output*/459, 0},
-	{HLP_ENCODELONG(34),  /*produce SVG output*/160, 0},
-	{0, 0, 0}
+	{HLP_ENCODELONG(32),  /*produce Compass PLT output for Carto*/159, 0, 0},
+	{HLP_ENCODELONG(33),  /*produce Survex POS output*/459, 0, 0},
+	{HLP_ENCODELONG(34),  /*produce Shapefile (lines) output*/525, 0, 0},
+	{HLP_ENCODELONG(35),  /*produce Shapefile (points) output*/526, 0, 0},
+	{HLP_ENCODELONG(36),  /*produce SVG output*/160, 0, 0},
+	{0, 0, 0, 0}
    };
 
    msg_init(argv);
@@ -398,6 +402,8 @@ main(int argc, char **argv)
 	    size_t l = strlen(info.extension);
 	    if (len > l + 1 &&
 		strcmp(ext + MAX_EXT_LEN + 1 - l, info.extension) == 0) {
+	       // Shapefile (lines) will be selected for .shp, which is
+	       // probably what's wanted.
 	       format = export_format(i);
 	       break;
 	    }

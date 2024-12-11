@@ -52,9 +52,8 @@ static char freeleg(node **stnptr);
 #ifdef NO_COVARIANCES
 static void check_var(const var *v) {
    int bad = 0;
-   int i;
 
-   for (i = 0; i < 3; i++) {
+   for (int i = 0; i < 3; i++) {
       if (isnan(v[i])
 	 printf("*** NaN!!!\n"), bad = 1;
    }
@@ -66,13 +65,12 @@ static void check_var(const var *v) {
 static void check_var(const var *v) {
    int bad = 0;
    int ok = 0;
-   int i, j;
 #if DEBUG_INVALID
    real det = 0.0;
 #endif
 
-   for (i = 0; i < 3; i++) {
-      for (j = 0; j < 3; j++) {
+   for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
 	 if (isnan(V(i, j)))
 	    printf("*** NaN!!!\n"), bad = 1, ok = 1;
 	 if (V(i, j) != 0.0) ok = 1;
@@ -81,7 +79,7 @@ static void check_var(const var *v) {
    if (!ok) return; /* ignore all-zero matrices */
 
 #if DEBUG_INVALID
-   for (i = 0; i < 3; i++) {
+   for (int i = 0; i < 3; i++) {
       det += V(i, 0) * (V((i + 1) % 3, 1) * V((i + 2) % 3, 2) -
 			V((i + 1) % 3, 2) * V((i + 2) % 3, 1));
    }
@@ -112,12 +110,11 @@ static void check_var(const var *v) {
 static void check_svar(const svar *v) {
    int bad = 0;
    int ok = 0;
-   int i;
 #if DEBUG_INVALID
    real det = 0.0;
 #endif
 
-   for (i = 0; i < 6; i++) {
+   for (int i = 0; i < 6; i++) {
       if (isnan((*v)[i]))
 	 printf("*** NaN!!!\n"), bad = 1, ok = 1;
       if ((*v)[i] != 0.0) ok = 1;
@@ -125,7 +122,7 @@ static void check_svar(const svar *v) {
    if (!ok) return; /* ignore all-zero matrices */
 
 #if DEBUG_INVALID
-   for (i = 0; i < 3; i++) {
+   for (int i = 0; i < 3; i++) {
       det += S(i, 0) * (S((i + 1) % 3, 1) * S((i + 2) % 3, 2) -
 			S((i + 1) % 3, 2) * S((i + 2) % 3, 1));
    }
@@ -149,9 +146,8 @@ static void check_svar(const svar *v) {
 
 static void check_d(const delta *d) {
    int bad = 0;
-   int i;
 
-   for (i = 0; i < 3; i++) {
+   for (int i = 0; i < 3; i++) {
       if (isnan((*d)[i]))
 	 printf("*** NaN!!!\n"), bad = 1;
    }
@@ -188,13 +184,16 @@ remove_stn_from_list(node **list, node *stn) {
 #endif
 #if DEBUG_INVALID
      {
-	/* check station is actually in this list */
-	node *stn_to_remove_is_in_list = *list;
+	/* Go back to the head of the list stn is actually on and
+	 * check it's the same as the list we were asked to remove
+	 * it from.
+	 */
 	validate();
-	while (stn_to_remove_is_in_list != stn) {
-	   SVX_ASSERT(stn_to_remove_is_in_list);
-	   stn_to_remove_is_in_list = stn_to_remove_is_in_list->next;
+	node *find_head = stn;
+	while (find_head->prev) {
+	    find_head = find_head->prev;
 	}
+	SVX_ASSERT(find_head == *list);
      }
 #endif
    /* adjust the iterator if it points to the element we're deleting */
@@ -215,25 +214,20 @@ remove_stn_from_list(node **list, node *stn) {
 linkfor *
 copy_link(linkfor *leg)
 {
-   linkfor *legOut;
-   int d;
-   legOut = osnew(linkfor);
+   linkfor *legOut = osnew(linkfor);
    if (data_here(leg)) {
-      for (d = 2; d >= 0; d--) legOut->d[d] = leg->d[d];
+      for (int d = 2; d >= 0; d--) legOut->d[d] = leg->d[d];
    } else {
       leg = reverse_leg(leg);
       SVX_ASSERT(data_here(leg));
-      for (d = 2; d >= 0; d--) legOut->d[d] = -leg->d[d];
+      for (int d = 2; d >= 0; d--) legOut->d[d] = -leg->d[d];
    }
 #if 1
 # ifndef NO_COVARIANCES
    check_svar(&(leg->v));
-     {
-	int i;
-	for (i = 0; i < 6; i++) legOut->v[i] = leg->v[i];
-     }
+   for (int i = 0; i < 6; i++) legOut->v[i] = leg->v[i];
 # else
-   for (d = 2; d >= 0; d--) legOut->v[d] = leg->v[d];
+   for (int d = 2; d >= 0; d--) legOut->v[d] = leg->v[d];
 # endif
 #else
    memcpy(legOut->v, leg->v, sizeof(svar));
@@ -269,17 +263,15 @@ addleg_(node *fr, node *to,
 #endif
 	int leg_flags)
 {
-   int i, j;
-   linkfor *leg, *leg2;
    /* we have been asked to add a leg with the same node at both ends
     * - this should be trapped by the caller */
    SVX_ASSERT(fr->name != to->name);
 
-   leg = osnew(linkfor);
-   leg2 = (linkfor*)osnew(linkrev);
+   linkfor *leg = osnew(linkfor);
+   linkfor *leg2 = (linkfor*)osnew(linkcommon);
 
-   i = freeleg(&fr);
-   j = freeleg(&to);
+   int i = freeleg(&fr);
+   int j = freeleg(&to);
 
    leg->l.to = to;
    leg2->l.to = fr;
@@ -328,7 +320,6 @@ addlegbyname(prefix *fr_name, prefix *to_name, bool fToFirst,
 #endif
 	     )
 {
-   node *to, *fr;
    if (to_name == fr_name) {
       int type = pcs->from_equals_to_is_only_a_warning ? DIAG_WARN : DIAG_ERR;
       /* TRANSLATORS: Here a "survey leg" is a set of measurements between two
@@ -339,6 +330,7 @@ addlegbyname(prefix *fr_name, prefix *to_name, bool fToFirst,
 			 sprint_prefix(to_name));
       return;
    }
+   node *to, *fr;
    if (fToFirst) {
       to = StnFromPfx(to_name);
       fr = StnFromPfx(fr_name);
@@ -384,41 +376,46 @@ addlegbyname(prefix *fr_name, prefix *to_name, bool fToFirst,
 
 /* helper function for replace_pfx */
 static void
-replace_pfx_(node *stn, node *from, pos *pos_replace, pos *pos_with)
+replace_pfx_(node *stn, node *from, pos *pos_with, bool move_to_fixedlist)
 {
-   int d;
+   SVX_ASSERT(!fixed(stn));
+   if (move_to_fixedlist) {
+      SVX_ASSERT(pos_fixed(pos_with));
+      SVX_ASSERT(!fixed(stn));
+      remove_stn_from_list(&stnlist, stn);
+      add_stn_to_list(&fixedlist, stn);
+   }
    stn->name->pos = pos_with;
-   for (d = 0; d < 3; d++) {
+   for (int d = 0; d < 3; d++) {
       linkfor *leg = stn->leg[d];
-      node *to;
       if (!leg) break;
-      to = leg->l.to;
+      node *to = leg->l.to;
       if (to == from) continue;
 
       if (fZeros(data_here(leg) ? &leg->v : &reverse_leg(leg)->v))
-	 replace_pfx_(to, stn, pos_replace, pos_with);
+	 replace_pfx_(to, stn, pos_with, move_to_fixedlist);
    }
 }
 
 /* We used to iterate over the whole station list (inefficient) - now we
  * just look at any neighbouring nodes to see if they are equated */
 static void
-replace_pfx(const prefix *pfx_replace, const prefix *pfx_with)
+replace_pfx(const prefix *pfx_replace, const prefix *pfx_with,
+	    bool move_to_fixedlist)
 {
-   pos *pos_replace;
    SVX_ASSERT(pfx_replace);
    SVX_ASSERT(pfx_with);
-   pos_replace = pfx_replace->pos;
+   pos *pos_replace = pfx_replace->pos;
    SVX_ASSERT(pos_replace != pfx_with->pos);
 
-   replace_pfx_(pfx_replace->stn, NULL, pos_replace, pfx_with->pos);
+   replace_pfx_(pfx_replace->stn, NULL, pfx_with->pos, move_to_fixedlist);
 
 #if DEBUG_INVALID
-   {
-      node *stn;
-      FOR_EACH_STN(stn, stnlist) {
-	 SVX_ASSERT(stn->name->pos != pos_replace);
-      }
+   for (node *stn = stnlist; stn; stn = stn->next) {
+      SVX_ASSERT(stn->name->pos != pos_replace);
+   }
+   for (node *stn = fixedlist; stn; stn = stn->next) {
+      SVX_ASSERT(stn->name->pos != pos_replace);
    }
 #endif
 
@@ -426,13 +423,10 @@ replace_pfx(const prefix *pfx_replace, const prefix *pfx_with)
    osfree(pos_replace);
 }
 
-/* Add an equating leg between existing stations *fr and *to (whose names are
- * name1 and name2).
- */
+// Add equating leg between existing stations whose names are name1 and name2.
 void
 process_equate(prefix *name1, prefix *name2)
 {
-   node *stn1, *stn2;
    clear_last_leg();
    if (name1 == name2) {
       /* catch something like *equate "fred fred" */
@@ -442,16 +436,16 @@ process_equate(prefix *name1, prefix *name2)
 			 sprint_prefix(name1));
       return;
    }
-   stn1 = StnFromPfx(name1);
-   stn2 = StnFromPfx(name2);
+   node *stn1 = StnFromPfx(name1);
+   node *stn2 = StnFromPfx(name2);
    /* equate nodes if not already equated */
    if (name1->pos != name2->pos) {
       if (pfx_fixed(name1)) {
-	 if (pfx_fixed(name2)) {
+	 bool name2_fixed = pfx_fixed(name2);
+	 if (name2_fixed) {
 	    /* both are fixed, but let them off iff their coordinates match */
 	    char *s = osstrdup(sprint_prefix(name1));
-	    int d;
-	    for (d = 2; d >= 0; d--) {
+	    for (int d = 2; d >= 0; d--) {
 	       if (name1->pos->p[d] != name2->pos->p[d]) {
 		  compile_diagnostic(DIAG_ERR, /*Tried to equate two non-equal fixed stations: “%s” and “%s”*/52,
 				     s, sprint_prefix(name2));
@@ -470,10 +464,10 @@ process_equate(prefix *name1, prefix *name2)
 	 }
 
 	 /* name1 is fixed, so replace all refs to name2's pos with name1's */
-	 replace_pfx(name2, name1);
+	 replace_pfx(name2, name1, !name2_fixed);
       } else {
 	 /* name1 isn't fixed, so replace all refs to its pos with name2's */
-	 replace_pfx(name1, name2);
+	 replace_pfx(name1, name2, pfx_fixed(name2));
       }
 
       /* count equates as legs for now... */
@@ -513,71 +507,65 @@ addfakeleg(node *fr, node *to,
 static char
 freeleg(node **stnptr)
 {
-   node *stn, *oldstn;
-   linkfor *leg, *leg2;
-#ifndef NO_COVARIANCES
-   int i;
-#endif
-
-   stn = *stnptr;
+   node *stn = *stnptr;
 
    if (stn->leg[0] == NULL) return 0; /* leg[0] unused */
    if (stn->leg[1] == NULL) return 1; /* leg[1] unused */
    if (stn->leg[2] == NULL) return 2; /* leg[2] unused */
 
    /* All legs used, so split node in two */
-   oldstn = stn;
-   stn = osnew(node);
-   leg = osnew(linkfor);
-   leg2 = (linkfor*)osnew(linkrev);
+   node *newstn = osnew(node);
+   linkfor *leg = osnew(linkfor);
+   linkfor *leg2 = (linkfor*)osnew(linkcommon);
 
-   *stnptr = stn;
+   *stnptr = newstn;
 
-   add_stn_to_list(&stnlist, stn);
-   stn->name = oldstn->name;
+   add_stn_to_list(fixed(stn) ? &fixedlist : &stnlist, newstn);
+   newstn->name = stn->name;
 
-   leg->l.to = stn;
+   leg->l.to = newstn;
    leg->d[0] = leg->d[1] = leg->d[2] = (real)0.0;
 
 #ifndef NO_COVARIANCES
-   for (i = 0; i < 6; i++) leg->v[i] = (real)0.0;
+   for (int i = 0; i < 6; i++) leg->v[i] = (real)0.0;
 #else
    leg->v[0] = leg->v[1] = leg->v[2] = (real)0.0;
 #endif
    leg->l.reverse = 1 | FLAG_DATAHERE | FLAG_FAKE;
    leg->l.flags = pcs->flags | (pcs->recorded_style << FLAGS_STYLE_BIT0);
 
-   leg2->l.to = oldstn;
+   leg2->l.to = stn;
    leg2->l.reverse = 0;
 
-   /* NB this preserves pos->stn->leg[0] to point to the "real" fixed point
-    * for stations fixed with error estimates
-    */
-   stn->leg[0] = oldstn->leg[0];
-   /* correct reverse leg */
-   reverse_leg(stn->leg[0])->l.to = stn;
-   stn->leg[1] = leg2;
+   // NB this preserves pos->stn->leg[0] pointing to the "real" fixed point
+   // for stations fixed with error estimates.
+   newstn->leg[0] = stn->leg[0];
+   // Update the reverse leg.
+   reverse_leg(newstn->leg[0])->l.to = newstn;
+   newstn->leg[1] = leg2;
 
-   oldstn->leg[0] = leg;
+   stn->leg[0] = leg;
 
-   stn->leg[2] = NULL; /* needed as stn->leg[dirn]==NULL indicates unused */
+   newstn->leg[2] = NULL; /* needed as newstn->leg[dirn]==NULL indicates unused */
 
-   return(2); /* leg[2] unused */
+   return 2; /* leg[2] unused */
 }
 
 node *
 StnFromPfx(prefix *name)
 {
-   node *stn;
-   if (name->stn != NULL) return (name->stn);
-   stn = osnew(node);
+   if (name->stn != NULL) return name->stn;
+   node *stn = osnew(node);
    stn->name = name;
+   bool fixed = false;
    if (name->pos == NULL) {
       name->pos = osnew(pos);
       unfix(stn);
+   } else {
+      fixed = pfx_fixed(name);
    }
    stn->leg[0] = stn->leg[1] = stn->leg[2] = NULL;
-   add_stn_to_list(&stnlist, stn);
+   add_stn_to_list(fixed ? &fixedlist : &stnlist, stn);
    name->stn = stn;
    cStns++;
    return stn;
@@ -656,9 +644,6 @@ mulss(var *r, const svar *a, const svar *b)
    (*r)[1] = (*a)[1] * (*b)[1];
    (*r)[2] = (*a)[2] * (*b)[2];
 #else
-   int i, j, k;
-   real tot;
-
 #if 0
    SVX_ASSERT((const var *)r != a);
    SVX_ASSERT((const var *)r != b);
@@ -667,10 +652,10 @@ mulss(var *r, const svar *a, const svar *b)
    check_svar(a);
    check_svar(b);
 
-   for (i = 0; i < 3; i++) {
-      for (j = 0; j < 3; j++) {
-	 tot = 0;
-	 for (k = 0; k < 3; k++) {
+   for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+	 real tot = 0;
+	 for (int k = 0; k < 3; k++) {
 	    tot += SN(a,i,k) * SN(b,k,j);
 	 }
 	 (*r)[i][j] = tot;
@@ -685,9 +670,6 @@ mulss(var *r, const svar *a, const svar *b)
 void
 smulvs(svar *r, const var *a, const svar *b)
 {
-   int i, j, k;
-   real tot;
-
 #if 0
    SVX_ASSERT((const var *)r != a);
 #endif
@@ -697,10 +679,10 @@ smulvs(svar *r, const var *a, const svar *b)
    check_svar(b);
 
    (*r)[3]=(*r)[4]=(*r)[5]=-999;
-   for (i = 0; i < 3; i++) {
-      for (j = 0; j < 3; j++) {
-	 tot = 0;
-	 for (k = 0; k < 3; k++) {
+   for (int i = 0; i < 3; i++) {
+      for (int j = 0; j < 3; j++) {
+	 real tot = 0;
+	 for (int k = 0; k < 3; k++) {
 	    tot += (*a)[i][k] * SN(b,k,j);
 	 }
 	 if (i <= j)
@@ -726,16 +708,13 @@ mulsd(delta *r, const svar *v, const delta *b)
    (*r)[1] = (*v)[1] * (*b)[1];
    (*r)[2] = (*v)[2] * (*b)[2];
 #else
-   int i, j;
-   real tot;
-
    SVX_ASSERT((const delta*)r != b);
    check_svar(v);
    check_d(b);
 
-   for (i = 0; i < 3; i++) {
-      tot = 0;
-      for (j = 0; j < 3; j++) tot += S(i,j) * (*b)[j];
+   for (int i = 0; i < 3; i++) {
+      real tot = 0;
+      for (int j = 0; j < 3; j++) tot += S(i,j) * (*b)[j];
       (*r)[i] = tot;
    }
    check_d(r);
@@ -752,10 +731,8 @@ mulsc(svar *r, const svar *a, real c)
    (*r)[1] = (*a)[1] * c;
    (*r)[2] = (*a)[2] * c;
 #else
-   int i;
-
    check_svar(a);
-   for (i = 0; i < 6; i++) (*r)[i] = (*a)[i] * c;
+   for (int i = 0; i < 6; i++) (*r)[i] = (*a)[i] * c;
    check_svar(r);
 #endif
 }
@@ -793,11 +770,9 @@ addss(svar *r, const svar *a, const svar *b)
    (*r)[1] = (*a)[1] + (*b)[1];
    (*r)[2] = (*a)[2] + (*b)[2];
 #else
-   int i;
-
    check_svar(a);
    check_svar(b);
-   for (i = 0; i < 6; i++) (*r)[i] = (*a)[i] + (*b)[i];
+   for (int i = 0; i < 6; i++) (*r)[i] = (*a)[i] + (*b)[i];
    check_svar(r);
 #endif
 }
@@ -812,11 +787,9 @@ subss(svar *r, const svar *a, const svar *b)
    (*r)[1] = (*a)[1] - (*b)[1];
    (*r)[2] = (*a)[2] - (*b)[2];
 #else
-   int i;
-
    check_svar(a);
    check_svar(b);
-   for (i = 0; i < 6; i++) (*r)[i] = (*a)[i] - (*b)[i];
+   for (int i = 0; i < 6; i++) (*r)[i] = (*a)[i] - (*b)[i];
    check_svar(r);
 #endif
 }
@@ -826,14 +799,11 @@ extern int
 invert_svar(svar *inv, const svar *v)
 {
 #ifdef NO_COVARIANCES
-   int i;
-   for (i = 0; i < 3; i++) {
+   for (int i = 0; i < 3; i++) {
       if ((*v)[i] == 0.0) return 0; /* matrix is singular */
       (*inv)[i] = 1.0 / (*v)[i];
    }
 #else
-   real det, a, b, c, d, e, f, bcff, efcd, dfbe;
-
 #if 0
    SVX_ASSERT((const var *)inv != v);
 #endif
@@ -843,12 +813,12 @@ invert_svar(svar *inv, const svar *v)
     * d b f
     * e f c
     */
-   a = (*v)[0], b = (*v)[1], c = (*v)[2];
-   d = (*v)[3], e = (*v)[4], f = (*v)[5];
-   bcff = b * c - f * f;
-   efcd = e * f - c * d;
-   dfbe = d * f - b * e;
-   det = a * bcff + d * efcd + e * dfbe;
+   real a = (*v)[0], b = (*v)[1], c = (*v)[2];
+   real d = (*v)[3], e = (*v)[4], f = (*v)[5];
+   real bcff = b * c - f * f;
+   real efcd = e * f - c * d;
+   real dfbe = d * f - b * e;
+   real det = a * bcff + d * efcd + e * dfbe;
 
    if (det == 0.0) {
       /* printf("det=%.20f\n", det); */
@@ -922,10 +892,8 @@ fZeros(const svar *v) {
    /* variance-only version */
    return ((*v)[0] == 0.0 && (*v)[1] == 0.0 && (*v)[2] == 0.0);
 #else
-   int i;
-
    check_svar(v);
-   for (i = 0; i < 6; i++) if ((*v)[i] != 0.0) return false;
+   for (int i = 0; i < 6; i++) if ((*v)[i] != 0.0) return false;
 
    return true;
 #endif

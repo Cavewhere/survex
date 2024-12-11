@@ -35,41 +35,29 @@
 
 #include "img.h"
 
-#define TIMENA "?"
-#ifdef IMG_HOSTED
+#if defined HAVE_STDINT_H || \
+    (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L) || \
+    (defined __cplusplus && __cplusplus >= 201103L)
+# include <stdint.h>
 # define INT32_T int32_t
 # define UINT32_T uint32_t
-# define SNPRINTF snprintf
-# include "debug.h"
-# include "filelist.h"
-# include "filename.h"
-# include "message.h"
-# include "osalloc.h"
-# include "useful.h"
-# define TIMEFMT msg(/*%a,%Y.%m.%d %H:%M:%S %Z*/107)
 #else
-# if defined HAVE_STDINT_H || \
-     (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L) || \
-     (defined __cplusplus && __cplusplus >= 201103L)
-#  include <stdint.h>
-#  define INT32_T int32_t
-#  define UINT32_T uint32_t
+# include <limits.h>
+# if INT_MAX >= 2147483647
+#  define INT32_T int
+#  define UINT32_T unsigned
 # else
-#  include <limits.h>
-#  if INT_MAX >= 2147483647
-#   define INT32_T int
-#   define UINT32_T unsigned
-#  else
-#   define INT32_T long
-#   define UINT32_T unsigned long
-#  endif
+#  define INT32_T long
+#  define UINT32_T unsigned long
 # endif
-# if defined HAVE_SNPRINTF || \
-     (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L) || \
-     (defined __cplusplus && __cplusplus >= 201103L)
-#  define SNPRINTF snprintf
-# else
-#  define SNPRINTF my_snprintf
+#endif
+
+#if defined HAVE_SNPRINTF || \
+    (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L) || \
+    (defined __cplusplus && __cplusplus >= 201103L)
+# define SNPRINTF snprintf
+#else
+# define SNPRINTF my_snprintf
 static int my_snprintf(char *s, size_t size, const char *format, ...) {
     int result;
     va_list ap;
@@ -79,7 +67,18 @@ static int my_snprintf(char *s, size_t size, const char *format, ...) {
     va_end(ap);
     return result;
 }
-# endif
+#endif
+
+#define TIMENA "?"
+#ifdef IMG_HOSTED
+# include "debug.h"
+# include "filelist.h"
+# include "filename.h"
+# include "message.h"
+# include "osalloc.h"
+# include "useful.h"
+# define TIMEFMT msg(/*%a,%Y.%m.%d %H:%M:%S %Z*/107)
+#else
 # define TIMEFMT "%a,%Y.%m.%d %H:%M:%S %Z"
 # define EXT_SVX_3D "3d"
 # define FNM_SEP_EXT '.'
@@ -87,7 +86,6 @@ static int my_snprintf(char *s, size_t size, const char *format, ...) {
 # define xosmalloc(L) malloc((L))
 # define xosrealloc(L,S) realloc((L),(S))
 # define osfree(P) free((P))
-# define osnew(T) (T*)malloc(sizeof(T))
 
 /* in IMG_HOSTED mode, this tests if a filename refers to a directory */
 # define fDirectory(X) 0
@@ -424,7 +422,7 @@ compass_plt_update_station(img *pimg, const char *name, int name_len,
 	    }
 	}
     }
-    p = malloc(offsetof(struct compass_station, name) + name_len);
+    p = xosmalloc(offsetof(struct compass_station, name) + name_len);
     if (!p) return -1;
     p->flags = flags;
     p->len = name_len;
@@ -1163,7 +1161,7 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
       return NULL;
    }
 
-   pimg = osnew(img);
+   pimg = xosmalloc(sizeof(img));
    if (pimg == NULL) {
       img_errno = IMG_OUTOFMEMORY;
       if (close_func) close_func(stream);
@@ -1598,7 +1596,7 @@ img_write_stream(FILE *stream, int (*close_func)(FILE*),
       return NULL;
    }
 
-   pimg = osnew(img);
+   pimg = xosmalloc(sizeof(img));
    if (pimg == NULL) {
       img_errno = IMG_OUTOFMEMORY;
       if (close_func) close_func(stream);

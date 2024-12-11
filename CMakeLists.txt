@@ -163,12 +163,12 @@ add_custom_command(
     OUTPUT
     ${PROJECT_BINARY_DIR}/thgeomagdata.h
 
-    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf2c.py ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf13coeffs.txt
-    COMMAND ${CMAKE_COMMAND} -E rename ${PROJECT_BINARY_DIR}/../thgeomagdata.h ${PROJECT_BINARY_DIR}/thgeomagdata.h
+    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf2c.py ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf14coeffs.txt
+    # COMMAND ${CMAKE_COMMAND} -E rename ${PROJECT_BINARY_DIR}/../thgeomagdata.h ${PROJECT_BINARY_DIR}/thgeomagdata.h
 
     DEPENDS
     ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf2c.py
-    ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf13coeffs.txt
+    ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf14coeffs.txt
     )
 add_custom_target(thgeomagdata DEPENDS ${PROJECT_BINARY_DIR}/thgeomagdata.h)
 
@@ -266,6 +266,13 @@ target_compile_definitions(extend PUBLIC
     _CRT_SECURE_NO_WARNINGS
     )
 
+add_custom_command(
+    OUTPUT ${PROJECT_BINARY_DIR}/img2aven.h
+    COMMAND ${PERL_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/gen_img2aven > ${PROJECT_BINARY_DIR}/img2aven.h
+    COMMENT "Generating img2aven.h"
+)
+add_custom_target(img2aven DEPENDS ${PROJECT_BINARY_DIR}/img2aven.h)
+
 add_executable(survexport
     ${SRC_DIR}/survexport.cc
     ${SRC_DIR}/model.cc
@@ -278,16 +285,23 @@ add_executable(survexport
     ${SRC_DIR}/pos.cc
     ${SRC_DIR}/vector3.cc
     ${SRC_DIR}/export3d.cc
+    ${SRC_DIR}/gdalexport.cc
     )
 target_include_directories(survexport PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(survexport
     wxWidgets::wxWidgets
     GLEW::GLEW
+    GDAL::GDAL
     survex_core)
 target_compile_definitions(survexport PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
+    HAVE_GDAL
     )
+add_dependencies(survexport
+    img2aven
+    )
+
 
 set(FONT_FILES
     ${PROJECT_BINARY_DIR}/unifont.hex
@@ -345,12 +359,14 @@ add_executable(aven WIN32
     ${SRC_DIR}/useful.c
     ${SRC_DIR}/hash.c
     ${SRC_DIR}/export3d.cc
+    ${SRC_DIR}/gdalexport.cc
 )
 
 add_dependencies(aven
     make-pixel-font
     gdtconvert
     messageFiles
+    img2aven
     )
 
 target_include_directories(aven PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
@@ -363,6 +379,7 @@ target_link_libraries(aven
 target_compile_definitions(aven PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
+    HAVE_GDAL
     )
 
 set(WX_VC_X64_DLL_PATH "")

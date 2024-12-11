@@ -6,7 +6,8 @@ EXTRA_DIST = compare.tst $(TESTS)\
 beginroot.svx beginroot.out\
 oneleg.svx oneleg.pos\
 midpoint.svx midpoint.pos\
-noose.svx noose.pos\
+lollipop.svx lollipop.out lollipop.pos\
+fixedlollipop.svx fixedlollipop.out fixedlollipop.pos\
 cross.svx cross.pos\
 deltastar.svx deltastar.pos\
 deltastar2.svx deltastar2.pos\
@@ -122,9 +123,11 @@ wallsdecl.wpj wallsdecl.srv wallsdecl.out wallsdecl.dump\
 badopts.srv badopts.out\
 dot17.svx dot17.pos 3dcorner.svx 3dcorner.pos\
 nosurveyhanging.svx nosurveyhanging.out\
+nosurveyhanging2.svx nosurveyhanging2.dump nosurveyhanging2.out\
 cmd_solve_hanging.svx passage.svx hanging_lrud.svx\
 cmd_solve_nothing.svx cmd_solve_nothing_implicit.svx\
-cmd_date.svx cmd_date.out cmd_datebad.svx cmd_datebad.out cmd_datebad2.svx cmd_datebad2.out\
+cmd_date.dump cmd_date.svx cmd_date.out\
+cmd_datebad.svx cmd_datebad.out cmd_datebad2.svx cmd_datebad2.out\
 cmd_calibrate.svx cmd_calibrate.out cmd_calibrate.pos\
 cmd_declination.svx cmd_declination.out cmd_declination.pos\
 cmd_declination_auto.svx cmd_declination_auto.out cmd_declination_auto.pos\
@@ -165,6 +168,8 @@ cmd_data_ignore.out cmd_data_ignore.pos cmd_data_ignore.svx\
 samename.svx\
 tabinhighlight.out tabinhighlight.svx\
 legacytokens.out legacytokens.svx\
+component_count_bug.svx component_count_bug.out\
+component_count_bug2.svx component_count_bug2.out\
 3dexport.dump 3dexport.svx\
 dxffullcoords.dxf dxffullcoords.svx\
 dxfsurfequate.svx dxfsurfequate.dxf\
@@ -182,6 +187,7 @@ imgtest_survey.svx
 EXTRA_DIST +=\
 cmapstn.adj cmapstn.dump\
 cmap.sht cmap.dump\
+dump3ddate.3d dump3ddate.dump\
 extendsurveyx.3d extendsurveyx.dump\
 filter.plt filter.dump\
 separator.3d separator.dump\

@@ -51,12 +51,6 @@
 
 #include <sys/stat.h>
 
-/* For funcs which want to be immune from messing around with different
- * calling conventions */
-#ifndef CDECL
-# define CDECL
-#endif
-
 int msg_warnings = 0; /* keep track of how many warnings we've given */
 int msg_errors = 0;   /* and how many (non-fatal) errors */
 
@@ -302,6 +296,16 @@ add_unicode(int charset, unsigned char *p, int value)
 	 *p = value;
 	 return 1;
       }
+      switch (value) {
+	case 0x2032:
+	  /* prime -> spacing acute accent */
+	  *p = '\xb4';
+	  return 1;
+	case 0x2033:
+	  /* double prime -> 2x spacing acute accent */
+	  p[1] = *p = '\xb4';
+	  return 2;
+      }
       break;
    case CHARSET_ISO_8859_2:
       if (value >= 0xa0) {
@@ -329,6 +333,7 @@ add_unicode(int charset, unsigned char *p, int value)
 	    case 0x105: v = '\xb1'; break;
 	    case 0x2db: v = '\xb2'; break;
 	    case 0x142: v = '\xb3'; break;
+	    case 0x2032: v = '\xb4'; break; /* prime -> spacing acute accent */
 	    case 0x13e: v = '\xb5'; break;
 	    case 0x15b: v = '\xb6'; break;
 	    case 0x2c7: v = '\xb7'; break;
@@ -337,6 +342,7 @@ add_unicode(int charset, unsigned char *p, int value)
 	    case 0x165: v = '\xbb'; break;
 	    case 0x17a: v = '\xbc'; break;
 	    case 0x2dd: v = '\xbd'; break;
+	    case 0x2033: v = '\xbd'; break; /* double prime -> spacing double acute accent */
 	    case 0x17e: v = '\xbe'; break;
 	    case 0x17c: v = '\xbf'; break;
 	    case 0x154: v = '\xc0'; break;
@@ -455,10 +461,12 @@ add_unicode(int charset, unsigned char *p, int value)
 	    case 0x017b: v = '\xaf'; break;
 	    case 0x02db: v = '\xb2'; break;
 	    case 0x0142: v = '\xb3'; break;
+	    case 0x2032: v = '\xb4'; break; /* prime -> spacing acute accent */
 	    case 0x0105: v = '\xb9'; break;
 	    case 0x015f: v = '\xba'; break; /* scedil */
 	    case 0x013d: v = '\xbc'; break;
 	    case 0x02dd: v = '\xbd'; break;
+	    case 0x2033: v = '\xbd'; break; /* double prime -> spacing double acute accent */
 	    case 0x013e: v = '\xbe'; break;
 	    case 0x017c: v = '\xbf'; break;
 	    case 0x0154: v = '\xc0'; break;
@@ -535,6 +543,11 @@ add_unicode(int charset, unsigned char *p, int value)
        case 0x203a: value = 0x9b; break; /* rsaquo */
        case 0x0178: value = 0x9f; break; /* Yuml */
 #endif
+       case 0x2032: value = 0xb4; break; /* prime -> spacing acute accent */
+       case 0x2033:
+	  /* double prime -> 2x spacing acute accent */
+	  p[1] = *p = '\xb4';
+	  return 2;
       }
       if (value < 0x100) {
 	 *p = value;
@@ -561,6 +574,16 @@ add_unicode(int charset, unsigned char *p, int value)
       if (value >= 160 && value < 256) {
 	 *p = (int)uni2dostab[value - 160];
 	 return 1;
+      }
+      switch (value) {
+	case 0x2032:
+	  /* prime -> spacing acute accent */
+	  *p = '\xef';
+	  return 1;
+	case 0x2033:
+	  /* double prime -> 2x spacing acute accent */
+	  p[1] = *p = '\xef';
+	  return 2;
       }
 #if 0
       if (value == 305) { /* LATIN SMALL LETTER DOTLESS I */
@@ -685,6 +708,10 @@ add_unicode(int charset, unsigned char *p, int value)
       *p = '"'; return 1;
     case 0x2026: /* &hellip; */
       *p = '.'; p[1] = '.'; p[2] = '.'; return 3;
+    case 0x2032: /* prime -> apostrophe */
+      *p = '\''; return 1;
+    case 0x2033: /* double prime -> double quote */
+      *p = '"'; return 1;
     case 0x2192: /* &rarr; */
       *p = '-'; p[1] = '>'; return 2;
     case 0x1d4d: /* gradient symbol */

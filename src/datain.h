@@ -1,7 +1,7 @@
 /* datain.h
  * Header file for code that...
  * Reads in survey files, dealing with special characters, keywords & data
- * Copyright (C) 1994-2022 Olly Betts
+ * Copyright (C) 1994-2024 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,14 +18,16 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_SETJMP_H
-# include <setjmp.h>
-#endif
+#ifndef DATAIN_H
+#define DATAIN_H
 
+#include <setjmp.h>
 #include <stdio.h> /* for FILE */
 
 #include "message.h" /* for DIAG_WARN, etc */
 
+// We rely on implicit initialisation of this struct, so members will be
+// initialised to NULL, 0, false, etc.
 typedef struct parse {
    FILE *fh;
    const char *filename;
@@ -34,13 +36,11 @@ typedef struct parse {
    bool reported_where : 1;
    unsigned prev_line_len : 31;
    struct parse *parent;
-#ifdef HAVE_SETJMP_H
-   jmp_buf jbSkipLine;
-#endif
 } parse;
 
 extern int ch;
 extern parse file;
+extern jmp_buf jbSkipLine;
 extern bool f_export_ok;
 
 #define nextch() (ch = GETC(file.fh))
@@ -106,3 +106,5 @@ void compile_diagnostic_pfx(int flags, const prefix * pfx, int en, ...);
 
 void compile_diagnostic_token_show(int flags, int en);
 void compile_diagnostic_buffer(int flags, int en, ...);
+
+#endif

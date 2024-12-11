@@ -279,11 +279,6 @@ typedef struct {
 #define FLAG_FAKE 0x10 /* an equate or leg inside an sdfix */
 #define MASK_REVERSEDIRN 0x03
 
-/* reverse leg - deltas & vars stored on other dirn */
-typedef struct LinkRev {
-   linkcommon l;
-} linkrev;
-
 /* forward leg - deltas & vars stored here */
 typedef struct Link {
    linkcommon l;
@@ -310,7 +305,8 @@ typedef struct Node {
 
 /* station position */
 typedef struct Pos {
-   delta p; /* Position */
+   // Easting, Northing, Altitude.
+   real p[3];
 } pos;
 
 /*
@@ -374,7 +370,7 @@ typedef struct Settings {
     */
    real dec_lat, dec_lon, dec_alt;
    /* Cached auto-declination in radians, or HUGE_REAL for no cached value.
-    * Only meaningful if date1 != -1.
+    * Only meaningful if days1 != -1.
     */
    real declination;
    double min_declination, max_declination;
@@ -398,6 +394,7 @@ typedef struct Settings {
 extern settings *pcs;
 extern prefix *root;
 extern prefix *anon_list;
+extern node *fixedlist;
 extern node *stnlist;
 extern unsigned long optimize;
 extern char * proj_str_out;
@@ -407,7 +404,6 @@ extern string survey_title;
 
 extern bool fExplicitTitle;
 extern long cLegs, cStns, cComponents;
-extern bool hanging_surveys;
 extern FILE *fhErrStat;
 extern img *pimg;
 extern real totadj, total, totplan, totvert;

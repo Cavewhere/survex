@@ -103,9 +103,9 @@ typedef enum {
     CTYPE_HORIZ
 } clino_type;
 
-/* Don't explicitly initialise as we can't set the jmp_buf - this has
- * static scope so will be initialised like this anyway */
-parse file /* = { NULL, NULL, 0, false, NULL } */ ;
+parse file;
+
+jmp_buf jbSkipLine;
 
 bool f_export_ok;
 
@@ -678,13 +678,11 @@ data_file_compass_dat_or_clp(bool is_clp)
      * process CompassDATFr and CompassDATTo fields.
      */
 
-#ifdef HAVE_SETJMP_H
-    /* errors in nested functions can longjmp here */
-    if (setjmp(file.jbSkipLine)) {
+    if (setjmp(jbSkipLine)) {
+	// Recover from errors in nested functions by longjmp() to here.
 	skipline();
 	process_eol();
     }
-#endif
 
     while (ch != EOF && !ferror(file.fh)) {
 	static const reading compass_order[] = {
@@ -840,13 +838,11 @@ data_file_compass_mak(void)
     // characters due to how the syntax works.
     t['['] = t[','] = t[';'] = 0;
 
-#ifdef HAVE_SETJMP_H
-    /* errors in nested functions can longjmp here */
-    if (setjmp(file.jbSkipLine)) {
+    if (setjmp(jbSkipLine)) {
+	// Recover from errors in nested functions by longjmp() to here.
 	skipline();
 	process_eol();
     }
-#endif
 
     int datum = 0;
     int utm_zone = 0;
@@ -2397,13 +2393,12 @@ data_file_walls_srv(void)
     // followed.
     update_output_separator();
 
-#ifdef HAVE_SETJMP_H
     /* errors in nested functions can longjmp here */
-    if (setjmp(file.jbSkipLine)) {
+    if (setjmp(jbSkipLine)) {
+	// Recover from errors in nested functions by longjmp() to here.
 	skipline();
 	process_eol();
     }
-#endif
 
     if (pcs->style == STYLE_NORMAL)
 	pcs->ordering = p_walls_options->data_order_ct;
@@ -3009,13 +3004,11 @@ data_file_walls_wpj(void)
     // Start from the location of this WPJ.
     s_append(&p_walls_options->path, pth);
 
-#ifdef HAVE_SETJMP_H
-    /* errors in nested functions can longjmp here */
-    if (setjmp(file.jbSkipLine)) {
+    if (setjmp(jbSkipLine)) {
+	// Recover from errors in nested functions by longjmp() to here.
 	skipline();
 	process_eol();
     }
-#endif
 
     int status = -1;
     long name_lpos = -1;
@@ -3380,13 +3373,11 @@ data_file_survex(void)
 	}
     }
 
-#ifdef HAVE_SETJMP_H
-    /* errors in nested functions can longjmp here */
-    if (setjmp(file.jbSkipLine)) {
+    if (setjmp(jbSkipLine)) {
+	// Recover from errors in nested functions by longjmp() to here.
 	skipline();
 	process_eol();
     }
-#endif
 
     while (ch != EOF && !ferror(file.fh)) {
 	if (!process_non_data_line()) {
@@ -4378,15 +4369,19 @@ handle_isolated_lrud:
     bool new;
     *p_to = read_walls_station(p_walls_options->prefix, true, &new);
     if (might_be_lrud && new) {
-	// Walls behaviour here means isolated LRUD with a missing
-	// closing delimiter gets quietly misparsed as a survey leg so
-	// we issue a warning unless the affected station was already
-	// known.  Real world example:
-	//
-	// P25      *8 5 15 3.58
 	filepos fp_save;
 	get_pos(&fp_save);
 	set_pos(&fp);
+	// TRANSLATORS: Warning issued about a dubious case in survey data in
+	// Walls format (.srv).  Real world example:
+	//
+	// P25      *8 5 15 3.58
+	//
+	// This is treated by Walls as a leg from P25 to *8 but seems likely
+	// to be intended to be an isolated LRUD reading (one not on a survey
+	// leg, useful for the start or end of a traverse) but the closing *
+	// was missed (or perhaps in this particular case, mistyped as an 8
+	// by failing to press shift), so Survex issues a warning about it.
 	compile_diagnostic(DIAG_WARN|DIAG_WORD,
 			   /*Parsing as “to” station but may be isolated LRUD with missing closing delimiter*/508);
 	set_pos(&fp_save);

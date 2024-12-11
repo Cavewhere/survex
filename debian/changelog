@@ -1,3 +1,42 @@
+survex (1.4.13-2) unstable; urgency=medium
+
+  * debian/patches/fix-lollipop-test.patch: Backport testcase tweak to avoid
+    failure on i386 due to excess precision.
+
+ -- Olly Betts <olly@survex.com>  Mon, 02 Dec 2024 12:33:03 +1300
+
+survex (1.4.13-1) unstable; urgency=medium
+
+  * New upstream release:
+    + debian/patches: Remaining patch merged upstream so remove.
+  * debian/doc-base: The plain text version of the manual is no longer
+    generated (upstream change in 1.4.10) so stop trying to register it
+    with doc-base.
+
+ -- Olly Betts <olly@survex.com>  Sun, 01 Dec 2024 16:59:54 +1300
+
+survex (1.4.12-2) unstable; urgency=medium
+
+  * debian/patches/skip-hpglexport-testcase.patch: Reinstate part of
+    patch which hasn't yet been addressed upstream.
+
+ -- Olly Betts <olly@survex.com>  Wed, 23 Oct 2024 17:50:43 +1300
+
+survex (1.4.12-1) unstable; urgency=medium
+
+  * New upstream release:
+    + debian/patches: Remaining patch merged upstream so remove.
+
+ -- Olly Betts <olly@survex.com>  Wed, 23 Oct 2024 15:56:39 +1300
+
+survex (1.4.11-4) unstable; urgency=medium
+
+  * debian/patches/fix-i386-test-failures.patch: Rename
+    skip-hpgl-export-testcase.patch and include patch to normalise -0.00
+    in JSON export too.  (Closes: #1077514)
+
+ -- Olly Betts <olly@survex.com>  Thu, 15 Aug 2024 15:00:17 +1200
+
 survex (1.4.11-3) unstable; urgency=medium
 
   * debian/patches/series: Actually apply new patch. (Closes: #1077514)

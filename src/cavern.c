@@ -47,20 +47,14 @@
 # include <conio.h> /* for _kbhit() and _getch() */
 #endif
 
-/* For funcs which want to be immune from messing around with different
- * calling conventions */
-#ifndef CDECL
-# define CDECL
-#endif
-
 /* Globals */
-node *stnlist = NULL;
+node *fixedlist = NULL; // Fixed points
+node *stnlist = NULL; // Unfixed stations
 settings *pcs;
 prefix *root;
 prefix *anon_list = NULL;
 long cLegs, cStns;
 long cComponents;
-bool hanging_surveys = false;
 bool fExportUsed = false;
 char * proj_str_out = NULL;
 PJ * pj_cached = NULL;
@@ -117,19 +111,19 @@ static const struct option long_opts[] = {
 static struct help_msg help[] = {
 /*				<-- */
    /* TRANSLATORS: --help output for cavern --output option */
-   {HLP_ENCODELONG(2),	      /*set location for output files*/162, 0},
+   {HLP_ENCODELONG(2),	      /*set location for output files*/162, 0, 0},
    /* TRANSLATORS: --help output for cavern --quiet option */
-   {HLP_ENCODELONG(3),	      /*only show brief summary (-qq for errors only)*/163, 0},
+   {HLP_ENCODELONG(3),	      /*only show brief summary (-qq for errors only)*/163, 0, 0},
    /* TRANSLATORS: --help output for cavern --no-auxiliary-files option */
-   {HLP_ENCODELONG(4),	      /*do not create .err file*/164, 0},
+   {HLP_ENCODELONG(4),	      /*do not create .err file*/164, 0, 0},
    /* TRANSLATORS: --help output for cavern --warnings-are-errors option */
-   {HLP_ENCODELONG(5),	      /*turn warnings into errors*/165, 0},
+   {HLP_ENCODELONG(5),	      /*turn warnings into errors*/165, 0, 0},
    /* TRANSLATORS: --help output for cavern --log option */
-   {HLP_ENCODELONG(6),	      /*log output to .log file*/170, 0},
+   {HLP_ENCODELONG(6),	      /*log output to .log file*/170, 0, 0},
    /* TRANSLATORS: --help output for cavern --3d-version option */
-   {HLP_ENCODELONG(7),	      /*specify the 3d file format version to output*/171, 0},
+   {HLP_ENCODELONG(7),	      /*specify the 3d file format version to output*/171, 0, 0},
  /*{'z',			"set optimizations for network reduction"},*/
-   {0, 0, 0}
+   {0, 0, 0, 0}
 };
 
 /* atexit functions */
@@ -157,7 +151,7 @@ static void discarding_proj_logger(void *ctx, int level, const char *message) {
     (void)message;
 }
 
-extern CDECL int
+extern int
 main(int argc, char **argv)
 {
    int d;
@@ -214,6 +208,7 @@ main(int argc, char **argv)
 
    nosurveyhead = NULL;
 
+   fixedlist = NULL;
    stnlist = NULL;
    cLegs = cStns = cComponents = 0;
    totadj = total = totplan = totvert = 0.0;
@@ -363,7 +358,7 @@ main(int argc, char **argv)
 
    report_declination(pcs);
 
-   solve_network(/*stnlist*/); /* Find coordinates of all points */
+   solve_network(); /* Find coordinates of all points */
    validate();
 
    /* close .3d file */
@@ -477,24 +472,20 @@ do_stats(void)
 
    putnl();
 
-   // FIXME: We potentially need to adjust cComponents if there are hanging
-   // surveys for these statistics to be correct.
-   if (!hanging_surveys) {
-      if (cLoops == 1) {
-	 fputs(msg(/*There is 1 loop.*/138), stdout);
-      } else {
-	 printf(msg(/*There are %ld loops.*/139), cLoops);
-      }
+   if (cLoops == 1) {
+      fputs(msg(/*There is 1 loop.*/138), stdout);
+   } else {
+      printf(msg(/*There are %ld loops.*/139), cLoops);
+   }
 
+   putnl();
+
+   if (cComponents != 1) {
+      /* TRANSLATORS: "Connected component" in the graph theory sense - it
+       * means there are %ld bits of survey with no connections between them.
+       * This message is only used if there are more than 1. */
+      printf(msg(/*Survey has %ld connected components.*/178), cComponents);
       putnl();
-
-      if (cComponents != 1) {
-	 /* TRANSLATORS: "Connected component" in the graph theory sense - it
-	  * means there are %ld bits of survey with no connections between them.
-	  * This message is only used if there are more than 1. */
-	 printf(msg(/*Survey has %ld connected components.*/178), cComponents);
-	 putnl();
-      }
    }
 
    printf(msg(/*Total length of survey legs = %7.2f%s (%7.2f%s adjusted)*/132),

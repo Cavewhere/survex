@@ -140,10 +140,9 @@ class Model {
     list<traverse> traverses[8];
     mutable list<vector<XSect>> tubes;
 
-  public: // FIXME
+  private:
     list<LabelInfo*> m_Labels;
 
-  private:
     Vector3 m_Ext;
     double m_DepthMin, m_DepthExt;
     int m_DateMin, m_DateExt;
@@ -167,6 +166,11 @@ class Model {
     time_t m_DateStamp_numeric;
 
     Vector3 m_Offset;
+
+    // We lazily set the higher bits of LabelInfo::flags to a value to give us
+    // the sort order we want via integer subtraction.  This is done the first
+    // time this sort happens after loading a file.
+    bool added_plot_order_keys = false;
 
     void do_prepare_tubes() const;
 
@@ -281,6 +285,10 @@ class Model {
     list<LabelInfo*>::iterator GetLabelsNCEnd() {
 	return m_Labels.end();
     }
+
+    void SortLabelsByName();
+
+    void SortLabelsByPlotOrder();
 
     void prepare_tubes() const {
 	if (!m_TubesPrepared) {

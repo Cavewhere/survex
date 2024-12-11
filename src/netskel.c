@@ -81,15 +81,14 @@ static void err_stat(int cLegsTrav, double lenTrav,
 		     double vTot, double vTotTheo);
 
 extern void
-solve_network(void /*node *stnlist*/)
+solve_network(void)
 {
-   static int first_solve = 1;
-   node *stn;
+   static bool first_solve = true;
 
    /* We can't average across solving to fix positions. */
    clear_last_leg();
 
-   if (stnlist == NULL) {
+   if (stnlist == NULL && fixedlist == NULL) {
       if (first_solve) fatalerror(/*No survey data*/43);
       /* We've had a *solve followed by another *solve (or the implicit
        * *solve at the end of the data.  Don't moan about that. */
@@ -99,52 +98,46 @@ solve_network(void /*node *stnlist*/)
    ptrTrail = NULL;
    dump_network();
 
-   if (first_solve && !pcs->proj_str && !proj_str_out) {
-      /* If we haven't already solved to find some station positions, and
-       * there's no specified coordinate system, then check if there are any
-       * fixed points, and if there aren't, invent one at (0,0,0).
+   if (!fixedlist && first_solve && !pcs->proj_str && !proj_str_out) {
+      /* If there are no fixed points and we haven't already solved to find
+       * some station positions, and there's no specified coordinate system,
+       * the we pick a station and fixed it at (0,0,0).
        *
        * We do this first so the solving part is just like the standard case -
        * this avoid problems, such as sub-nodes of the invented fix having been
        * removed.  It also means we can fix the "first" station, which makes
-       * more sense to the user. */
-      FOR_EACH_STN(stn, stnlist)
-	 if (fixed(stn)) break;
+       * more sense to the user.
+       *
+       * Note that articulate() checks for and deals with any survey legs not
+       * connected to fixed points.
+       */
+      node *stn_to_fix = NULL;
 
-      if (!stn) {
-	/* If we've had a *solve and all the new survey since then is hanging,
-	 * we don't want to invent a fixed point.  We want to complain but
-	 * the easiest way to is just to continue processing and let
-	 * articulate() catch this condition as it will any hanging survey
-	 * data. */
-	 node *stnFirst = NULL;
-
-	 /* New stations are pushed onto the head of the list, so the
-	  * first station added is the last in the list. */
-	 FOR_EACH_STN(stn, stnlist) {
-	     /* Prefer a station with legs attached when choosing one to fix
-	      * so that if there's a hanging station on a nosurvey leg we pick
-	      * the main clump of survey data. */
-	     if (stnFirst && !stnFirst->leg[0]) continue;
-	     stnFirst = stn;
-	 }
-
-	 /* If we've got nosurvey legs, then the station we find to fix could
-	  * have no real legs attached. */
-	 SVX_ASSERT2(nosurveyhead || stnFirst->leg[0],
-		     "no fixed stns, but we've got a zero node!");
-	 SVX_ASSERT2(stnFirst, "no stations left in net!");
-	 stn = stnFirst;
-	 compile_diagnostic_pfx(DIAG_INFO, stn->name,
-				/*Survey has no fixed points. Therefore I’ve fixed %s at (0,0,0)*/72,
-				sprint_prefix(stn->name));
-	 POS(stn,0) = (real)0.0;
-	 POS(stn,1) = (real)0.0;
-	 POS(stn,2) = (real)0.0;
+      /* New stations are pushed onto the head of the list, so the
+       * first station added is the last in the list. */
+      for (node *stn = stnlist; stn; stn = stn->next) {
+	  /* Prefer a station with legs attached when choosing one to fix
+	   * so that if there's a hanging station on a nosurvey leg we pick
+	   * the main clump of survey data. */
+	  if (stn_to_fix && !stn->leg[0]) continue;
+	  stn_to_fix = stn;
       }
+
+      /* If we've got nosurvey legs, then the station we find to fix could
+       * have no real legs attached. */
+      SVX_ASSERT2(nosurveyhead || stn_to_fix->leg[0],
+		  "no fixed stns, but we've got a zero node!");
+      SVX_ASSERT2(stn_to_fix, "no stations left in net!");
+      compile_diagnostic_pfx(DIAG_INFO, stn_to_fix->name,
+			     /*Survey has no fixed points. Therefore I’ve fixed %s at (0,0,0)*/72,
+			     sprint_prefix(stn_to_fix->name));
+      static const double origin[3] = { 0.0, 0.0, 0.0 };
+      fix_station(stn_to_fix->name, origin);
+      // We should set the FIXED flag for the invented fix though.
+      stn_to_fix->name->sflags &= ~BIT(SFLAGS_FIXED);
    }
 
-   first_solve = 0;
+   first_solve = false;
 
    remove_trailing_travs();
    validate(); dump_network();
@@ -178,7 +171,7 @@ remove_trailing_travs(void)
     * A trailing traverse is a dead end back to a junction. */
    out_current_action(msg(/*Removing trailing traverses*/125));
    FOR_EACH_STN(stn, stnlist) {
-      if (!fixed(stn) && one_node(stn)) {
+      if (one_node(stn)) {
 	 int i = 0;
 	 int j;
 	 node *stn2 = stn;
@@ -236,14 +229,20 @@ remove_travs(void)
     * specific).  Feel free to follow this lead if you can't think of a better
     * term - these messages mostly indicate how processing is progressing. */
    out_current_action(msg(/*Concatenating traverses*/126));
+   FOR_EACH_STN(stn, fixedlist) {
+      for (int d = 0; d <= 2; d++) {
+	 linkfor *leg = stn->leg[d];
+	 if (!leg) break;
+	 if (!(leg->l.reverse & FLAG_REPLACEMENTLEG))
+	    concatenate_trav(stn, d);
+      }
+   }
    FOR_EACH_STN(stn, stnlist) {
-      if (fixed(stn) || three_node(stn)) {
-	 int d;
-	 for (d = 0; d <= 2; d++) {
-	    linkfor *leg = stn->leg[d];
-	    if (leg && !(leg->l.reverse & FLAG_REPLACEMENTLEG))
-	       concatenate_trav(stn, d);
-	 }
+      if (!three_node(stn)) continue;
+      for (int d = 0; d <= 2; d++) {
+	 linkfor *leg = stn->leg[d];
+	 if (!(leg->l.reverse & FLAG_REPLACEMENTLEG))
+	    concatenate_trav(stn, d);
       }
    }
 }
@@ -257,11 +256,13 @@ concatenate_trav(node *stn, int i)
    linkfor *newleg, *newleg2;
 
    stn2 = stn->leg[i]->l.to;
-   /* Reject single legs as they may be already concatenated traverses */
-   if (fixed(stn2) || !two_node(stn2)) return;
+   /* If the traverse is already a single leg there's nothing to do (this
+    * may also be an already-replaced traverse).
+    */
+   if (!two_node(stn2) || fixed(stn2)) return;
 
    trav = osnew(stack);
-   newleg2 = (linkfor*)osnew(linkrev);
+   newleg2 = (linkfor*)osnew(linkcommon);
 
 #if PRINT_NETBITS
    printf("Concatenating trav "); print_prefix(stn->name); printf("<%p>",stn);
@@ -283,8 +284,8 @@ concatenate_trav(node *stn, int i)
       fputs(szLink, stdout); print_prefix(stn->name); printf("<%p>",stn);
 #endif
 
-      /* stop if fixed or 3 or 1 node */
-      if (fixed(stn) || !two_node(stn)) break;
+      /* Check if we've reached the end of this traverse. */
+      if (!two_node(stn) || fixed(stn)) break;
 
       remove_stn_from_list(&stnlist, stn);
 
@@ -435,9 +436,6 @@ replace_travs(void)
      * term - these messages mostly indicate how processing is progressing. */
    out_current_action(msg(/*Calculating traverses*/127));
 
-   if (!fhErrStat && !fSuppress)
-      fhErrStat = safe_fopen_with_ext(fnm_output_base, EXT_SVX_ERRS, "w");
-
    if (!pimg) {
       char *fnm = add_ext(fnm_output_base, EXT_SVX_3D);
       filename_register_output(fnm);
@@ -447,8 +445,11 @@ replace_travs(void)
       osfree(fnm);
    }
 
+   if (!fhErrStat && !fSuppress)
+      fhErrStat = safe_fopen_with_ext(fnm_output_base, EXT_SVX_ERRS, "w");
+
    /* First do all the one leg traverses */
-   FOR_EACH_STN(stn1, stnlist) {
+   for (stn1 = fixedlist; stn1; stn1 = stn1->next) {
 #if PRINT_NETBITS
       printf("One leg traverses from ");
       print_prefix(stn1->name);
@@ -643,7 +644,7 @@ replace_travs(void)
 
 	 if (!fZeros(&leg->v)) fEquate = false;
 	 if (!reached_end) {
-	    add_stn_to_list(&stnlist, stn3);
+	    add_stn_to_list(&fixedlist, stn3);
 	    if (!fEquate) {
 	       mulsd(&e, &leg->v, &sc);
 	       adddd(&POSD(stn3), &POSD(stn3), &e);
@@ -837,7 +838,7 @@ replace_trailing_travs(void)
 #endif
 	 }
 
-	 add_stn_to_list(&stnlist, stn2);
+	 add_stn_to_list(&fixedlist, stn2);
 	 if (!(leg->l.reverse & (FLAG_REPLACEMENTLEG | FLAG_FAKE))) {
 	     if (TSTBIT(leg->l.flags, FLAGS_SURFACE)) {
 		stn1->name->sflags |= BIT(SFLAGS_SURFACE);
@@ -905,7 +906,7 @@ skip_nosurvey:
    }
 
    /* write stations to .3d file and free legs and stations */
-   FOR_EACH_STN(stn1, stnlist) {
+   for (stn1 = fixedlist; stn1; stn1 = stn1->next) {
       int d;
       SVX_ASSERT(fixed(stn1));
       if (stn1->name->stn == stn1) {
@@ -1026,12 +1027,12 @@ skip_nosurvey:
    /* The station position is attached to the name, so we leave the names and
     * positions in place - they can then be picked up if we have a *solve
     * followed by more data */
-   for (stn1 = stnlist; stn1; stn1 = stn2) {
+   for (stn1 = fixedlist; stn1; stn1 = stn2) {
       stn2 = stn1->next;
       stn1->name->stn = NULL;
       osfree(stn1);
    }
-   stnlist = NULL;
+   fixedlist = NULL;
 }
 
 static void

@@ -52,7 +52,8 @@ esac
 : ${DUMP3D="$testdir"/../src/dump3d}
 : ${SURVEXPORT="$testdir"/../src/survexport}
 
-: ${TESTS=${*:-"singlefix singlereffix oneleg midpoint noose cross firststn\
+: ${TESTS=${*:-"singlefix singlereffix oneleg midpoint lollipop fixedlollipop\
+ cross firststn\
  deltastar deltastar2 bug3 calibrate_tape nosurvey2 cartesian cartesian2\
  lengthunits angleunits cmd_alias cmd_alias_bad cmd_truncate cmd_truncate_bad\
  cmd_case cmd_case_bad cmd_fix\
@@ -80,7 +81,8 @@ esac
  notentranceorexport inferunknown inferexports bad_units_factor\
  bad_units_qlist\
  percent_gradient dotinsurvey leandroclino lowsd revdir gettokennullderef\
- nosurveyhanging cmd_solve_nothing cmd_solve_nothing_implicit\
+ nosurveyhanging nosurveyhanging2\
+ cmd_solve_nothing cmd_solve_nothing_implicit\
  cmd_cartesian cmd_cartesian_bad\
  cmd_calibrate cmd_declination cmd_declination_auto cmd_declination_auto_bad\
  cmd_declination_conv cmd_declination_conv_proj_bug\
@@ -103,6 +105,7 @@ esac
  cmd_data_ignore\
  quadrant_bearing bad_quadrant_bearing\
  samename tabinhighlight legacytokens\
+ component_count_bug component_count_bug2\
  3dexport \
  dxffullcoords dxfsurfequate\
  gpxexport hpglexport jsonexport kmlexport pltexport svgexport\

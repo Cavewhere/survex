@@ -19,7 +19,6 @@
 
 #include <config.h>
 
-#include <assert.h>
 #include <limits.h>
 #include <stddef.h> /* for offsetof */
 #include <string.h>
@@ -44,8 +43,26 @@
 
 #define WGS84_DATUM_STRING "EPSG:4326"
 
-int fix_station(prefix *fix_name, double* coords) {
+static void
+move_to_fixedlist(node *stn, int ignore_dirn)
+{
+    remove_stn_from_list(&stnlist, stn);
+    add_stn_to_list(&fixedlist, stn);
+    pos *p = stn->name->pos;
+    for (int d = 0; d < 3; d++) {
+	if (d == ignore_dirn) continue;
+	linkfor *leg = stn->leg[d];
+	if (!leg) break;
+	node *to = leg->l.to;
+	if (to->name->pos == p) {
+	    move_to_fixedlist(to, reverse_leg_dirn(leg));
+	}
+    }
+}
+
+int fix_station(prefix *fix_name, const double* coords) {
     fix_name->sflags |= BIT(SFLAGS_FIXED);
+    bool new_stn = (fix_name->stn == NULL);
     node *stn = StnFromPfx(fix_name);
     if (fixed(stn)) {
 	if (coords[0] != POS(stn, 0) ||
@@ -60,13 +77,20 @@ int fix_station(prefix *fix_name, double* coords) {
     POS(stn, 1) = coords[1];
     POS(stn, 2) = coords[2];
 
+    if (new_stn) {
+	remove_stn_from_list(&stnlist, stn);
+	add_stn_to_list(&fixedlist, stn);
+    } else {
+	move_to_fixedlist(stn, -1);
+    }
+
     // Make the station's file:line location reflect where it was fixed.
     fix_name->filename = file.filename;
     fix_name->line = file.line;
     return 0;
 }
 
-void fix_station_with_variance(prefix *fix_name, double* coords,
+void fix_station_with_variance(prefix *fix_name, const double* coords,
 			       real var_x, real var_y, real var_z,
 #ifndef NO_COVARIANCES
 			       real cxy, real cyz, real czx
@@ -91,7 +115,7 @@ void fix_station_with_variance(prefix *fix_name, double* coords,
 	}
 	name->max_export = 0;
 	name->sflags = 0;
-	add_stn_to_list(&stnlist, fixpt);
+	add_stn_to_list(&fixedlist, fixpt);
 	POS(fixpt, 0) = coords[0];
 	POS(fixpt, 1) = coords[1];
 	POS(fixpt, 2) = coords[2];
@@ -388,7 +412,7 @@ match_tok(const sztok *tab, int tab_size)
    int a = 0, b = tab_size - 1, c;
    int r;
    const char* tok = s_str(&uctoken);
-   assert(tab_size > 0); /* catch empty table */
+   SVX_ASSERT(tab_size > 0); /* catch empty table */
 /*  printf("[%d,%d]",a,b); */
    while (a <= b) {
       c = (unsigned)(a + b) / 2;
@@ -461,7 +485,7 @@ const real factor_tab[] = {
 
 const int units_to_msgno[] = {
     /*m*/424,
-    /*ft*/428,
+    /*'*/428,
     -1, /* yards */
     /*°*/344, /* quadrants */
     /*°*/344,
@@ -2693,60 +2717,242 @@ copy_on_write_meta(settings *s)
    }
 }
 
+static int
+read_year(filepos *fp_date_ptr)
+{
+    int y = read_uint_raw(/*Expecting date, found “%s”*/198, fp_date_ptr);
+    if (y < 100) {
+	/* Two digit year is 19xx. */
+	y += 1900;
+	filepos fp_save;
+	get_pos(&fp_save);
+	set_pos(fp_date_ptr);
+	/* TRANSLATORS: %d will be replaced by the assumed year, e.g. 1918 */
+	compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Assuming 2 digit year is %d*/76, y);
+	set_pos(&fp_save);
+    } else if (y < 1900 || y > 2078) {
+	set_pos(fp_date_ptr);
+	compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Invalid year (< 1900 or > 2078)*/58);
+	longjmp(jbSkipLine, 1);
+    }
+    return y;
+}
+
 static void
 cmd_date(void)
 {
-    int year, month, day;
-    int days1, days2;
-    bool implicit_range = false;
-    filepos fp, fp2;
+    enum { DATE_SURVEYED = 1, DATE_EXPLORED = 2 };
+    unsigned date_flags = 0;
+    while (get_token(), !s_empty(&uctoken)) {
+	unsigned new_flag = 0;
+	if (S_EQ(&uctoken, "SURVEYED")) {
+	    new_flag = DATE_SURVEYED;
+	} else if (S_EQ(&uctoken, "EXPLORED")) {
+	    new_flag = DATE_EXPLORED;
+	} else {
+	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+			       /*Expecting “%s” or “%s”*/103, "SURVEYED", "EXPLORED");
+	    continue;
+	}
 
-    get_pos(&fp);
-    read_date(&year, &month, &day);
-    days1 = days_since_1900(year, month ? month : 1, day ? day : 1);
+	if ((date_flags & new_flag)) {
+	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+			       /*Duplicate date type “%s”*/416, s_str(&token));
+	}
+	date_flags |= new_flag;
+    }
+
+    int date_sep = '-';
+    if (date_flags == 0) {
+	// `*date` without qualification sets the surveyed date.
+	date_flags = DATE_SURVEYED;
+	// Also allow '.' for compatibility.
+	date_sep = 0;
+    }
+
+    filepos fp_date1, fp_date2, fp;
+    get_pos(&fp_date1);
+    int year = read_year(&fp_date1);
+    int month = 0, day = 0, year2 = 0, month2 = 0, day2 = 0;
+
+    if (ch == '-') {
+	// Could be ISO-format date (e.g. 2024-10 or 2024-10-21 or 1912-11), or
+	// a range of old-format dates (e.g. 1973-1975 or 1911-12.02.03) or an
+	// ambiguous case like 1911-12 which we need to warn about in a `*date`
+	// command without `surveyed` or `explored` qualifiers.
+	nextch();
+	get_pos(&fp_date2);
+	int v = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date1);
+	if (date_sep == '-') {
+	    // We're only accepting ISO dates.
+	} else if (ch == '-') {
+	    // Two `-` so must be an ISO date, e.g. `2024-10-21`.
+	} else if (v >= 1 && v <= 12) {
+	    // Valid month number so assume it's an ISO date.
+	    if (year < 1900 + v) {
+		// Warn about ambiguous cases.
+		compile_diagnostic(DIAG_WARN|DIAG_FROM(fp_date1),
+				   /*Interpreting as an ISO-format date - use “*date surveyed %d-%02d” to suppress this warning, or “*date %d %d” if you wanted a date range*/158,
+				   year, v, year, 1900 + v);
+	    }
+	} else {
+	    date_sep = '.';
+	    year2 = v;
+	    if (year2 < 100) {
+		/* Two digit year is 19xx. */
+		year2 += 1900;
+		/* TRANSLATORS: %d will be replaced by the assumed year, e.g. 1918 */
+		compile_diagnostic(DIAG_WARN|DIAG_FROM(fp_date2),
+				   /*Assuming 2 digit year is %d*/76, year2);
+	    } else if (year2 < 1900 || year2 > 2078) {
+		compile_diagnostic(DIAG_WARN|DIAG_FROM(fp_date2),
+				   /*Invalid year (< 1900 or > 2078)*/58);
+		longjmp(jbSkipLine, 1);
+	    }
+	    goto process_dates;
+	}
+
+	date_sep = '-';
+	month = v;
+	fp = fp_date2;
+    } else if (ch == '.') {
+	if (date_sep == '-') {
+	    char date_sep_string[2] = { date_sep, '\0' };
+	    compile_diagnostic(DIAG_ERR|DIAG_COL|DIAG_SKIP,
+			       /*Expecting “%s”*/497, date_sep_string);
+	    return;
+	}
+	date_sep = ch;
+	nextch();
+	get_pos(&fp);
+	month = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date1);
+    } else {
+	// Just a year - might be a ISO date range though.
+	date_sep = '-';
+	goto try_date2;
+    }
+
+    if (month < 1 || month > 12) {
+	set_pos(&fp);
+	compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Invalid month*/86);
+	longjmp(jbSkipLine, 1);
+    }
+
+    if (ch == date_sep) {
+	nextch();
+	get_pos(&fp);
+	day = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date1);
+	if (day < 1 || day > last_day(year, month)) {
+	    set_pos(&fp);
+	    /* TRANSLATORS: e.g. 31st of April, or 32nd of any month */
+	    compile_diagnostic(DIAG_WARN|DIAG_UINT,
+			       /*Invalid day of the month*/87);
+	    longjmp(jbSkipLine, 1);
+	}
+    }
+
+try_date2:
+    if (date_sep == '-') {
+	skipblanks();
+	if (!isdigit(ch)) goto process_dates;
+    } else if (ch == '-') {
+	nextch();
+    } else {
+	goto process_dates;
+    }
+    {
+	get_pos(&fp_date2);
+	year2 = read_year(&fp_date2);
+	if (ch == date_sep) {
+	    nextch();
+	    get_pos(&fp);
+	    month2 = read_uint_raw(/*Expecting date, found “%s”*/198,
+				   &fp_date2);
+	    if (month2 < 1 || month2 > 12) {
+		set_pos(&fp);
+		compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Invalid month*/86);
+		longjmp(jbSkipLine, 1);
+	    }
+
+	    if (ch == date_sep) {
+		nextch();
+		get_pos(&fp);
+		day2 = read_uint_raw(/*Expecting date, found “%s”*/198,
+				     &fp_date2);
+		if (day2 < 1 || day2 > last_day(year2, month2)) {
+		    set_pos(&fp);
+		    /* TRANSLATORS: e.g. 31st of April, or 32nd of any month */
+		    compile_diagnostic(DIAG_WARN|DIAG_UINT,
+				       /*Invalid day of the month*/87);
+		    longjmp(jbSkipLine, 1);
+		}
+	    }
+	}
+    }
+
+process_dates:;
+    bool date_range = (year2 != 0);
+    if (!date_range) {
+	year2 = year;
+	month2 = month;
+	day2 = day;
+    }
+
+    int days1 = days_since_1900(year, month ? month : 1, day ? day : 1);
 
     if (days1 > current_days_since_1900) {
-	set_pos(&fp);
+	filepos fp_save;
+	get_pos(&fp_save);
+	set_pos(&fp_date1);
 	compile_diagnostic(DIAG_WARN|DIAG_DATE, /*Date is in the future!*/80);
+	set_pos(&fp_save);
     }
 
-    skipblanks();
-    if (ch == '-') {
-	nextch();
-	get_pos(&fp2);
-	read_date(&year, &month, &day);
-    } else {
-	if (month && day) {
-	    days2 = days1;
-	    goto read;
-	}
-	implicit_range = true;
+    if (month2 == 0) {
+	month2 = 12;
+	day2 = 31;
+    } else if (day2 == 0) {
+	day2 = last_day(year2, month2);
     }
-
-    if (month == 0) month = 12;
-    if (day == 0) day = last_day(year, month);
-    days2 = days_since_1900(year, month, day);
-
-    if (!implicit_range && days2 > current_days_since_1900) {
-	set_pos(&fp2);
+    int days2 = days_since_1900(year2, month2, day2);
+    if (date_range && days2 > current_days_since_1900) {
+	// If !date_range, either we already emitted this warning when
+	// processing the start date, or the date is partial and for the
+	// current year or current month, in which case it's not helpful
+	// to warn that the end is on the future, but it makes sense to
+	// process for the end date so the result doesn't change as time
+	// passes.
+	filepos fp_save;
+	get_pos(&fp_save);
+	set_pos(&fp_date2);
 	compile_diagnostic(DIAG_WARN|DIAG_DATE, /*Date is in the future!*/80);
+	set_pos(&fp_save);
     }
 
     if (days2 < days1) {
-	set_pos(&fp);
+	filepos fp_save;
+	get_pos(&fp_save);
+	set_pos(&fp_date1);
 	compile_diagnostic(DIAG_ERR|DIAG_WORD, /*End of date range is before the start*/81);
+	set_pos(&fp_save);
+	// Swap range ends to put us in a consistent state.
 	int tmp = days1;
 	days1 = days2;
 	days2 = tmp;
     }
 
-read:
-    if (!pcs->meta || pcs->meta->days1 != days1 || pcs->meta->days2 != days2) {
-	copy_on_write_meta(pcs);
-	pcs->meta->days1 = days1;
-	pcs->meta->days2 = days2;
-	/* Invalidate cached declination. */
-	pcs->declination = HUGE_REAL;
+    if ((date_flags & DATE_SURVEYED)) {
+	if (!pcs->meta || pcs->meta->days1 != days1 || pcs->meta->days2 != days2) {
+	    copy_on_write_meta(pcs);
+	    pcs->meta->days1 = days1;
+	    pcs->meta->days2 = days2;
+	    /* Invalidate cached declination. */
+	    pcs->declination = HUGE_REAL;
+	}
+    }
+
+    if ((date_flags & DATE_EXPLORED)) {
+	// FIXME: Need to revise 3d format to allow storing EXPLORED date too.
     }
 }
 

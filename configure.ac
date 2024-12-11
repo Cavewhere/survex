@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.4.12], [https://trac.survex.com/])
+AC_INIT([survex], [1.4.14], [https://trac.survex.com/])
 AM_INIT_AUTOMAKE([1.5 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
@@ -92,8 +92,6 @@ AC_ARG_VAR(STRIP, [Command for discarding symbols from object files])
 AC_PATH_TOOL(STRIP, strip, [echo "not stripping "])
 
 AC_CHECK_LIB(m, sqrt)
-
-AC_PATH_XTRA
 
 dnl The wxWidgets libraries we need:
 wx_libs="core,gl"
@@ -233,25 +231,9 @@ AC_SUBST([GDAL_CFLAGS])
 
 dnl Checks for header files.
 
-dnl don't use AC_CHECK_FUNCS for setjmp - mingw #define-s it to _setjmp
-AC_CHECK_HEADERS(limits.h string.h setjmp.h)
+AC_CHECK_HEADERS(string.h)
 
-dnl Checks for typedefs, structures, and compiler characteristics.
-AC_TYPE_SIZE_T
-AC_STRUCT_TM
-
-dnl Check for 16-bit and 32-bit integer types.
-AC_TYPE_INT16_T
-AC_TYPE_UINT16_T
-AC_TYPE_INT32_T
-AC_TYPE_UINT32_T
-
-dnl Check if there's a declaration of lround().  Below we also check for
-dnl lround() with AC_CHECK_FUNCS, which just checks if it can be linked
-dnl against.  Some platforms are missing a prototype for lround(), so
-dnl both checks are useful.
-AC_CHECK_DECLS([lround], [], [], [[#include <math.h>]])
-AC_CHECK_FUNCS([popen getpwuid lround hypot mmap])
+AC_CHECK_FUNCS([popen hypot mmap])
 
 dnl Much faster than using getc()/putc(), at least on Linux.
 AC_CHECK_FUNCS([getc_unlocked putc_unlocked])

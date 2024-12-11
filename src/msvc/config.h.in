@@ -16,18 +16,9 @@
 /* Has string.h */
 #define HAVE_STRING_H @HAVE_STRING_H@
 
-/* Define to `unsigned' if <sys/types.h> doesn't define.  */
-/* #undef size_t */
-
-/* Define if your <sys/time.h> declares struct tm.  */
-#undef TM_IN_SYS_TIME
-
 /* Define if your processor stores words with the most significant
    byte first (like Motorola and SPARC, unlike Intel and VAX).  */
 #undef WORDS_BIGENDIAN
-
-/* Define if the X Window System is missing or not being used.  */
-#define X_DISPLAY_MISSING
 
 /* copyright message */
 #define COPYRIGHT_MSG "@COPYRIGHT_MSG@"
@@ -60,9 +51,6 @@ typedef unsigned __int32 uint32_t;
 /* Define if you have the popen function.  */
 #define HAVE_POPEN 1
 
-/* Define if you have the <setjmp.h> header file.  */
-#define HAVE_SETJMP_H 1
-
 /* Define if you have the strdup function.  */
 #define HAVE_STRDUP 1
 
@@ -77,9 +65,6 @@ typedef unsigned __int32 uint32_t;
 
 /* Define to 1 if you have the `hypot' function. */
 #define HAVE_HYPOT 1
-
-/* Define if you have the <limits.h> header file.  */
-#define HAVE_LIMITS_H 1
 
 /* Define if you have the <string.h> header file.  */
 #define HAVE_STRING_H 1

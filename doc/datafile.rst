@@ -55,8 +55,9 @@ Survey Station Names
 
 Survex has a powerful system for naming stations.  It uses a hierarchy of
 survey names, similar to the nested folders your computer stores files in.  So
-point 6 in the entrance survey of Kaninchenhöhle (cave number 161) is referred
-to as: 161.entrance.6
+point 6 in the entrance survey of Kaninchenhöhle (cave number 161) can just be
+referred to as station 6 in the context of that particular survey, but it has
+the fully qualified name: 161.entrance.6
 
 This seems a natural way to refer to station names.  It also means that it is
 very easy to include more levels, for example if you want to plot all the caves
@@ -82,6 +83,30 @@ Alphabetic characters may be forced to upper or lower case by using the
 ``*case`` command.  Station names may be any length - if you want to only treat
 the first few characters as significant you can get cavern to truncate the
 names using the ``*truncate`` command.
+
+If you have survey data which uses ``.`` as part of the station name (for
+example, if you use the Toporobot convention of naming stations along a
+side passage from station ``6`` as ``6.1``, ``6.2``, ``6.3``, etc) then
+there are two sensible options:
+
+ * You can change the separator to a different character which you don't want
+   to use in station names (e.g. ``:``) and set ``.`` as an allowed name
+   character like so::
+
+       *set separator :
+       *set names ._-
+
+   Note that the character(s) listed replace those previously allowed, so here
+   we have explicitly list ``_`` and ``-`` as still allowed in station names to
+   effectively add ``.``.
+
+   If you want to do this, you should use Survex 1.4.6 or later.  1.4.12 also
+   fixed a bug with survey filtering when loading ``.3d`` files which use a
+   separator other than ``.``.
+
+ * You can use a different character instead of ``.`` for naming such
+   side-passage stations, e.g. ``6_1``, ``6_2``, etc.  This has the advantage
+   of working with older Survex versions.
 
 Anonymous Stations
 ------------------
@@ -868,18 +893,35 @@ DATE
 ----
 
 Syntax
-   ``*date <date>``
+   ``*date <date type(s)> <ISO date>``
 
-   ``*date <date1>-<date2>``
+   ``*date <date type(s)> <ISO date1> <ISO date2>``
+
+   ``*date <ISO date>``
+
+   ``*date <ISO date1> <ISO date2>``
+
+   ``*date <legacy date>``
+
+   ``*date <legacy date1>-<legacy date2>``
 
 Example
    ::
 
-       *date 2001
+       *date explored 1987-06-20 1987-06-28
+       *date surveyed 1987-07-11
 
    ::
 
-       *date 2000.10
+       *date explored surveyed 2024-11-29
+
+   ::
+
+       *date 1976-08
+
+   ::
+
+       *date 1968
 
    ::
 
@@ -889,19 +931,44 @@ Example
 
        *date 1985.08.12-1985.08.13
 
+   ::
+
+       *date 2000.10
+
 Validity
    valid at the start of a ``*begin``/``*end`` block.
 
 Description
    ``*date`` specifies the date that the survey was done.  A range of dates can
-   be specified (useful for overnight or multi-day surveying trips).
+   be specified (e.g. for "surveyed" date, this is useful for overnight or
+   multi-day surveying trips).
 
-   Dates must be in the order year then month then day, the day or month and day
-   can be omitted.  The separator between components must be ``.``.
+   Date components must be in the order year then month then day.  Later
+   components can be omitted to specify the date to the granularity of a month
+   or year (which is sometimes useful for older survey data where the exact
+   date of a survey may no longer be known).  Such partial dates are treated
+   as a date range for that whole month or year; if used in a date range, the
+   appropriate extreme of the year or month is used as that end of the range -
+   e.g. ``2001 2004-06`` is from the start of 2001 to the end of June 2004.
 
-   Dates with just a year (e.g. ``2001``) are treated as being in the middle of
-   that year.  Dates with a month and year (e.g. ``2000.10``) are treated as
-   being in the middle of that month.
+   Survex 1.4.13 added support for date types ``explored`` and ``surveyed``
+   (``*date`` without a type is assumed to be specifying the ``surveyed`` date
+   only).
+
+   Survex 1.4.13 also added support for the ISO date format, where the
+   separator between components is ``-``.  In older versions the separator
+   between components had to be ``.`` (with ``-`` used between dates in a
+   range).  The older date format is still accepted, but we strongly recommend
+   using ISO format dates in new data because it's a standardised date format.
+
+   We recommend avoiding two digit years because of the inherent ambiguity, but
+   they are accepted (with a warning) and assumed to be 19xx.
+
+   Currently dates before 1900 and after 2078 result in a warning and are
+   ignored.
+
+   The ``explored`` date is parsed but not currently stored anywhere.  A future
+   version will write it to the ``.3d`` file and make it available to aven, etc.
 
 See Also
    ``*begin``, ``*instrument``, ``*team``
@@ -947,13 +1014,14 @@ Description
    Survex 1.2.43 updated to using version 13 in early 2020.
 
    The IGRF model takes a date and a location as inputs.  Survex uses the
-   specified date of the survey, and uses the "x y z" coordinates specified in
+   specified date of the survey (if the survey's date is a range, the centre
+   of that range is used), and uses the "x y z" coordinates specified in
    the ``*declination auto`` command as the location in the current input
    coordinate system (as set by ``*cs``).  Most users can just specify a single
    representative location somewhere in the area of the cave.  If you're not
-   sure what to use pick some coordinates roughly in the middle of the bounding
-   box of the cave - it doesn't need to be a fixed point or a known refindable
-   location, though it can be if you prefer.
+   sure what to use, pick some coordinates roughly in the middle of the
+   bounding box of the cave - it doesn't need to be a fixed point or a known
+   refindable location, though it can be if you prefer.
 
    Survex 1.2.27 and later also automatically correct for grid convergence (the
    difference between Grid North and True North) when ``*declination auto`` is
