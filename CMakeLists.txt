@@ -164,7 +164,7 @@ add_custom_command(
     ${PROJECT_BINARY_DIR}/thgeomagdata.h
 
     COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf2c.py ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf14coeffs.txt
-    # COMMAND ${CMAKE_COMMAND} -E rename ${PROJECT_BINARY_DIR}/../thgeomagdata.h ${PROJECT_BINARY_DIR}/thgeomagdata.h
+    COMMAND ${CMAKE_COMMAND} -E rename ${PROJECT_BINARY_DIR}/../thgeomagdata.h ${PROJECT_BINARY_DIR}/thgeomagdata.h
 
     DEPENDS
     ${PROJECT_SOURCE_DIR}/${SRC_DIR}/igrf2c.py
