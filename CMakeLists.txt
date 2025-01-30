@@ -186,6 +186,7 @@ add_library(survex_core STATIC
 
 target_compile_definitions(survex_core PUBLIC
     HAVE_CONFIG_H
+    DATADIR="." #Allows unix specificly macos to find the message files in the bundle
     )
 target_link_libraries(survex_core PROJ::proj)
 
