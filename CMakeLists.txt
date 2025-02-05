@@ -184,9 +184,12 @@ add_library(survex_core STATIC
     ${SRC_DIR}/hash.c
 )
 
-target_compile_definitions(survex_core PUBLIC
-    HAVE_CONFIG_H
-    DATADIR="." #Allows unix specificly macos to find the message files in the bundle
+target_compile_definitions(survex_core
+    PUBLIC
+        HAVE_CONFIG_H
+    PRIVATE
+        #Enabling this on MSVC breaks with objidl.h(12978): error C2059: syntax error: 'string'
+        DATADIR="." #Allows unix specificly macos to find the message files in the bundle
     )
 target_link_libraries(survex_core PROJ::proj)
 
