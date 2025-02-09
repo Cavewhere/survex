@@ -132,11 +132,6 @@ if(${missing_perl_localPO})
     message( FATAL_ERROR "Missing perl package \"Locale::PO\". Please run \"cpan Locale::PO\" to install it" )
 endif()
 
-set(MESSAGE_OUTPUTS
-    ${PROJECT_BINARY_DIR}/bin/en.msg
-    ${PROJECT_BINARY_DIR}/bin/en_US.msg
-)
-
 include(messages.cmake)
 svx_add_messages(messageFiles
     ${SRC_LIB_DIR}/bg.po
@@ -158,6 +153,29 @@ svx_add_messages(messageFiles
     ${SRC_LIB_DIR}/ru.po
     ${SRC_LIB_DIR}/zh_CN.po
     )
+
+set(SVX_MESSAGE_FILES
+    ${PROJECT_BINARY_DIR}/bg.msg
+    ${PROJECT_BINARY_DIR}/de_CH.msg
+    ${PROJECT_BINARY_DIR}/el.msg
+    ${PROJECT_BINARY_DIR}/es.msg
+    ${PROJECT_BINARY_DIR}/hu.msg
+    ${PROJECT_BINARY_DIR}/it.msg
+    ${PROJECT_BINARY_DIR}/pt_BR.msg
+    ${PROJECT_BINARY_DIR}/ro.msg
+    ${PROJECT_BINARY_DIR}/sk.msg
+    ${PROJECT_BINARY_DIR}/ca.msg
+    ${PROJECT_BINARY_DIR}/de.msg
+    ${PROJECT_BINARY_DIR}/en_US.msg
+    ${PROJECT_BINARY_DIR}/en.msg
+    ${PROJECT_BINARY_DIR}/fr.msg
+    ${PROJECT_BINARY_DIR}/id.msg
+    ${PROJECT_BINARY_DIR}/pl.msg
+    ${PROJECT_BINARY_DIR}/pt.msg
+    ${PROJECT_BINARY_DIR}/ru.msg
+    ${PROJECT_BINARY_DIR}/zh_CN.msg
+    PARENT_SCOPE
+)
 
 add_custom_command(
     OUTPUT
