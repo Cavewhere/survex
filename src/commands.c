@@ -41,8 +41,6 @@
 #include "readval.h"
 #include "str.h"
 
-#define WGS84_DATUM_STRING "EPSG:4326"
-
 static void
 move_to_fixedlist(node *stn, int ignore_dirn)
 {
@@ -485,7 +483,7 @@ const real factor_tab[] = {
 
 const int units_to_msgno[] = {
     /*m*/424,
-    /*'*/428,
+    /*′*/428,
     -1, /* yards */
     /*°*/344, /* quadrants */
     /*°*/344,

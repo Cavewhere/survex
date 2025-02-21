@@ -90,7 +90,7 @@ const format_info export_format_info[] = {
       LABELS|LEGS },
     /* TRANSLATORS: "Compass" and "Carto" are the names of software packages,
      * so should not be translated:
-     * http://www.fountainware.com/compass/ */
+     * https://www.fountainware.com/compass/ */
     { ".plt", /*Compass PLT for use with Carto*/415,
       LABELS|LEGS|SURF|SPLAYS|ORIENTABLE,
       LABELS|LEGS },
@@ -166,14 +166,14 @@ ExportFilter::passes() const
 }
 
 class DXF : public ExportFilter {
-    const char * to_close;
+    const char * to_close = nullptr;
     /* for station labels */
     double text_height;
     char pending[1024];
 
   public:
     explicit DXF(double text_height_)
-	: to_close(0), text_height(text_height_) { pending[0] = '\0'; }
+	: text_height(text_height_) { pending[0] = '\0'; }
     const int * passes() const override;
     bool fopen(const wxString& fnm_out) override;
     void header(const char *, const char *, time_t,
@@ -479,7 +479,6 @@ static point **htab;
 static void
 set_name(const img_point *p, const char *s)
 {
-   int hash;
    point *pt;
    union {
       char data[sizeof(int) * 3];
@@ -489,7 +488,7 @@ set_name(const img_point *p, const char *s)
    u.x[0] = (int)(p->x * 100);
    u.x[1] = (int)(p->y * 100);
    u.x[2] = (int)(p->z * 100);
-   hash = (hash_data(u.data, sizeof(int) * 3) & (HTAB_SIZE - 1));
+   unsigned hash = (hash_data(u.data, sizeof(int) * 3) & (HTAB_SIZE - 1));
    for (pt = htab[hash]; pt; pt = pt->next) {
       if (pt->p.x == p->x && pt->p.y == p->y && pt->p.z == p->z) {
 	 /* already got name for these coordinates */
@@ -510,7 +509,6 @@ set_name(const img_point *p, const char *s)
 static const char *
 find_name(const img_point *p)
 {
-   int hash;
    point *pt;
    union {
       char data[sizeof(int) * 3];
@@ -521,7 +519,7 @@ find_name(const img_point *p)
    u.x[0] = (int)(p->x * 100);
    u.x[1] = (int)(p->y * 100);
    u.x[2] = (int)(p->z * 100);
-   hash = (hash_data(u.data, sizeof(int) * 3) & (HTAB_SIZE - 1));
+   unsigned hash = (hash_data(u.data, sizeof(int) * 3) & (HTAB_SIZE - 1));
    for (pt = htab[hash]; pt; pt = pt->next) {
       if (pt->p.x == p->x && pt->p.y == p->y && pt->p.z == p->z)
 	 return pt->label;
@@ -530,8 +528,8 @@ find_name(const img_point *p)
 }
 
 class SVG : public ExportFilter {
-    const char * to_close;
-    bool close_g;
+    const char * to_close = nullptr;
+    bool close_g = false;
     double factor;
     /* for station labels */
     double text_height;
@@ -539,9 +537,7 @@ class SVG : public ExportFilter {
 
   public:
     SVG(double scale, double text_height_)
-	: to_close(NULL),
-	  close_g(false),
-	  factor(1000.0 / scale),
+	: factor(1000.0 / scale),
 	  text_height(text_height_) {
 	pending[0] = '\0';
     }

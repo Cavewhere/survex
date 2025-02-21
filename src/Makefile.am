@@ -8,7 +8,7 @@ noinst_HEADERS = cavern.h commands.h cmdline.h date.h datain.h debug.h\
  filelist.h filename.h getopt.h hash.h img.c img.h img_hosted.h kml.h\
  labelinfo.h listpos.h matrix.h message.h namecmp.h namecompare.h netartic.h\
  netbits.h netskel.h network.h osalloc.h\
- out.h readval.h str.h useful.h validate.h whichos.h gdalexport.h\
+ out.h readval.h str.h useful.h validate.h gdalexport.h\
  glbitmapfont.h gllogerror.h guicontrol.h gla.h gpx.h moviemaker.h\
  export3d.h exportfilter.h hpgl.h cavernlog.h aboutdlg.h aven.h avenpal.h\
  gfxcore.h json.h log.h mainfrm.h pos.h vector3.h wx.h aventypes.h\
@@ -59,6 +59,13 @@ aven_LDADD += avenrc.o
 
 avenrc.o: $(srcdir)/aven.rc ../lib/icons/aven.ico
 	cd $(srcdir) && `$(WX_CONFIG) --rescomp` --include-dir '$(abs_top_builddir)/lib/icons' -o '$(abs_builddir)/avenrc.o' aven.rc
+
+bin_PROGRAMS += wrapaven wrapsurvexport
+
+wrapaven_SOURCES = wrapaven.c
+wrapaven_LDFLAGS = -mwindows -municode
+
+wrapsurvexport_SOURCES = wrapsurvexport.c
 endif
 
 AM_CFLAGS += $(PROJ_CFLAGS)
@@ -116,6 +123,7 @@ img2aven.h: $(srcdir)/gen_img2aven
 
 PYTHON = python3
 
+# When updating to a new IGRF version, update table in doc/datafile.rst too.
 thgeomagdata.h: $(srcdir)/igrf2c.py $(srcdir)/igrf14coeffs.txt
 	$(PYTHON) $(srcdir)/igrf2c.py $(srcdir)/igrf14coeffs.txt
 	mv ../thgeomagdata.h .

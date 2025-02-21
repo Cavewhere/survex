@@ -4,7 +4,7 @@
 //  Main frame handling for Aven.
 //
 //  Copyright (C) 2000-2002,2005,2006 Mark R. Shinwell
-//  Copyright (C) 2001-2024 Olly Betts
+//  Copyright (C) 2001-2025 Olly Betts
 //  Copyright (C) 2005 Martin Green
 //
 //  This program is free software; you can redistribute it and/or modify
@@ -227,17 +227,16 @@ class AvenPresList : public wxListCtrl {
     MainFrm * mainfrm;
     GfxCore * gfx;
     vector<PresentationMark> entries;
-    long current_item;
-    bool modified;
-    bool force_save_as;
+    long current_item = -1;
+    bool modified = false;
+    bool force_save_as = true;
     wxString filename;
 
     public:
 	AvenPresList(MainFrm * mainfrm_, wxWindow * parent, GfxCore * gfx_)
 	    : wxListCtrl(parent, listctrl_PRES, wxDefaultPosition, wxDefaultSize,
 			 wxLC_REPORT|wxLC_VIRTUAL),
-	      mainfrm(mainfrm_), gfx(gfx_), current_item(-1), modified(false),
-	      force_save_as(true)
+	      mainfrm(mainfrm_), gfx(gfx_)
 	{
 	    InsertColumn(0, wmsg(/*Easting*/378));
 	    InsertColumn(1, wmsg(/*Northing*/379));
@@ -698,13 +697,7 @@ DnDFile::OnDropFiles(wxCoord, wxCoord, const wxArrayString &filenames)
 #endif
 
 MainFrm::MainFrm(const wxString& title, const wxPoint& pos, const wxSize& size) :
-    wxFrame(NULL, 101, title, pos, size, wxDEFAULT_FRAME_STYLE),
-    m_SashPosition(-1),
-    m_Gfx(NULL), m_Log(NULL),
-    pending_find(false), fullscreen_showing_menus(false)
-#ifdef PREFDLG
-    , m_PrefsDlg(NULL)
-#endif
+    wxFrame(NULL, 101, title, pos, size, wxDEFAULT_FRAME_STYLE)
 {
 #ifdef _WIN32
     // The peculiar name is so that the icon is the first in the file
@@ -714,10 +707,10 @@ MainFrm::MainFrm(const wxString& title, const wxPoint& pos, const wxSize& size) 
     SetIcon(wxICON(aven));
 #endif
 
-#if wxCHECK_VERSION(3,1,0)
+#if defined(__WXMAC__) && wxCHECK_VERSION(3,1,0)
     // Add a full screen button to the right upper corner of title bar under OS
     // X 10.7 and later.
-    EnableFullScreenView();
+    using_macos_full_screen_view = EnableFullScreenView();
 #endif
     CreateMenuBar();
     MakeToolBar();
@@ -1715,7 +1708,7 @@ void MainFrm::SetCoords(const Vector3 &v)
 	x /= METRES_PER_FOOT;
 	y /= METRES_PER_FOOT;
 	z /= METRES_PER_FOOT;
-	units = /*'*/428;
+	units = /*′*/428;
     }
     /* TRANSLATORS: show coordinates (N = North or Northing, E = East or
      * Easting) */
@@ -1775,7 +1768,7 @@ void MainFrm::SetCoords(double x, double y, const LabelInfo * there)
 	    units = /*m*/424;
 	} else {
 	    dh /= METRES_PER_FOOT;
-	    units = /*'*/428;
+	    units = /*′*/428;
 	}
 	/* TRANSLATORS: "H" is short for "Horizontal", "Brg" for "Bearing" (as
 	 * in Compass bearing) */
@@ -1795,7 +1788,7 @@ void MainFrm::SetAltitude(double z, const LabelInfo * there)
 	units = /*m*/424;
     } else {
 	alt /= METRES_PER_FOOT;
-	units = /*'*/428;
+	units = /*′*/428;
     }
     coords_text.Printf(wxT("%s %.2f%s"), wmsg(/*Altitude*/335).c_str(),
 		       alt, wmsg(units).c_str());
@@ -1846,7 +1839,7 @@ void MainFrm::ShowInfo(const LabelInfo *here, const LabelInfo *there)
 	x /= METRES_PER_FOOT;
 	y /= METRES_PER_FOOT;
 	z /= METRES_PER_FOOT;
-	units = /*'*/428;
+	units = /*′*/428;
     }
     s.Printf(wmsg(/*%.2f E, %.2f N*/338), x, y);
     s += wxString::Format(wxT(", %s %.2f%s"), wmsg(/*Altitude*/335).c_str(),
@@ -1879,7 +1872,7 @@ void MainFrm::ShowInfo(const LabelInfo *here, const LabelInfo *there)
 	    d_horiz /= METRES_PER_FOOT;
 	    dr /= METRES_PER_FOOT;
 	    dz /= METRES_PER_FOOT;
-	    units = /*'*/428;
+	    units = /*′*/428;
 	}
 	wxString len_unit = wmsg(units);
 	/* TRANSLATORS: "H" is short for "Horizontal", "V" for "Vertical" */
@@ -1981,6 +1974,19 @@ void MainFrm::TreeItemSelected(const wxTreeItemData* item)
 	}
     }
     UpdateStatusBar();
+}
+
+void MainFrm::TreeItemSearch(const wxTreeItemData* item)
+{
+    const TreeData* data = static_cast<const TreeData*>(item);
+    if (!data) return;
+
+    if (data->IsStation()) {
+	m_FindBox->ChangeValue(data->GetLabel()->GetText());
+    } else {
+	m_FindBox->ChangeValue(data->GetSurvey() + ".*");
+    }
+    pending_find = PENDING_FIND_AND_GO;
 }
 
 void MainFrm::OnPresNew(wxCommandEvent&)
@@ -2221,7 +2227,7 @@ void MainFrm::OnPresExportMovieUpdate(wxUpdateUIEvent& event)
 
 void MainFrm::OnFind(wxCommandEvent&)
 {
-    pending_find = true;
+    pending_find = PENDING_FIND;
 }
 
 void MainFrm::OnIdle(wxIdleEvent&)
@@ -2233,7 +2239,6 @@ void MainFrm::OnIdle(wxIdleEvent&)
 
 void MainFrm::DoFind()
 {
-    pending_find = false;
     wxBusyCursor hourglass;
     // Find stations specified by a string or regular expression pattern.
 
@@ -2304,6 +2309,7 @@ void MainFrm::DoFind()
 
 	wxRegEx regex;
 	if (!regex.Compile(pattern, re_flags)) {
+	    pending_find = PENDING_FIND_NONE;
 	    wxBell();
 	    return;
 	}
@@ -2338,6 +2344,11 @@ void MainFrm::DoFind()
 	 */
 	GetToolBar()->SetToolShortHelp(button_HIDE, wxString::Format(wmsg(/*Hide %d found stations*/334).c_str(), m_NumHighlighted));
     }
+    if (pending_find == PENDING_FIND_AND_GO) {
+	wxCommandEvent dummy;
+	OnGotoFound(dummy);
+    }
+    pending_find = PENDING_FIND_NONE;
 }
 
 void MainFrm::OnGotoFound(wxCommandEvent&)
@@ -2417,11 +2428,23 @@ bool MainFrm::ShowingSidePanel()
 
 void MainFrm::ViewFullScreen() {
 #ifdef __WXMAC__
-    // On macOS, wxWidgets doesn't currently hide the toolbar or statusbar in
-    // full screen mode (last checked with 3.0.2), but it is easy to do
-    // ourselves.
+    // On macOS:
+    //
+    // If !using_macos_full_screen_view, wxWidgets doesn't currently hide the
+    // toolbar or statusbar in full screen mode (last checked with 3.0.2).
+    //
+    // If using_macos_full_screen_view, apparently wxWidgets hides the toolbar
+    // but not the statusbar (or maybe the status bar gets hidden by macOS
+    // unconditionally?)
     if (!IsFullScreen()) {
-	GetToolBar()->Hide();
+	// On macOS when not using the full screen view API, wxWidgets doesn't
+	// hide the toolbar in full screen mode (last checked with 3.0.2).
+	if (!using_macos_full_screen_view) GetToolBar()->Hide();
+	// The statusbar isn't automatically hidden without the full screen view
+	// API (last checked with 3.0.2); with the full screen view API the
+	// wxFULLSCREEN_NOSTATUSBAR flag is ignored, but possibly macOS
+	// unconditionally hides the status bar?  FIXME Need to get someone to
+	// test this.
 	GetStatusBar()->Hide();
     }
 #endif
@@ -2436,7 +2459,7 @@ void MainFrm::ViewFullScreen() {
 #ifdef __WXMAC__
     if (!IsFullScreen()) {
 	GetStatusBar()->Show();
-	GetToolBar()->Show();
+	if (!using_macos_full_screen_view) GetToolBar()->Show();
 #ifdef USING_GENERIC_TOOLBAR
 	Layout();
 #endif
@@ -2454,11 +2477,12 @@ void MainFrm::FullScreenModeShowMenus(bool show)
     if (!IsFullScreen() || show == fullscreen_showing_menus)
 	return;
 #ifdef __WXMAC__
-    // On macOS, enabling the menu bar while in full
-    // screen mode doesn't have any effect, so instead
-    // make moving the mouse to the top of the screen
-    // drop us out of full screen mode for now.
-    ViewFullScreen();
+    // If we're using the macOS full screen view API then auto-showing the menu
+    // bar happens automatically when the mouse is moved near it.  Otherwise
+    // enabling the menu bar while in full screen mode doesn't have any effect
+    // (probably last tested with 3.0.x), so instead make moving the mouse to
+    // the top of the screen drop us out of full screen mode.
+    if (!using_macos_full_screen_view) ViewFullScreen();
 #else
     GetMenuBar()->Show(show);
     fullscreen_showing_menus = show;

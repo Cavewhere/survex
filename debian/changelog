@@ -1,3 +1,26 @@
+survex (1.4.14-3) UNRELEASED; urgency=medium
+
+  * debian/control: Add sse2-support to Build-Depends and Depends to avoid
+    recurring problems from excess precision.
+
+ -- Olly Betts <olly@survex.com>  Fri, 24 Jan 2025 11:34:51 +1300
+
+survex (1.4.14-2) unstable; urgency=medium
+
+  * debian/patches/normalise-dxf-bounds-for-i386.patch: Backport testcase
+    tweak to avoid failure on i386 due to excess precision resulting in
+    -0.00 in DXF export test output.
+
+ -- Olly Betts <olly@survex.com>  Thu, 12 Dec 2024 17:38:11 +1300
+
+survex (1.4.14-1) unstable; urgency=medium
+
+  * New upstream release.
+    + debian/patches/fix-lollipop-test.patch: Drop patch backported from
+      upstream which is in this new version.
+
+ -- Olly Betts <olly@survex.com>  Thu, 12 Dec 2024 15:47:59 +1300
+
 survex (1.4.13-2) unstable; urgency=medium
 
   * debian/patches/fix-lollipop-test.patch: Backport testcase tweak to avoid

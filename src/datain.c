@@ -1,6 +1,6 @@
 /* datain.c
  * Reads in survey files, dealing with special characters, keywords & data
- * Copyright (C) 1991-2024 Olly Betts
+ * Copyright (C) 1991-2025 Olly Betts
  * Copyright (C) 2004 Simeon Warner
  *
  * This program is free software; you can redistribute it and/or modify
@@ -1844,6 +1844,11 @@ parse_walls_segment(unsigned long* p_compass_dat_flags)
     }
     if (isBlank(ch) || isEol(ch) || isComm(ch)) {
 	if ((possible_compass_dat_flags &~ valid_compass_dat_flags) == 0) {
+	    // In Compass the C flag causes flagged legs to not be subject to
+	    // loop closure.  However C being set in the Walls #SEGMENT value
+	    // has no effect on Walls' loop closure, so it shouldn't in Survex
+	    // either and we mask it out here to achieve that.
+	    possible_compass_dat_flags &= ~BIT('C' - 'A');
 	    // Compass DAT `X` means exclude the data, but it seems to be used
 	    // in Walls data to mark duplicate data, so we map it to `L`.
 	    if (possible_compass_dat_flags & BIT('X' - 'A')) {
@@ -3632,7 +3637,7 @@ handle_comp_units(void)
 }
 
 static real
-calculate_convergence(const char *proj_str)
+calculate_convergence_lonlat(const char *proj_str, double lon, double lat)
 {
     // PROJ < 8.1.0 dereferences the context without a NULL check inside
     // proj_create_ellipsoidal_2D_cs() but PJ_DEFAULT_CTX is really just
@@ -3645,8 +3650,8 @@ calculate_convergence(const char *proj_str)
 #endif
     PJ * pj = proj_create(ctx, proj_str);
     PJ_COORD lp;
-    lp.lp.lam = pcs->dec_lon;
-    lp.lp.phi = pcs->dec_lat;
+    lp.lp.lam = lon;
+    lp.lp.phi = lat;
 #if PROJ_VERSION_MAJOR < 8 || \
     (PROJ_VERSION_MAJOR == 8 && PROJ_VERSION_MINOR < 2)
     /* Code adapted from fix in PROJ 8.2.0 to make proj_factors() work in
@@ -3654,11 +3659,12 @@ calculate_convergence(const char *proj_str)
      */
     switch (proj_get_type(pj)) {
 	case PJ_TYPE_PROJECTED_CRS: {
-	    /* If it is a projected CRS, then compute the factors on the conversion
-	     * associated to it. We need to start from a temporary geographic CRS
-	     * using the same datum as the one of the projected CRS, and with
-	     * input coordinates being in longitude, latitude order in radian,
-	     * to be consistent with the expectations of the lp input parameter.
+	    /* If it is a projected CRS, then compute the factors on the
+	     * conversion associated to it. We need to start from a temporary
+	     * geographic CRS using the same datum as the one of the projected
+	     * CRS, and with input coordinates being in longitude, latitude
+	     * order in radian, to be consistent with the expectations of the
+	     * lp input parameter.
 	     */
 
 	    PJ * geodetic_crs = proj_get_source_crs(ctx, pj);
@@ -3708,8 +3714,10 @@ calculate_convergence(const char *proj_str)
 	 * normalising the output order here works too.
 	 */
 	PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX, pj);
-	proj_destroy(pj);
-	pj = pj_norm;
+	if (pj_norm) {
+	    proj_destroy(pj);
+	    pj = pj_norm;
+	}
     }
 #endif
     PJ_FACTORS factors = proj_factors(pj, lp);
@@ -3719,6 +3727,49 @@ calculate_convergence(const char *proj_str)
     proj_context_destroy(ctx);
 #endif
     return factors.meridian_convergence;
+}
+
+static real
+calculate_convergence(const char *proj_str)
+{
+    return calculate_convergence_lonlat(proj_str, pcs->dec_lon, pcs->dec_lat);
+}
+
+real
+calculate_convergence_xy(const char *proj_str, double x, double y, double z)
+{
+    /* Convert to WGS84 lat long. */
+    PJ *transform = proj_create_crs_to_crs(PJ_DEFAULT_CTX,
+					   proj_str,
+					   WGS84_DATUM_STRING,
+					   NULL);
+    if (transform) {
+	/* Normalise the output order so x is longitude and y latitude - by
+	 * default new PROJ has them switched for EPSG:4326 which just seems
+	 * confusing.
+	 */
+	PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX,
+						       transform);
+	proj_destroy(transform);
+	transform = pj_norm;
+    }
+
+    PJ_COORD coord = {{x, y, z, HUGE_VAL}};
+    coord = proj_trans(transform, PJ_FWD, coord);
+    x = coord.xyzt.x;
+    y = coord.xyzt.y;
+    z = coord.xyzt.z;
+
+    if (x == HUGE_VAL || y == HUGE_VAL || z == HUGE_VAL) {
+       compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
+			  proj_context_errno_string(PJ_DEFAULT_CTX,
+						    proj_errno(transform)));
+       /* Set dummy values which are finite. */
+       x = y = z = 0;
+    }
+    proj_destroy(transform);
+
+    return calculate_convergence_lonlat(proj_str, rad(x), rad(y));
 }
 
 static real
@@ -4085,10 +4136,25 @@ process_normal(prefix *fr, prefix *to, bool fToFirst,
       }
    }
 
-   // Apply any Walls variance overrides.
-   if (VAR(Dx) >= 0) vx = VAR(Dx);
-   if (VAR(Dy) >= 0) vy = VAR(Dy);
-   if (VAR(Dz) >= 0) vz = VAR(Dz);
+   // Apply any Walls variance overrides (also from Compass C shot flag).
+   if (VAR(Dx) >= 0) {
+       vx = VAR(Dx);
+#ifndef NO_COVARIANCES
+       czx = cxy = 0.0;
+#endif
+   }
+   if (VAR(Dy) >= 0) {
+       vy = VAR(Dy);
+#ifndef NO_COVARIANCES
+       cxy = cyz = 0.0;
+#endif
+   }
+   if (VAR(Dz) >= 0) {
+       vz = VAR(Dz);
+#ifndef NO_COVARIANCES
+       cyz = czx = 0.0;
+#endif
+   }
 
 #if DEBUG_DATAIN_1
    printf("Just before addleg, vx = %f\n", vx);
@@ -4493,6 +4559,13 @@ data_cartesian(void)
 	     }
 	     if (compass_dat_flags) {
 		pcs->flags |= convert_compass_dat_flags(compass_dat_flags);
+		if ((compass_dat_flags & BIT('C' - 'A'))) {
+		    // Set SDs to 1mm (station position error is not currently
+		    // applied to cartesian data).
+		    VAR(Dx) = 1e-6;
+		    VAR(Dy) = 1e-6;
+		    VAR(Dz) = 1e-6;
+		}
 	     }
 	     process_cartesian(fr, to, first_stn == To);
 	     pcs->flags = save_flags;
@@ -4778,10 +4851,9 @@ data_normal(void)
 		    *   S (splay)
 		    *   P (no plot) (mapped to FLAG_SURFACE)
 		    *   X (exclude data)
-		    * FIXME: Defined flags we currently ignore:
-		    *   C (no adjustment) (set all (co)variances to 0?  Then
-		    *	  we need to handle a loop of such legs or a traverse
-		    *	  of such legs between two fixed points...)
+		    *   C (no adjustment) (Currently Survex sets the leg's
+		    *     SDs to 1mm so we can still handle a loop of such legs
+		    *     or a traverse of such legs between two fixed points.)
 		    */
 		   nextch();
 		}
@@ -5265,6 +5337,12 @@ inches_only:
 	     }
 	     if (compass_dat_flags) {
 		pcs->flags |= convert_compass_dat_flags(compass_dat_flags);
+		if ((compass_dat_flags & BIT('C' - 'A'))) {
+		    // Set override SDs to 1mm.
+		    VAR(Dx) = 1e-6;
+		    VAR(Dy) = 1e-6;
+		    VAR(Dz) = 1e-6;
+		}
 	     }
 	     switch (pcs->style) {
 	      case STYLE_NORMAL:

@@ -451,6 +451,7 @@ remove_subnets(void)
 		    nameZ->stn = stnZ;
 		    nameZ->up = NULL;
 		    nameZ->min_export = nameZ->max_export = 0;
+		    nameZ->sflags = 0;
 		    unfix(stnZ);
 		    add_stn_to_list(&stnlist, stnZ);
 		    legAZ->l.to = stnZ;
@@ -668,7 +669,6 @@ replace_subnets(void)
 	 stn[0] = leg->l.to;
 	 dirn[0] = reverse_leg_dirn(leg);
 	 stnZ = stn[0]->leg[dirn[0]]->l.to;
-	 SVX_ASSERT(fixed(stnZ));
 	 if (!fixed(stnZ)) {
 	    SVX_ASSERT(!fixed(stn[0]));
 	    goto skip;

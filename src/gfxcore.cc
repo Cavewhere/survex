@@ -25,6 +25,7 @@
 #include <config.h>
 
 #include <assert.h>
+#include <stdint.h>
 #include <float.h>
 
 #include "aven.h"
@@ -32,7 +33,6 @@
 #include "date.h"
 #include "filename.h"
 #include "gfxcore.h"
-#include "hash.h"
 #include "mainfrm.h"
 #include "message.h"
 #include "osalloc.h"
@@ -127,59 +127,9 @@ END_EVENT_TABLE()
 
 GfxCore::GfxCore(MainFrm* parent, wxWindow* parent_win, GUIControl* control) :
     GLACanvas(parent_win, 100),
-    m_Scale(0.0),
-    initial_scale(1.0),
-    m_ScaleBarWidth(0),
     m_Control(control),
-    m_LabelGrid(NULL),
     m_Parent(parent),
-    m_DoneFirstShow(false),
-    m_TiltAngle(0.0),
-    m_PanAngle(0.0),
-    m_Rotating(false),
-    m_RotationStep(0.0),
-    m_SwitchingTo(0),
-    m_Crosses(false),
-    m_Legs(true),
-    m_Splays(SHOW_FADED),
-    m_Dupes(SHOW_DASHED),
-    m_Names(false),
-    m_Scalebar(true),
-    m_ColourKey(true),
-    m_OverlappingNames(false),
-    m_Compass(true),
-    m_Clino(true),
-    m_Tubes(false),
-    m_ColourBy(COLOUR_BY_DEPTH),
-    m_HaveData(false),
-    m_HaveTerrain(true),
-    m_MouseOutsideCompass(false),
-    m_MouseOutsideElev(false),
-    m_Surface(false),
-    m_Entrances(false),
-    m_FixedPts(false),
-    m_ExportedPts(false),
-    m_Grid(false),
-    m_BoundingBox(false),
-    m_Terrain(false),
-    m_Degrees(false),
-    m_Metric(false),
-    m_Percent(false),
-    m_HitTestDebug(false),
-    m_RenderStats(false),
-    m_PointGrid(NULL),
-    m_HitTestGridValid(false),
-    m_here(NULL),
-    m_there(NULL),
-    presentation_mode(0),
-    pres_reverse(false),
-    pres_speed(0.0),
-    movie(NULL),
-    current_cursor(GfxCore::CURSOR_DEFAULT),
-    sqrd_measure_threshold(sqrd(MEASURE_THRESHOLD)),
-    dem(NULL),
-    last_time(0),
-    n_tris(0)
+    sqrd_measure_threshold(sqrd(MEASURE_THRESHOLD))
 {
     AddQuad = &GfxCore::AddQuadrilateralDepth;
     AddPoly = &GfxCore::AddPolylineDepth;
@@ -1171,7 +1121,7 @@ void GfxCore::DrawDepthKey()
     }
 
     double z_min = m_Parent->GetDepthMin() + m_Parent->GetOffset().GetZ();
-    wxString units = wmsg(m_Metric ? /*m*/424: /*'*/428);
+    wxString units = wmsg(m_Metric ? /*m*/424: /*′*/428);
     for (int band = 0; band < num_bands; ++band) {
 	double z = z_min;
 	if (band)
@@ -1263,7 +1213,7 @@ void GfxCore::DrawLengthKey()
     // Use fixed colours for each length so it's directly visually comparable
     // between surveys.
     int num_bands = GetNumColourBands();
-    wxString units = wmsg(m_Metric ? /*m*/424: /*'*/428);
+    wxString units = wmsg(m_Metric ? /*m*/424: /*′*/428);
     for (int band = 0; band < num_bands; ++band) {
 	double len = pow(10, LOG_LEN_MAX * band / (num_bands - 1));
 	if (!m_Metric) {
@@ -1441,19 +1391,19 @@ void GfxCore::DrawScaleBar()
 	    }
 	} else if (size_snap >= 1.0) {
 	    /* TRANSLATORS: abbreviation for "feet" (unit of length), used e.g.
-	     * as: 10'
+	     * as: 10′
 	     *
 	     * If there should be a space between the number and this, include
 	     * one in the translation. */
-	    units = /*'*/428;
+	    units = /*′*/428;
 	} else {
 	    size_snap *= 12.0;
 	    /* TRANSLATORS: abbreviation for "inches" (unit of length), used
-	     * e.g. as: 6"
+	     * e.g. as: 6″
 	     *
 	     * If there should be a space between the number and this, include
 	     * one in the translation. */
-	    units = /*\"*/429;
+	    units = /*″*/429;
 	}
     }
     if (size_snap >= 1.0) {
@@ -3045,10 +2995,10 @@ void GfxCore::DrawTerrainTriangle(const Vector3 & a, const Vector3 & b, const Ve
 
 // Like wxBusyCursor, but you can cancel it early and restart it.
 class AvenBusyCursor {
-    bool active;
+    bool active = true;
 
   public:
-    AvenBusyCursor() : active(true) {
+    AvenBusyCursor() {
 	wxBeginBusyCursor();
     }
 
@@ -3761,10 +3711,29 @@ void GfxCore::SetColourFromLength(double length, double factor)
     SetColourFrom01(how_far, factor);
 }
 
+#ifdef __clang__
+__attribute__((no_sanitize("unsigned-integer-overflow")))
+#endif
+static unsigned
+hash_for_colouring(const char* p, size_t len)
+{
+    constexpr uint32_t HASH_PRIME = 29363;
+    // Calculate hash in reverse so inputs which only differ in the final
+    // character will tend to get very different colours.
+    uint32_t hash = 0;
+    p += len;
+    while (len--) {
+	hash = (hash * HASH_PRIME + *(const unsigned char*)--p);
+    }
+    return static_cast<unsigned>(hash);
+}
+
 void GfxCore::SetColourFromSurvey(const wxString& survey)
 {
     // Set the drawing colour based on hash of name.
-    int hash = hash_string(survey.utf8_str());
+    const auto& utf8_survey = survey.utf8_str();
+    unsigned hash = hash_for_colouring(utf8_survey.data(),
+				       utf8_survey.length());
     wxImage::HSVValue hsv((hash & 0xff) / 256.0, (((hash >> 8) & 0x7f) | 0x80) / 256.0, 0.9);
     wxImage::RGBValue rgb = wxImage::HSVtoRGB(hsv);
     GLAPen pen;
@@ -3775,10 +3744,11 @@ void GfxCore::SetColourFromSurvey(const wxString& survey)
 void GfxCore::SetColourFromSurveyStation(const wxString& name, double factor)
 {
     // Set the drawing colour based on hash of survey name.
-    const char* p = name.utf8_str();
+    const auto& utf8_name = name.utf8_str();
+    const char* p = utf8_name.data();
     const char* q = strrchr(p, m_Parent->GetSeparator());
-    size_t len = q ? (q - p) : strlen(p);
-    int hash = hash_data(p, len);
+    size_t len = q ? (q - p) : utf8_name.length();
+    unsigned hash = hash_for_colouring(p, len);
     wxImage::HSVValue hsv((hash & 0xff) / 256.0, (((hash >> 8) & 0x7f) | 0x80) / 256.0, 0.9);
     wxImage::RGBValue rgb = wxImage::HSVtoRGB(hsv);
     GLAPen pen;
@@ -4579,18 +4549,23 @@ void GfxCore::DrawOverlays()
     GDALAllRegister();
     CPLSetConfigOption("GPX_ELE_AS_25D", "YES");
     for ( ; it.IsOk(); it = m_Parent->NextOverlay(it)) {
+	wxString error;
 	if (false) {
 erase_overlay:
+	    // Remove overlay before showing error dialog since otherwise when
+	    // the dialog is closed we get another redraw request and enter an
+	    // infinite loop.
 	    it = m_Parent->RemoveOverlay(it);
+	    hourglass.stop();
+	    wxGetApp().ReportError(error);
+	    hourglass.restart();
 	    if (!it.IsOk()) break;
 	}
 	const char* p = m_Parent->GetOverlayFilename(it).utf8_str();
 	GDALDataset* poDS = (GDALDataset*)GDALOpenEx(p, GDAL_OF_VECTOR,
 						     NULL, NULL, NULL);
 	if (!poDS) {
-	    hourglass.stop();
-	    wxGetApp().ReportError(wxString::Format(wmsg(/*Couldn’t open file “%s”*/24), p));
-	    hourglass.restart();
+	    error = wxString::Format(wmsg(/*Couldn’t open file “%s”*/24), p);
 	    goto erase_overlay;
 	}
 
@@ -4627,11 +4602,9 @@ erase_overlay:
 
 		const OGRSpatialReference* ogrsr = poGeometry->getSpatialReference();
 		if (!ogrsr) {
-		    hourglass.stop();
 		    // TRANSLATORS: %s is replaced by the name of a geodata
 		    // file, e.g. GPX, KML.
-		    wxGetApp().ReportError(wxString::Format(wmsg(/*File “%s” not georeferenced*/492), p));
-		    hourglass.restart();
+		    error = wxString::Format(wmsg(/*File “%s” not georeferenced*/492), p);
 		    goto erase_overlay;
 		}
 		if (ogrsr != current_ogrsr) {
@@ -4639,15 +4612,13 @@ erase_overlay:
 		    char* cs_wkt = nullptr;
 		    auto result = ogrsr->exportToWkt(&cs_wkt);
 		    if (result != OGRERR_NONE) {
-			hourglass.stop();
 			if (result == OGRERR_NOT_ENOUGH_MEMORY) {
-			    wxGetApp().ReportError(wmsg(/*Out of memory*/389));
+			    error = wmsg(/*Out of memory*/389);
 			} else {
 			    // TRANSLATORS: %s is replaced by the name of a geodata
 			    // file, e.g. GPX, KML.
-			    wxGetApp().ReportError(wxString::Format(wmsg(/*File “%s” not georeferenced*/492), p));
+			    error = wxString::Format(wmsg(/*File “%s” not georeferenced*/492), p);
 			}
-			hourglass.restart();
 			goto erase_overlay;
 		    }
 

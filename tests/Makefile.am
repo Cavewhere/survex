@@ -11,6 +11,7 @@ fixedlollipop.svx fixedlollipop.out fixedlollipop.pos\
 cross.svx cross.pos\
 deltastar.svx deltastar.pos\
 deltastar2.svx deltastar2.pos\
+deltastarhanging.svx deltastarhanging.out\
 firststn.svx firststn.pos\
 break_replace_pfx.svx\
 bug0.svx bug1.svx bug2.svx bug3.svx bug3.pos bug4.svx bug5.svx\
@@ -63,7 +64,7 @@ multinormignall.svx multinormignall.pos\
 multidiving.svx multidiving.out multidiving.pos\
 multicylpolar.svx multicylpolar.pos\
 multicartesian.svx multicartesian.pos multicartesian.out\
-multinosurv.svx multinosurv.pos multinosurv.out\
+multinosurv.svx multinosurv.dump multinosurv.out\
 multinormalbad.svx multibug.svx\
 cmd_title.svx cmd_titlebad.svx\
 cmd_dummy.svx cmd_infer.svx cmd_infer.pos\
@@ -90,6 +91,7 @@ unusedstation.svx exportnakedbegin.svx\
 oldestyle.svx\
 pos.pos v0.3d v0b.3d v1.3d v2.3d v3.3d\
 baddatacylpolar.svx baddatacylpolar.out\
+baddatanosurv.svx baddatanosurv.out\
 bugdz.svx bugdz.pos badnewline.svx\
 badquantities.svx imgoffbyone.svx imgoffbyone.pos\
 infereqtopofil.svx infereqtopofil.pos\

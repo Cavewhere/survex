@@ -54,7 +54,8 @@ esac
 
 : ${TESTS=${*:-"singlefix singlereffix oneleg midpoint lollipop fixedlollipop\
  cross firststn\
- deltastar deltastar2 bug3 calibrate_tape nosurvey2 cartesian cartesian2\
+ deltastar deltastar2 deltastarhanging\
+ bug3 calibrate_tape nosurvey2 cartesian cartesian2\
  lengthunits angleunits cmd_alias cmd_alias_bad cmd_truncate cmd_truncate_bad\
  cmd_case cmd_case_bad cmd_fix\
  cmd_solve cmd_entrance cmd_entrance_bad cmd_sd cmd_sd_bad cmd_fix_bad cmd_set\
@@ -76,7 +77,8 @@ esac
  cmd_title cmd_titlebad cmd_dummy cmd_infer cmd_date cmd_datebad cmd_datebad2\
  cartes diving cylpolar normal normal_bad normignall nosurv cmd_flags\
  bad_cmd_flags plumb unusedstation exportnakedbegin oldestyle bugdz\
- baddatacylpolar badnewline badquantities imgoffbyone infereqtopofil 3sdfixbug\
+ baddatacylpolar baddatanosurv badnewline badquantities\
+ imgoffbyone infereqtopofil 3sdfixbug\
  omitclino back back2 bad_back\
  notentranceorexport inferunknown inferexports bad_units_factor\
  bad_units_qlist\
@@ -346,7 +348,7 @@ for file in $TESTS ; do
     case $pos in
       dxf)
 	# On x86 excess precision can result in -0.00 for some coordinates.
-	sed 's/-0\.00\>/ 0.00/g' < "$tmpfile" > tmp.tmp
+	sed 's/^-0\.00\>/0.00/;s/ -0\.00\>/  0.00/g' < "$tmpfile" > tmp.tmp
 	mv tmp.tmp "$tmpfile"
 	;;
       json)
