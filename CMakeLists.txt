@@ -403,33 +403,3 @@ target_compile_definitions(aven PUBLIC
     _CRT_SECURE_NO_WARNINGS
     HAVE_GDAL
     )
-
-set(WX_VC_X64_DLL_PATH "")
-foreach(DIR ${CONAN_BIN_DIRS_WXWIDGETS})
-    string(FIND "${DIR}" "vc_x64_dll" INDEX REVERSE)
-    if(NOT "${INDEX}" EQUAL "-1")
-        set(WX_VC_X64_DLL_PATH "${DIR}")
-        break()
-    endif()
-endforeach()
-
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(WX_DLL_TYPE "ud")
-    set(PROJ_D "_d")
-else()
-    set(WX_DLL_TYPE "u")
-    set(PROJ_D "")
-endif()
-
-#TODO - this should be done in a more general way
-# if(WIN32)
-#     add_custom_command(TARGET survexport POST_BUILD
-#         COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#             "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_gl_vc_custom.dll"
-#             "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_core_vc_custom.dll"
-#             "${WX_VC_X64_DLL_PATH}/wxmsw315${WX_DLL_TYPE}_html_vc_custom.dll"
-#             "${WX_VC_X64_DLL_PATH}/wxbase315${WX_DLL_TYPE}_vc_custom.dll"
-#             "${CONAN_BIN_DIRS_PROJ}/proj_9_2${PROJ_D}.dll"
-#             "${CONAN_BIN_DIRS_ZLIB}/zlib1.dll"
-#             $<TARGET_FILE_DIR:aven>)
-# endif()
