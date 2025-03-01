@@ -403,3 +403,17 @@ target_compile_definitions(aven PUBLIC
     _CRT_SECURE_NO_WARNINGS
     HAVE_GDAL
     )
+
+add_library(surveximg STATIC
+    ${SRC_DIR}/img.c
+    ${SRC_DIR}/img.h
+)
+target_include_directories(surveximg PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
+
+add_executable(imgtest
+    ${SRC_DIR}/imgtest.c
+)
+
+target_link_libraries(imgtest
+    surveximg
+)
