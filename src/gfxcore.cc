@@ -852,7 +852,7 @@ void GfxCore::Draw2dIndicators()
 		     * vertical angles. */
 		    str += wmsg(/*∞*/431);
 		} else {
-		    str = angle ? wxString::Format(wxT("%+03d"), angle) : wxT("0");
+            str = angle ? wxString::Format(wxT("%+03d"), angle) : wxString(wxT("0"));
 		}
 		/* TRANSLATORS: symbol for percentage gradient (100% = 45
 		 * degrees = 50 grad). */
@@ -864,12 +864,12 @@ void GfxCore::Draw2dIndicators()
 		}
 		width = zero_zero_width;
 		angle = int(m_TiltAngle);
-		str = angle ? wxString::Format(wxT("%+03d"), angle) : wxT("00");
+        str = angle ? wxString::Format(wxT("%+03d"), angle) : wxString(wxT("00"));
 		unit = /*°*/344;
 	    } else {
 		width = triple_zero_width;
 		angle = int(m_TiltAngle * 200.0 / 180.0);
-		str = angle ? wxString::Format(wxT("%+04d"), angle) : wxT("000");
+        str = angle ? wxString::Format(wxT("%+04d"), angle) : wxString(wxT("000"));
 		unit = /*ᵍ*/345;
 	    }
 
