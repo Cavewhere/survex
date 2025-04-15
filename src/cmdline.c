@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <float.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits.h>
 
@@ -33,13 +34,6 @@
 #include "filename.h"
 
 #include "message.h"
-
-/* It might be useful to be able to disable all long options on small
- * platforms like older PDAs.
- */
-#if 0
-# define getopt_long(ARGC, ARGV, STR, OPTS, PTR) getopt(ARGC, ARGV, STR)
-#endif
 
 /*
  * bad command line give:
@@ -104,22 +98,22 @@ cmdline_help(void)
 	    len += len + 1;
 
 	    if (o->has_arg == optional_argument) {
-	       putchar('[');
+	       PUTCHAR('[');
 	       len += 2;
 	    }
 
-	    putchar('=');
+	    PUTCHAR('=');
 
 	    if (help->placeholder) {
 		fputs(help->placeholder, stdout);
 	    } else {
 		for (p = longopt; *p ; p++) {
 		    unsigned char ch = *p;
-		    putchar((ch == '-') ? '_' : toupper(ch));
+		    PUTCHAR((ch == '-') ? '_' : toupper(ch));
 		}
 	    }
 
-	    if (o->has_arg == optional_argument) putchar(']');
+	    if (o->has_arg == optional_argument) PUTCHAR(']');
 	 }
 	 len = (len >> 3) + 2;
 	 if (len > 4) len = 0;
@@ -174,7 +168,7 @@ cmdline_syntax(void)
    /* TRANSLATORS: in command line usage messages e.g. Usage: cavern [OPTION]… */
    if (help && help->opt) printf(" [%s]...", msg(/*OPTION*/153));
    if (msg_args) {
-      putchar(' ');
+      PUTCHAR(' ');
       puts(msg(msg_args));
       return;
    }
@@ -312,7 +306,7 @@ cmdline_getopt(void)
     case HLP_HELP: /* --help */
       cmdline_version();
       cmdline_syntax();
-      putchar('\n');
+      PUTCHAR('\n');
       cmdline_help();
       exit(0);
    }

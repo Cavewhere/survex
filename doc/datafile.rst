@@ -437,7 +437,8 @@ COPYRIGHT
 ---------
 
 Syntax
-   ``*copyright <date> <text>``
+   ``*copyright <year> <text>``
+   ``*copyright <year1>-<year2> <text>``
 
 Example
    ::
@@ -448,12 +449,35 @@ Example
        2 3  1.56 092 +10
        *end littlebit
 
+   ::
+
+       *copyright 1976-2024 "CUCC Expo"
+
 Validity
    valid at the start of a ``*begin``/``*end`` block.
 
 Description
    ``*copyright`` allows the copyright information to be recorded in a way that
    can be automatically collated.
+
+   The date can be specified as a single year or a range of years.  Two digit
+   years are not allowed and the end of the range can not be before the start.
+
+   The text is expected to identify the copyright holder - typically it will be
+   the name of a person or group.  Unless it is a single word you should put
+   double quotes around it.
+
+   Prior to Survex 1.4.17 there weren't any checks of the syntax.  Essentially
+   ``*copyright`` used to be treated like a named comment line.
+
+   With Survex 1.4.17 and later you'll get a warning for an empty
+   ``*copyright``, for an invalid date, or if you open but fail to close double
+   quotes around the text.
+
+   These diagnostic messages were made warnings to avoid breaking processing
+   of existing datasets which might contain ``*copyright`` lines which don't
+   conform with the defined syntax (especially as the format of the date and
+   text fields were not documented prior to 1.4.17).
 
 See Also
    ``*begin``
@@ -968,6 +992,16 @@ Description
 
    Currently dates before 1900 and after 2078 result in a warning and are
    ignored.
+
+   A date which is in the future in the local timezone will also be warned
+   about to help catch date errors.  This warning could be incorrectly
+   triggered if you surveyed some data and promptly sent it to somebody in a
+   timezone behind yours - e.g. American Samoa (UTC-11) is always a day behind
+   Samoa (UTC+13).  This could be avoided by making the threshold for the
+   warning less tight (e.g. add a day or interpret today's date as "anywhere on
+   Earth"), but then we could fail to warn when locally processed data you've
+   just entered with tomorrow's date which seems worse than an incorrect
+   warning in an unusual case which will go away after less than a day.
 
    The ``explored`` date is parsed but not currently stored anywhere.  A future
    version will write it to the ``.3d`` file and make it available to aven, etc.
@@ -1657,6 +1691,9 @@ Example
 
        *team "Nick Proctor" compass clino tape
        *team "Anthony Day" notes pictures tape
+       *team Wookey assistant
+       ; Role not recorded
+       *team "Olly Betts"
 
 Validity
    valid at the start of a ``*begin``/``*end`` block.
@@ -1665,6 +1702,58 @@ Description
    ``*team`` specifies the people involved in a survey and optionally what role
    or roles they filled during that trip. Unless the person is only identified
    by one name you need to put double quotes around their name.
+
+   The syntax of ``*team`` commands has been defined for a very long time, but
+   prior to Survex 1.4.17 there weren't any checks of the syntax.  Essentially
+   ``*team`` used to be treated like a named comment line.
+
+   With Survex 1.4.17 and later you'll get a warning for an empty ``*team`` or
+   if you open but fail to close double quotes around the person's name.
+
+   Roles are now checked against an allowed list (which is the same list that
+   Therion uses, with the addition of ``explorer`` which Therion handles via
+   a separate ``explo-team`` command).  You'll get a warning if a role is not
+   recognised.
+
+   These diagnostic messages were made warnings to avoid breaking processing
+   of existing datasets which might contain ``*team`` lines which don't conform
+   with the defined syntax, or with this newly adopted list of roles.
+
+   ``<role>`` should be one of the following (grouped entries are just
+   alternative names for the same thing).  The intended meanings are noted
+   to encourage consistent usage:
+
+      =========== ============ ============================================
+      Role        Alias        Intended meaning
+      =========== ============ ============================================
+      tape        length       Measured leg lengths
+      compass     bearing      Measured bearings
+      clino       gradient     Measured vertical angles
+      backtape    backlength   Like ``tape`` but for backsights
+      backcompass backbearing  Like ``compass`` but for backsights
+      backclino   backgradient Like ``clino`` but for backsights
+      instruments insts        All instruments: both compass and clino; use
+                               for all-in-one instruments such as Disto-X.
+      counter     count        Topofil length measurements
+      depth                    Measured differences in height between stations,
+                               e.g. underwater with a diver's depth gauge, or
+                               above water with a manometer
+      station                  Added markers at stations
+      position                 Recorded absolute positions of stations (e.g.
+                               fixed surface stations with a GPS)
+      notes       notebook     Recorded instrument readings
+      pictures    pics         Drew sketches
+      assistant   dog          General helper (e.g. held the end of the
+                               tape on stations)
+      altitude    dz           Recorded the altitudes of stations (e.g. with an
+                               altimeter)
+      dimensions               Measured all passage dimensions
+      left                     Measured ``left`` passage dimension
+      right                    Measured ``right`` passage dimension
+      up          ceiling      Measured ``up`` passage dimension
+      down        floor        Measured ``down`` passage dimension
+      explorer                 Explored the area of cave being surveyed
+      =========== ============ ============================================
 
 See Also
    ``*begin``, ``*date``, ``*instrument``

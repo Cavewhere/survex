@@ -24,6 +24,8 @@
 
 #include <config.h>
 
+#include <algorithm>
+
 #include <assert.h>
 #include <stdint.h>
 #include <float.h>
@@ -35,7 +37,6 @@
 #include "gfxcore.h"
 #include "mainfrm.h"
 #include "message.h"
-#include "osalloc.h"
 #include "useful.h"
 #include "printing.h"
 #include "guicontrol.h"
@@ -673,7 +674,6 @@ void GfxCore::DrawArrow(gla_colour col1, gla_colour col2) {
     PlaceIndicatorVertex(0, 0);
     EndTriangles();
     BeginPolyline();
-    glBegin(GL_LINE_STRIP);
     PlaceIndicatorVertex(0, 0);
     PlaceIndicatorVertex(x, y);
     PlaceIndicatorVertex(0, r);
@@ -2750,7 +2750,7 @@ GfxCore::parse_hgt_filename(const wxString & lc_name)
 	o_x = -o_x;
     bigendian = true;
     nodata_value = -32768;
-    osfree(leaf);
+    free(leaf);
 }
 
 size_t
@@ -4231,7 +4231,7 @@ bool GfxCore::ExportMovie(const wxString & fnm)
 {
     FILE* fh = wxFopen(fnm.fn_str(), wxT("wb"));
     if (fh == NULL) {
-	wxGetApp().ReportError(wxString::Format(wmsg(/*Failed to open output file “%s”*/47), fnm.c_str()));
+	wxGetApp().ReportError(wxString::Format(wmsg(/*Failed to open output file “%s”*/3), fnm.c_str()));
 	return false;
     }
 
@@ -4565,7 +4565,7 @@ erase_overlay:
 	GDALDataset* poDS = (GDALDataset*)GDALOpenEx(p, GDAL_OF_VECTOR,
 						     NULL, NULL, NULL);
 	if (!poDS) {
-	    error = wxString::Format(wmsg(/*Couldn’t open file “%s”*/24), p);
+	    error = wxString::Format(wmsg(/*Couldn’t open file “%s”*/1), p);
 	    goto erase_overlay;
 	}
 
@@ -4613,7 +4613,11 @@ erase_overlay:
 		    auto result = ogrsr->exportToWkt(&cs_wkt);
 		    if (result != OGRERR_NONE) {
 			if (result == OGRERR_NOT_ENOUGH_MEMORY) {
-			    error = wmsg(/*Out of memory*/389);
+			    /* TRANSLATORS: %s will be replaced by the filename
+			     * that we were trying to read when we ran out of
+			     * memory.
+			     */
+			    error = wxString::Format(wmsg(/*Out of memory trying to read file “%s”*/2), p);
 			} else {
 			    // TRANSLATORS: %s is replaced by the name of a geodata
 			    // file, e.g. GPX, KML.

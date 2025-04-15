@@ -1,6 +1,6 @@
 /* readval.c
  * Routines to read a prefix or number from the current input file
- * Copyright (C) 1991-2024 Olly Betts
+ * Copyright (C) 1991-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,7 +42,6 @@ new_anon_station(void)
     prefix *name = osnew(prefix);
     name->pos = NULL;
     name->ident.p = NULL;
-    name->shape = 0;
     name->stn = NULL;
     name->up = pcs->Prefix;
     name->down = NULL;
@@ -113,7 +112,7 @@ read_prefix(unsigned pfx_flags)
 	     */
 	    if (TSTBIT(pcs->flags, FLAGS_ANON_ONE_END)) {
 	       set_pos(&here);
-	       compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/3);
+	       compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/47);
 	       longjmp(jbSkipLine, 1);
 	    }
 	    pcs->flags |= BIT(FLAGS_ANON_ONE_END) | BIT(FLAGS_IMPLICIT_SPLAY);
@@ -129,7 +128,7 @@ read_prefix(unsigned pfx_flags)
 anon_wall_station:
 	       if (TSTBIT(pcs->flags, FLAGS_ANON_ONE_END)) {
 		  set_pos(&here);
-		  compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/3);
+		  compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/47);
 		  longjmp(jbSkipLine, 1);
 	       }
 	       pcs->flags |= BIT(FLAGS_ANON_ONE_END) | BIT(FLAGS_IMPLICIT_SPLAY);
@@ -147,7 +146,7 @@ anon_wall_station:
 		   */
 		  if (TSTBIT(pcs->flags, FLAGS_ANON_ONE_END)) {
 		     set_pos(&here);
-		     compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/3);
+		     compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Can't have a leg between two anonymous stations*/47);
 		     longjmp(jbSkipLine, 1);
 		  }
 		  pcs->flags |= BIT(FLAGS_ANON_ONE_END);
@@ -199,7 +198,7 @@ anon_wall_station:
 	       }
 	    } else {
 	       /* TRANSLATORS: Here "station" is a survey station, not a train station. */
-	       compile_diagnostic(DIAG_ERR|DIAG_COL, /*Character “%c” not allowed in station name (use *SET NAMES to set allowed characters)*/7, ch);
+	       compile_diagnostic(DIAG_ERR|DIAG_COL, /*Character “%c” not allowed in station name (use *SET NAMES to set allowed characters)*/110, ch);
 	    }
 	    longjmp(jbSkipLine, 1);
 	 }
@@ -224,7 +223,6 @@ anon_wall_station:
 	 }
 	 ptr->right = ptr->down = NULL;
 	 ptr->pos = NULL;
-	 ptr->shape = 0;
 	 ptr->stn = NULL;
 	 ptr->up = back_ptr;
 	 ptr->filename = file.filename;
@@ -267,7 +265,6 @@ anon_wall_station:
 	    newptr->right = ptr;
 	    newptr->down = NULL;
 	    newptr->pos = NULL;
-	    newptr->shape = 0;
 	    newptr->stn = NULL;
 	    newptr->up = back_ptr;
 	    newptr->filename = file.filename;
@@ -346,7 +343,7 @@ anon_wall_station:
       } else {
 	 compile_diagnostic(DIAG_ERR, /*Station “%s” not exported from survey “%s”*/26, p, s);
       }
-      osfree(s);
+      free(s);
 #if 0
       printf(" *** pfx %s warning not exported enough depth %d "
 	     "ptr->max_export %d\n", sprint_prefix(ptr),
@@ -413,7 +410,7 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 	    if (TSTBIT(pcs->flags, FLAGS_ANON_ONE_END)) {
 		set_pos(&fp);
 		// Walls also rejects this case.
-		compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Can't have a leg between two anonymous stations*/3);
+		compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Can't have a leg between two anonymous stations*/47);
 		longjmp(jbSkipLine, 1);
 	    }
 	    pcs->flags |= BIT(FLAGS_ANON_ONE_END) | BIT(FLAGS_IMPLICIT_SPLAY);
@@ -441,7 +438,7 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		// FIXME Make this a proper error
 		printf("too many prefix levels\n");
 		s_free(&component);
-		for (int i = 0; i < 3; ++i) osfree(w_prefix[i]);
+		for (int i = 0; i < 3; ++i) free(w_prefix[i]);
 		longjmp(jbSkipLine, 1);
 	    }
 
@@ -460,7 +457,7 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 	    if (explicit_prefix_levels == 0) {
 		compile_diagnostic(DIAG_ERR|DIAG_COL, /*Expecting station name*/28);
 		s_free(&component);
-		for (int i = 0; i < 3; ++i) osfree(w_prefix[i]);
+		for (int i = 0; i < 3; ++i) free(w_prefix[i]);
 		longjmp(jbSkipLine, 1);
 	    }
 	    // Walls allows an empty station name if there's an explicit prefix.
@@ -529,14 +526,13 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		if (strlen(name) < sizeof(ptr->ident.i)) {
 		    strcpy(ptr->ident.i, name);
 		    ptr->sflags |= BIT(SFLAGS_IDENT_INLINE);
-		    if (i >= 3) osfree(name);
+		    if (i >= 3) free(name);
 		} else {
 		    ptr->ident.p = (i < 3 ? osstrdup(name) : name);
 		}
 		name = NULL;
 		ptr->right = ptr->down = NULL;
 		ptr->pos = NULL;
-		ptr->shape = 0;
 		ptr->stn = NULL;
 		ptr->up = back_ptr;
 		ptr->filename = file.filename; // FIXME: Or location of #Prefix, etc for it?
@@ -565,7 +561,7 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		    if (strlen(name) < sizeof(newptr->ident.i)) {
 			strcpy(newptr->ident.i, name);
 			newptr->sflags |= BIT(SFLAGS_IDENT_INLINE);
-			if (i >= 3) osfree(name);
+			if (i >= 3) free(name);
 		    } else {
 			newptr->ident.p = (i < 3 ? osstrdup(name) : name);
 		    }
@@ -577,7 +573,6 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		    newptr->right = ptr;
 		    newptr->down = NULL;
 		    newptr->pos = NULL;
-		    newptr->shape = 0;
 		    newptr->stn = NULL;
 		    newptr->up = back_ptr;
 		    newptr->filename = file.filename; // FIXME
@@ -593,7 +588,7 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		cached_survey = back_ptr;
 		cached_station = ptr;
 	    }
-	    if (name == p) osfree(p);
+	    if (name == p) free(p);
 	}
 
 	// Do the equivalent of "*infer exports" for Walls stations with an
@@ -603,7 +598,7 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		ptr->max_export = explicit_prefix_levels;
 	}
 
-	for (int i = 0; i < 3; ++i) osfree(w_prefix[i]);
+	for (int i = 0; i < 3; ++i) free(w_prefix[i]);
 
 	return ptr;
     }
@@ -652,7 +647,7 @@ read_number(bool f_optional, bool f_unsigned)
    }
 
    if (isOmit(ch_old)) {
-      compile_diagnostic(DIAG_ERR|DIAG_COL, /*Field may not be omitted*/8);
+      compile_diagnostic(DIAG_ERR|DIAG_COL, /*Field may not be omitted*/114);
    } else {
       compile_diagnostic_token_show(DIAG_ERR, /*Expecting numeric field, found “%s”*/9);
    }
@@ -692,7 +687,7 @@ read_quadrant(bool f_optional)
    if (first_point == POINT_NONE) {
       set_pos(&fp);
       if (isOmit(ch)) {
-	 compile_diagnostic(DIAG_ERR|DIAG_COL, /*Field may not be omitted*/8);
+	 compile_diagnostic(DIAG_ERR|DIAG_COL, /*Field may not be omitted*/114);
       }
       compile_diagnostic_token_show(DIAG_ERR, /*Expecting quadrant bearing, found “%s”*/483);
       longjmp(jbSkipLine, 1);
@@ -807,12 +802,16 @@ read_bearing_multi_or_omit(bool f_quadrants, int *p_n_readings)
 
 /* Don't skip blanks, variable error code */
 unsigned int
-read_uint_raw(int errmsg, const filepos *fp)
+read_uint_raw(int diag_type, int errmsg, const filepos *fp)
 {
    unsigned int n = 0;
    if (!isdigit(ch)) {
       if (fp) set_pos(fp);
-      compile_diagnostic_token_show(DIAG_ERR, errmsg);
+      if ((diag_type & DIAG_UINT)) {
+	  compile_diagnostic(diag_type, errmsg);
+      } else {
+	  compile_diagnostic_token_show(diag_type, errmsg);
+      }
       longjmp(jbSkipLine, 1);
    }
    while (isdigit(ch)) {
@@ -826,7 +825,7 @@ extern unsigned int
 read_uint(void)
 {
    skipblanks();
-   return read_uint_raw(/*Expecting numeric field, found “%s”*/9, NULL);
+   return read_uint_raw(DIAG_ERR, /*Expecting numeric field, found “%s”*/9, NULL);
 }
 
 extern int
@@ -877,8 +876,8 @@ bad_value:
     return (int)n;
 }
 
-extern void
-read_string(string *pstr)
+static bool
+read_string_(string *pstr, int diag_type)
 {
    s_clear(pstr);
 
@@ -888,8 +887,9 @@ read_string(string *pstr)
       nextch();
       while (1) {
 	 if (isEol(ch)) {
-	    compile_diagnostic(DIAG_ERR|DIAG_COL, /*Missing \"*/69);
-	    longjmp(jbSkipLine, 1);
+	    compile_diagnostic(diag_type|DIAG_COL, /*Missing \"*/69);
+	    if (diag_type == DIAG_ERR) longjmp(jbSkipLine, 1);
+	    return false;
 	 }
 
 	 if (ch == '\"') break;
@@ -903,10 +903,11 @@ read_string(string *pstr)
       while (1) {
 	 if (isEol(ch) || isComm(ch)) {
 	    if (s_empty(pstr)) {
-	       compile_diagnostic(DIAG_ERR|DIAG_COL, /*Expecting string field*/121);
-	       longjmp(jbSkipLine, 1);
+	       compile_diagnostic(diag_type|DIAG_COL, /*Expecting string field*/121);
+		if (diag_type == DIAG_ERR) longjmp(jbSkipLine, 1);
+		return false;
 	    }
-	    return;
+	    return true;
 	 }
 
 	 if (isBlank(ch)) break;
@@ -915,6 +916,19 @@ read_string(string *pstr)
 	 nextch();
       }
    }
+   return true;
+}
+
+extern void
+read_string(string *pstr)
+{
+    (void)read_string_(pstr, DIAG_ERR);
+}
+
+extern bool
+read_string_warning(string *pstr)
+{
+    return read_string_(pstr, DIAG_WARN);
 }
 
 extern void
@@ -924,7 +938,7 @@ read_walls_srv_date(int *py, int *pm, int *pd)
 
     filepos fp_date;
     get_pos(&fp_date);
-    unsigned y = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date);
+    unsigned y = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198, &fp_date);
     int separator = -2;
     if (ch == '-' || ch == '/') {
 	separator = ch;
@@ -932,13 +946,13 @@ read_walls_srv_date(int *py, int *pm, int *pd)
     }
     filepos fp_month;
     get_pos(&fp_month);
-    unsigned m = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date);
+    unsigned m = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198, &fp_date);
     if (ch == separator) {
 	nextch();
     }
     filepos fp_day;
     get_pos(&fp_day);
-    unsigned d = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date);
+    unsigned d = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198, &fp_date);
 
     filepos fp_year;
     if (y < 100) {

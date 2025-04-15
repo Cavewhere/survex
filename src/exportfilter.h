@@ -26,7 +26,7 @@
 #include <GL/glew.h>
 #include "wx.h"
 
-#include "img_hosted.h"
+#include "img_for_survex.h"
 
 class ExportFilter {
   protected:
@@ -42,7 +42,6 @@ class ExportFilter {
 	return (fh != NULL);
     }
     virtual void header(const char* title,
-			const char* datestamp_string,
 			time_t datestamp,
 			double min_x, double min_y, double min_z,
 			double max_x, double max_y, double max_z);
@@ -60,7 +59,6 @@ class ExportFilter {
 
 inline void
 ExportFilter::header(const char*,
-		     const char*,
 		     time_t,
 		     double, double, double,
 		     double, double, double) { }

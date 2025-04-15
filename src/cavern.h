@@ -1,6 +1,6 @@
 /* cavern.h
  * SURVEX Cave surveying software - header file
- * Copyright (C) 1991-2024 Olly Betts
+ * Copyright (C) 1991-2025 Olly Betts
  * Copyright (C) 2004 Simeon Warner
  *
  * This program is free software; you can redistribute it and/or modify
@@ -35,7 +35,7 @@
 
 #include <proj.h>
 
-#include "img_hosted.h"
+#include "img_for_survex.h"
 #include "str.h"
 #include "useful.h"
 
@@ -62,11 +62,12 @@ typedef double real; /* so we can change the precision used easily */
 #define SPECIAL_CLOSE		0x1000
 
 extern char *fnm_output_base;
-extern int fnm_output_base_is_dir;
+extern bool fnm_output_base_is_dir;
 
 extern bool fExportUsed;
 
 extern int current_days_since_1900;
+extern unsigned current_year;
 
 /* Types */
 
@@ -147,7 +148,7 @@ typedef enum {
    SFLAGS_FIXED, SFLAGS_ANON, SFLAGS_WALL,
    /* These values don't need to match img.h, but mustn't clash. */
    SFLAGS_HANGING = 9,
-   SFLAGS_USED = 10,
+   SFLAGS_UNUSED_FIXED_POINT = 10,
    SFLAGS_SOLVED = 11,
    SFLAGS_SUSPECTTYPO = 12,
    SFLAGS_SURVEY = 13,
@@ -246,7 +247,6 @@ typedef struct Prefix {
    /* stn flags - e.g. surface, underground, entrance
     * also suspecttypo and survey */
    unsigned short sflags;
-   short shape;
 } prefix;
 
 static inline const char *prefix_ident(const prefix *p) {
@@ -405,7 +405,7 @@ extern PJ * pj_cached;
 extern string survey_title;
 
 extern bool fExplicitTitle;
-extern long cLegs, cStns, cComponents;
+extern long cLegs, cStns, cComponents, cSolves;
 extern FILE *fhErrStat;
 extern img *pimg;
 extern real totadj, total, totplan, totvert;

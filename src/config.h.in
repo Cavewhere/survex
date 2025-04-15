@@ -92,10 +92,53 @@ typedef __int32 int32_t;
 #else
 # define GETC(F) getc(F)
 #endif
+
 #ifdef HAVE_PUTC_UNLOCKED
 # define PUTC(C, F) putc_unlocked(C, F)
 #else
 # define PUTC(C, F) putc(C, F)
+#endif
+
+#ifdef HAVE_PUTC_UNLOCKED
+# define PUTCHAR(C) putchar_unlocked(C)
+#else
+# define PUTCHAR(C) putchar(C)
+#endif
+
+#ifdef HAVE_FWRITE_UNLOCKED
+# define FWRITE_(P, S, N, F) fwrite_unlocked(P, S, N, F)
+#else
+# define FWRITE_(P, S, N, F) fwrite(P, S, N, F)
+#endif
+
+#ifdef HAVE_GETC_UNLOCKED
+# define GETC(F) getc_unlocked(F)
+#else
+# define GETC(F) getc(F)
+#endif
+
+#ifdef HAVE_PUTC_UNLOCKED
+# define PUTC(C, F) putc_unlocked(C, F)
+#else
+# define PUTC(C, F) putc(C, F)
+#endif
+
+#ifdef HAVE_FEOF_UNLOCKED
+# define FEOF(F) feof_unlocked(F)
+#else
+# define FEOF(F) feof(F)
+#endif
+
+#ifdef HAVE_FERROR_UNLOCKED
+# define FERROR(F) ferror_unlocked(F)
+#else
+# define FERROR(F) ferror(F)
+#endif
+
+#ifdef HAVE_FREAD_UNLOCKED
+# define FREAD(P, S, N, F) fread_unlocked(P, S, N, F)
+#else
+# define FREAD(P, S, N, F) fread(P, S, N, F)
 #endif
 
 #endif

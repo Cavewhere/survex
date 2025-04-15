@@ -1,6 +1,6 @@
 /* commands.c
  * Code for directives
- * Copyright (C) 1991-2024 Olly Betts
+ * Copyright (C) 1991-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +37,7 @@
 #include "message.h"
 #include "netbits.h"
 #include "netskel.h"
+#include "osalloc.h"
 #include "out.h"
 #include "readval.h"
 #include "str.h"
@@ -59,8 +60,10 @@ move_to_fixedlist(node *stn, int ignore_dirn)
 }
 
 int fix_station(prefix *fix_name, const double* coords) {
+    bool new_stn = (fix_name->stn == NULL &&
+		    !TSTBIT(fix_name->sflags, SFLAGS_SOLVED));
     fix_name->sflags |= BIT(SFLAGS_FIXED);
-    bool new_stn = (fix_name->stn == NULL);
+    if (new_stn) fix_name->sflags |= BIT(SFLAGS_UNUSED_FIXED_POINT);
     node *stn = StnFromPfx(fix_name);
     if (fixed(stn)) {
 	if (coords[0] != POS(stn, 0) ||
@@ -95,6 +98,10 @@ void fix_station_with_variance(prefix *fix_name, const double* coords,
 #endif
 			      )
 {
+    bool new_stn = (fix_name->stn == NULL &&
+		    !TSTBIT(fix_name->sflags, SFLAGS_SOLVED));
+    if (new_stn) fix_name->sflags |= BIT(SFLAGS_UNUSED_FIXED_POINT);
+
     node *stn = StnFromPfx(fix_name);
     if (!fixed(stn)) {
 	node *fixpt = osnew(node);
@@ -102,7 +109,6 @@ void fix_station_with_variance(prefix *fix_name, const double* coords,
 	name = osnew(prefix);
 	name->pos = osnew(pos);
 	name->ident.p = NULL;
-	name->shape = 0;
 	fixpt->name = name;
 	name->stn = fixpt;
 	name->up = NULL;
@@ -212,7 +218,7 @@ default_translate(settings *s)
       /* We're currently using the same character translation map as our parent
        * scope so allocate a new one before we modify it.
        */
-      s->Translate = ((short*)osmalloc(ossizeof(short) * 257)) + 1;
+      s->Translate = ((short*)osmalloc(sizeof(short) * 257)) + 1;
    } else {
 /*  SVX_ASSERT(EOF==-1);*/ /* important, since we rely on this */
    }
@@ -697,7 +703,7 @@ cmd_set(void)
     * table, and copy old one into it */
    if (pcs->next && pcs->next->Translate == pcs->Translate) {
       short *p;
-      p = ((short*)osmalloc(ossizeof(short) * 257)) + 1;
+      p = ((short*)osmalloc(sizeof(short) * 257)) + 1;
       memcpy(p - 1, pcs->Translate - 1, sizeof(short) * 257);
       pcs->Translate = p;
    }
@@ -826,7 +832,7 @@ cmd_prefix(void)
    if (prefix_depr_count < 5) {
       /* TRANSLATORS: If you're unsure what "deprecated" means, see:
        * https://en.wikipedia.org/wiki/Deprecation */
-      compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /**prefix is deprecated - use *begin and *end instead*/6);
+      compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /**prefix is deprecated - use *begin and *end instead*/109);
       if (++prefix_depr_count == 5)
 	 compile_diagnostic(DIAG_INFO, /*Further uses of this deprecated feature will not be reported*/95);
    }
@@ -1026,22 +1032,22 @@ pop_settings(void)
 	    invalidate_pj_cached();
 	}
 	/* free proj_str if not used by parent */
-	osfree(p->proj_str);
+	free(p->proj_str);
     }
 
     /* don't free default ordering or ordering used by parent */
     if (p->ordering != default_order && p->ordering != pcs->ordering)
-	osfree((reading*)p->ordering);
+	free((reading*)p->ordering);
 
     /* free Translate if not used by parent */
     if (p->Translate != pcs->Translate)
-	osfree(p->Translate - 1);
+	free(p->Translate - 1);
 
     /* free meta if not used by parent, or in this block */
     if (p->meta && p->meta != pcs->meta && p->meta->ref_count == 0)
-	osfree(p->meta);
+	free(p->meta);
 
-    osfree(p);
+    free(p);
 }
 
 static void
@@ -1124,7 +1130,8 @@ static void
 cmd_entrance(void)
 {
    prefix *pfx = read_prefix(PFX_STATION);
-   pfx->sflags |= BIT(SFLAGS_ENTRANCE) | BIT(SFLAGS_USED);
+   pfx->sflags |= BIT(SFLAGS_ENTRANCE);
+   pfx->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
 }
 
 static const prefix * first_fix_name = NULL;
@@ -1148,8 +1155,6 @@ cmd_fix(void)
    bool reference = S_EQ(&uctoken, "REFERENCE");
    if (reference) {
       do_legacy_token_warning();
-      /* suppress "unused fixed point" warnings for this station */
-      fix_name->sflags |= BIT(SFLAGS_USED);
    } else {
       if (!s_empty(&uctoken)) set_pos(&fp);
    }
@@ -1290,6 +1295,10 @@ cmd_fix(void)
 #endif
 				  );
 
+	 if (reference) {
+	     // `*fix reference` so suppress "unused fixed point" warning.
+	     fix_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+	 }
 	 if (!first_fix_name) {
 	    /* We track if we've fixed a station yet, and if so what the name
 	     * of the first fix was, so that we can issue an error if the
@@ -1313,6 +1322,10 @@ cmd_fix(void)
    }
 
    int fix_result = fix_station(fix_name, coord.v);
+   if (reference) {
+       // `*fix reference` so suppress "unused fixed point" warning.
+       fix_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+   }
    if (fix_result == 0) {
       return;
    }
@@ -1408,7 +1421,7 @@ cmd_equate(void)
 
       prev_name = name;
       name = read_prefix(PFX_STATION|PFX_ALLOW_ROOT|PFX_SUSPECT_TYPO);
-      process_equate(name, prev_name);
+      process_equate(prev_name, name);
    }
 }
 
@@ -1446,7 +1459,7 @@ report_missing_export(prefix *pfx, int depth)
    } else {
       compile_diagnostic(DIAG_ERR, /*Station “%s” not exported from survey “%s”*/26, p, s);
    }
-   osfree(s);
+   free(s);
 }
 
 static void
@@ -1669,8 +1682,8 @@ cmd_data(void)
 	 compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP,
 			    /*Reading “%s” not allowed in data style “%s”*/63,
 			    s_str(&token), style_name);
-	 osfree(style_name);
-	 osfree(new_order);
+	 free(style_name);
+	 free(new_order);
 	 return;
       }
 
@@ -1691,8 +1704,8 @@ cmd_data(void)
 	 compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP,
 			    /*Reading “%s” not allowed in data style “%s”*/63,
 			    s_str(&token), style_name);
-	 osfree(style_name);
-	 osfree(new_order);
+	 free(style_name);
+	 free(new_order);
 	 return;
       }
       if (TSTBIT(mUsed, Newline) && TSTBIT(m_multi, d)) {
@@ -1703,8 +1716,8 @@ cmd_data(void)
 	  * ("depth" needs to occur before "newline"). */
 	 compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP,
 			    /*Reading “%s” must occur before NEWLINE*/225, s_str(&token));
-	 osfree(style_name);
-	 osfree(new_order);
+	 free(style_name);
+	 free(new_order);
 	 return;
       }
       /* Check for duplicates unless it's a special reading:
@@ -1715,8 +1728,8 @@ cmd_data(void)
 	    /* TRANSLATORS: complains about a situation like trying to define
 	     * two from stations per leg */
 	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*Duplicate reading “%s”*/67, s_str(&token));
-	    osfree(style_name);
-	    osfree(new_order);
+	    free(style_name);
+	    free(new_order);
 	    return;
 	 } else {
 	    /* Check for previously listed readings which are incompatible
@@ -1754,8 +1767,8 @@ cmd_data(void)
 		   *
 		   * *data normal from to tape newline compass clino */
 		  compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*NEWLINE can only be preceded by STATION, DEPTH, and COUNT*/226);
-		  osfree(style_name);
-		  osfree(new_order);
+		  free(style_name);
+		  free(new_order);
 		  return;
 	       }
 	       if (k == 0) {
@@ -1763,8 +1776,8 @@ cmd_data(void)
 		   *
 		   * *data normal newline from to tape compass clino */
 		  compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*NEWLINE can’t be the first reading*/222);
-		  osfree(style_name);
-		  osfree(new_order);
+		  free(style_name);
+		  free(new_order);
 		  return;
 	       }
 	       break;
@@ -1780,8 +1793,8 @@ cmd_data(void)
 		* DEPTH and DEPTHCHANGE together). */
 	       compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*Reading “%s” duplicates previous reading(s)*/77,
 				  s_str(&token));
-	       osfree(style_name);
-	       osfree(new_order);
+	       free(style_name);
+	       free(new_order);
 	       return;
 	    }
 	    mUsed |= BIT(d); /* used to catch duplicates */
@@ -1804,8 +1817,8 @@ cmd_data(void)
        *
        * *data normal from to tape compass clino newline */
       compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*NEWLINE can’t be the last reading*/223);
-      osfree(style_name);
-      osfree(new_order);
+      free(style_name);
+      free(new_order);
       return;
    }
 
@@ -1827,8 +1840,8 @@ cmd_data(void)
        *
        * ("station" signifies interleaved data). */
       compile_diagnostic(DIAG_ERR|DIAG_SKIP, /*Interleaved readings, but no NEWLINE*/224);
-      osfree(style_name);
-      osfree(new_order);
+      free(style_name);
+      free(new_order);
       return;
    }
 
@@ -1871,20 +1884,20 @@ cmd_data(void)
 	      &~ mask[style]) == 0);
       /* TRANSLATORS: i.e. not enough readings for the style. */
       compile_diagnostic(DIAG_ERR|DIAG_SKIP, /*Too few readings for data style “%s”*/64, style_name);
-      osfree(style_name);
-      osfree(new_order);
+      free(style_name);
+      free(new_order);
       return;
    }
 
    /* don't free default ordering or ordering used by parent */
    if (pcs->ordering != default_order &&
        !(pcs->next && pcs->next->ordering == pcs->ordering))
-      osfree((reading*)pcs->ordering);
+      free((reading*)pcs->ordering);
 
    pcs->recorded_style = pcs->style = style;
    pcs->ordering = new_order;
 
-   osfree(style_name);
+   free(style_name);
 
 reinit_style:
    if (style == STYLE_PASSAGE) {
@@ -2167,7 +2180,7 @@ cmd_include(void)
    ch = ch_store;
 
    s_free(&fnm);
-   osfree(pth);
+   free(pth);
 }
 
 static void
@@ -2197,6 +2210,95 @@ cmd_sd(void)
 
    for (quantity = 0, m = BIT(quantity); m <= qmask; quantity++, m <<= 1)
       if (qmask & m) pcs->Var[quantity] = variance;
+}
+
+enum {
+    ROLE_BACKTAPE,
+    ROLE_BACKCOMPASS,
+    ROLE_BACKCLINO,
+    ROLE_TAPE,
+    ROLE_COMPASS,
+    ROLE_CLINO,
+    ROLE_COUNTER,
+    ROLE_DEPTH,
+    ROLE_STATION,
+    ROLE_POSITION,
+    ROLE_NOTES,
+    ROLE_PICTURES,
+    ROLE_INSTRUMENTS,
+    ROLE_ASSISTANT,
+    ROLE_ALTITUDE,
+    ROLE_DIMENSIONS,
+    ROLE_LEFT,
+    ROLE_RIGHT,
+    ROLE_UP,
+    ROLE_DOWN,
+    ROLE_EXPLORER
+};
+
+static const sztok role_tab[] = {
+    {"ALTITUDE",	ROLE_ALTITUDE},
+    {"ASSISTANT",	ROLE_ASSISTANT},
+    {"BACKBEARING",	ROLE_BACKCOMPASS},
+    {"BACKCLINO",	ROLE_BACKCLINO},
+    {"BACKCOMPASS",	ROLE_BACKCOMPASS},
+    {"BACKGRADIENT",	ROLE_BACKCLINO},
+    {"BACKLENGTH",	ROLE_BACKTAPE},
+    {"BACKTAPE",	ROLE_BACKTAPE},
+    {"BEARING",		ROLE_COMPASS},
+    {"CEILING",		ROLE_UP},
+    {"CLINO",		ROLE_CLINO},
+    {"COMPASS",		ROLE_COMPASS},
+    {"COUNT",		ROLE_COUNTER},
+    {"COUNTER",		ROLE_COUNTER},
+    {"DEPTH",		ROLE_DEPTH},
+    {"DIMENSIONS",	ROLE_DIMENSIONS},
+    {"DOG",		ROLE_ASSISTANT},
+    {"DOWN",		ROLE_DOWN},
+    {"DZ",		ROLE_ALTITUDE},
+    {"EXPLORER",	ROLE_EXPLORER},
+    {"FLOOR",		ROLE_DOWN},
+    {"GRADIENT",	ROLE_CLINO},
+    {"INSTRUMENTS",	ROLE_INSTRUMENTS},
+    {"INSTS",		ROLE_INSTRUMENTS},
+    {"LEFT",		ROLE_LEFT},
+    {"LENGTH",		ROLE_TAPE},
+    {"NOTEBOOK",	ROLE_NOTES},
+    {"NOTES",		ROLE_NOTES},
+    {"PICS",		ROLE_PICTURES},
+    {"PICTURES",	ROLE_PICTURES},
+    {"POSITION",	ROLE_POSITION},
+    {"RIGHT",		ROLE_RIGHT},
+    {"STATION",		ROLE_STATION},
+    {"TAPE",		ROLE_TAPE},
+    {"UP",		ROLE_UP},
+    {NULL,		-1}
+};
+
+static void
+cmd_team(void)
+{
+    string name = S_INIT;
+    if (!read_string_warning(&name)) {
+	skipline();
+	return;
+    }
+    s_free(&name);
+
+    while (true) {
+	skipblanks();
+	if (isComm(ch) || isEol(ch)) return;
+	get_token();
+	int role = match_tok(role_tab, TABSIZE(role_tab));
+	if (role < 0) {
+	    // Skip after a bad role to avoid triggering multiple warnings for
+	    // one *team command in existing data from before this check was
+	    // implemented.
+	    compile_diagnostic(DIAG_WARN|DIAG_TOKEN|DIAG_SKIP, /*Unknown team role “%s”*/532,
+			       s_str(&token));
+	    return;
+	}
+    }
 }
 
 static void
@@ -2233,6 +2335,48 @@ cmd_case(void)
    } else {
       compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*Found “%s”, expecting “PRESERVE”, “TOUPPER”, or “TOLOWER”*/10, s_str(&token));
    }
+}
+
+static void
+cmd_copyright(void)
+{
+    skipblanks();
+    filepos fp;
+    get_pos(&fp);
+    unsigned y1 = read_uint_raw(DIAG_WARN|DIAG_UINT, /*Invalid year*/534, NULL);
+    if (y1 < 1000) {
+	set_pos(&fp);
+	compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Invalid year*/534, y1);
+    } else if (y1 > current_year) {
+	set_pos(&fp);
+	compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Date is in the future!*/80);
+    }
+    if (ch == '-') {
+	nextch();
+	get_pos(&fp);
+	unsigned y2 = read_uint_raw(DIAG_WARN|DIAG_UINT, /*Invalid year*/534, NULL);
+	if (y2 < 1000) {
+	    set_pos(&fp);
+	    compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Invalid year*/534, y2);
+	} else if (y2 < y1) {
+	    set_pos(&fp);
+	    compile_diagnostic(DIAG_WARN|DIAG_UINT, /*End of date range is before the start*/81);
+	} else if (y2 > current_year) {
+	    set_pos(&fp);
+	    compile_diagnostic(DIAG_WARN|DIAG_UINT, /*Date is in the future!*/80);
+	}
+    }
+
+    string text = S_INIT;
+    if (!read_string_warning(&text)) {
+	skipline();
+	return;
+    }
+    s_free(&text);
+
+    skipblanks();
+    if (!isComm(ch) && !isEol(ch))
+	compile_diagnostic(DIAG_WARN|DIAG_TAIL, /*End of line not blank*/15);
 }
 
 typedef enum {
@@ -2506,7 +2650,7 @@ cmd_cs(void)
 
       if (proj_str_out && strcmp(proj_str, proj_str_out) == 0) {
 	  /* Same as the output cs that's already set, so nothing to do. */
-	  osfree(proj_str);
+	  free(proj_str);
 	  return;
       }
 
@@ -2524,7 +2668,7 @@ cmd_cs(void)
 				 proj_context_errno_string(PJ_DEFAULT_CTX,
 							   proj_context_errno(PJ_DEFAULT_CTX)));
 	      skipline();
-	      osfree(proj_str);
+	      free(proj_str);
 	      return;
 	  }
 	  int type = proj_get_type(pj);
@@ -2533,7 +2677,7 @@ cmd_cs(void)
 	      set_pos(&fp);
 	      compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Coordinate system unsuitable for output*/435);
 	      skipline();
-	      osfree(proj_str);
+	      free(proj_str);
 	      return;
 	  }
       }
@@ -2543,7 +2687,7 @@ cmd_cs(void)
 	   * are silently ignored (so you can combine two datasets and set
 	   * the output cs to use before you include either).
 	   */
-	  osfree(proj_str);
+	  free(proj_str);
       } else {
 	  proj_str_out = proj_str;
       }
@@ -2573,7 +2717,7 @@ cmd_cs(void)
       /* Free current input proj_str if not used by parent. */
       settings * p = pcs;
       if (!p->next || p->proj_str != p->next->proj_str)
-	 osfree(p->proj_str);
+	 free(p->proj_str);
       p->proj_str = proj_str;
       p->input_convergence = HUGE_REAL;
       invalidate_pj_cached();
@@ -2694,7 +2838,7 @@ cmd_require(void)
 	 * Here "survey" is a "cave map" rather than list of questions - it should be
 	 * translated to the terminology that cavers using the language would use.
 	 */
-	compile_diagnostic(DIAG_FATAL|DIAG_FROM(fp), /*Survex version %s or greater required to process this survey data.*/2, v);
+	compile_diagnostic(DIAG_FATAL|DIAG_FROM(fp), /*Survex version %s or greater required to process this survey data.*/38, v);
 	// Does not return so no point freeing v here.
     }
 }
@@ -2718,7 +2862,7 @@ copy_on_write_meta(settings *s)
 static int
 read_year(filepos *fp_date_ptr)
 {
-    int y = read_uint_raw(/*Expecting date, found “%s”*/198, fp_date_ptr);
+    int y = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198, fp_date_ptr);
     if (y < 100) {
 	/* Two digit year is 19xx. */
 	y += 1900;
@@ -2780,7 +2924,7 @@ cmd_date(void)
 	// command without `surveyed` or `explored` qualifiers.
 	nextch();
 	get_pos(&fp_date2);
-	int v = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date1);
+	int v = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198, &fp_date1);
 	if (date_sep == '-') {
 	    // We're only accepting ISO dates.
 	} else if (ch == '-') {
@@ -2823,7 +2967,7 @@ cmd_date(void)
 	date_sep = ch;
 	nextch();
 	get_pos(&fp);
-	month = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date1);
+	month = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198, &fp_date1);
     } else {
 	// Just a year - might be a ISO date range though.
 	date_sep = '-';
@@ -2839,7 +2983,7 @@ cmd_date(void)
     if (ch == date_sep) {
 	nextch();
 	get_pos(&fp);
-	day = read_uint_raw(/*Expecting date, found “%s”*/198, &fp_date1);
+	day = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198, &fp_date1);
 	if (day < 1 || day > last_day(year, month)) {
 	    set_pos(&fp);
 	    /* TRANSLATORS: e.g. 31st of April, or 32nd of any month */
@@ -2864,7 +3008,7 @@ try_date2:
 	if (ch == date_sep) {
 	    nextch();
 	    get_pos(&fp);
-	    month2 = read_uint_raw(/*Expecting date, found “%s”*/198,
+	    month2 = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198,
 				   &fp_date2);
 	    if (month2 < 1 || month2 > 12) {
 		set_pos(&fp);
@@ -2875,7 +3019,7 @@ try_date2:
 	    if (ch == date_sep) {
 		nextch();
 		get_pos(&fp);
-		day2 = read_uint_raw(/*Expecting date, found “%s”*/198,
+		day2 = read_uint_raw(DIAG_ERR, /*Expecting date, found “%s”*/198,
 				     &fp_date2);
 		if (day2 < 1 || day2 > last_day(year2, month2)) {
 		    set_pos(&fp);
@@ -2962,7 +3106,7 @@ static const cmd_fn cmd_funcs[] = {
    cmd_calibrate,
    cmd_cartesian,
    cmd_case,
-   skipline, /*cmd_copyright,*/
+   cmd_copyright,
    cmd_cs,
    cmd_data,
    cmd_date,
@@ -2987,7 +3131,7 @@ static const cmd_fn cmd_funcs[] = {
    cmd_sd,
    cmd_set,
    solve_network,
-   skipline, /*cmd_team,*/
+   cmd_team,
    cmd_title,
    cmd_truncate,
    cmd_units

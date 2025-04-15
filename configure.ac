@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.4.16], [https://trac.survex.com/])
+AC_INIT([survex], [1.4.17], [https://trac.survex.com/])
 AM_INIT_AUTOMAKE([1.5 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
@@ -113,10 +113,6 @@ case $host_cpu in
   i*86)
     if test "$enable_sse" = no ; then
       AC_MSG_RESULT([no - WARNING: Testsuite will probably fail])
-      if test yes = "$msvc"; then
-	dnl MSVC defaults to SSE2.
-	AM_CXXFLAGS="$AM_CXXFLAGS -arch:IA32"
-      fi
     else
       dnl Default to sse2.
       test "$enable_sse" != yes || enable_sse=sse2
@@ -125,12 +121,6 @@ case $host_cpu in
 	dnl We can unconditionally use -mtune=generic as it was added in GCC
 	dnl 4.2, and supported at least as far back as clang 3.0.
 	AM_CXXFLAGS="$AM_CXXFLAGS -mfpmath=sse -m$enable_sse -mtune=generic"
-      elif test yes = "$msvc"; then
-	AC_MSG_RESULT([yes (configure with --disable-sse to disable)])
-	if test sse = "$enable_sse"; then
-	  dnl MSVC defaults to SSE2.
-	  AM_CXXFLAGS="$AM_CXXFLAGS -arch:SSE"
-	fi
       else
 	AC_MSG_RESULT([don't know how to for compiler $CXX])
       fi
@@ -208,10 +198,18 @@ AC_SEARCH_LIBS([gluProject], [GLU glu32], [WX_LIBS="$WX_LIBS $ac_cv_search_gluPr
 LIBS=$save_LIBS
 
 AC_SUBST(WX_LIBS)
-dnl macOS has OpenGL/gl.h.
+dnl macOS has OpenGL/gl.h and OpenGL/glu.h.
 AC_CHECK_HEADERS([GL/gl.h OpenGL/gl.h], [], [], [ ])
-dnl The Debian mingw-w64 packages lack GL/glext.h; macOS has OpenGL/glext.h.
-AC_CHECK_HEADERS([GL/glext.h OpenGL/glext.h], [], [], [#include <GL/gl.h>])
+AC_CHECK_HEADERS([GL/glu.h OpenGL/glu.h], [], [], [ ])
+dnl Older Debian mingw-w64 packages lacked GL/glext.h; macOS has OpenGL/glext.h.
+dnl Requires an explicit include of gl.h first.
+AC_CHECK_HEADERS([GL/glext.h OpenGL/glext.h], [], [], [
+  #ifdef HAVE_GL_GL_H
+  # include <GL/gl.h>
+  #elif defined HAVE_OPENGL_GL_H
+  # include <OpenGL/gl.h>
+  #endif
+  ])
 
 WX_CFLAGS=`$WX_CONFIG --cflags "$wx_libs"`
 AC_SUBST(WX_CFLAGS)
@@ -280,10 +278,14 @@ dnl Checks for header files.
 
 AC_CHECK_HEADERS(string.h)
 
-AC_CHECK_FUNCS([popen hypot mmap])
+AC_CHECK_FUNCS([popen hypot mmap strdup])
 
-dnl Much faster than using getc()/putc(), at least on Linux.
-AC_CHECK_FUNCS([getc_unlocked putc_unlocked])
+dnl We don't access a FILE* from multiple threads and using the unlocked
+dnl versions has significantly less overhead, especially when reading/writing
+dnl byte-by-byte.  These are specified by POSIX:
+AC_CHECK_FUNCS([getc_unlocked putc_unlocked putchar_unlocked])
+dnl These are GNU extensions in glibc:
+AC_CHECK_FUNCS([feof_unlocked ferror_unlocked fread_unlocked fwrite_unlocked])
 
 AC_CHECK_FUNCS([setenv unsetenv])
 
@@ -371,19 +373,55 @@ if test no = "$mswindows"; then
 fi
 
 AH_BOTTOM(
-[/* Use getc_unlocked() and putc_unlocked() where available, since they are
+[/* Use _unlocked() variants of stdio functions where available, since they are
  * faster, and we don't multithread file accesses.
  */
+
+#ifdef HAVE_FEOF_UNLOCKED
+# define FEOF(F) feof_unlocked(F)
+#else
+# define FEOF(F) feof(F)
+#endif
+
+#ifdef HAVE_FERROR_UNLOCKED
+# define FERROR(F) ferror_unlocked(F)
+#else
+# define FERROR(F) ferror(F)
+#endif
+
+#ifdef HAVE_FREAD_UNLOCKED
+# define FREAD(P, S, N, F) fread_unlocked(P, S, N, F)
+#else
+# define FREAD(P, S, N, F) fread(P, S, N, F)
+#endif
+
+/* If we call this FWRITE() then macos errors out on uses with:
+ * error: called object type 'int' is not a function or function pointer
+ * Unclear what's going on - a conditional `#undef FWRITE` before defining
+ * doesn't help.
+ */
+#ifdef HAVE_FWRITE_UNLOCKED
+# define FWRITE_(P, S, N, F) fwrite_unlocked(P, S, N, F)
+#else
+# define FWRITE_(P, S, N, F) fwrite(P, S, N, F)
+#endif
 
 #ifdef HAVE_GETC_UNLOCKED
 # define GETC(F) getc_unlocked(F)
 #else
 # define GETC(F) getc(F)
 #endif
+
 #ifdef HAVE_PUTC_UNLOCKED
 # define PUTC(C, F) putc_unlocked(C, F)
 #else
 # define PUTC(C, F) putc(C, F)
+#endif
+
+#ifdef HAVE_PUTC_UNLOCKED
+# define PUTCHAR(C) putchar_unlocked(C)
+#else
+# define PUTCHAR(C) putchar(C)
 #endif
 
 #ifndef __cplusplus
@@ -401,5 +439,3 @@ AC_CONFIG_FILES([
  survex.spec lib/Info.plist
  ])
 AC_OUTPUT
-dnl FIXME update msvc makefile for 1.2 branch
-dnl src/msvc/config.h

@@ -1,7 +1,7 @@
 /* img.c
  * Routines for reading and writing processed survey data files
  *
- * Copyright (C) 1993-2024 Olly Betts
+ * Copyright (C) 1993-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,9 +38,12 @@
 #if defined HAVE_STDINT_H || \
     (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L) || \
     (defined __cplusplus && __cplusplus >= 201103L)
+// stdint.h was added in C99 and C++11.
 # include <stdint.h>
 # define INT32_T int32_t
 # define UINT32_T uint32_t
+# define INT16_T int16_t
+# define UINT16_T uint16_t
 #else
 # include <limits.h>
 # if INT_MAX >= 2147483647
@@ -50,11 +53,18 @@
 #  define INT32_T long
 #  define UINT32_T unsigned long
 # endif
+# define INT16_T short
+# define UINT16_T unsigned short
 #endif
 
 #if defined HAVE_SNPRINTF || \
     (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L) || \
     (defined __cplusplus && __cplusplus >= 201103L)
+/* snprintf() was standardised in C99 and C++11 (though widely supported as
+ * an extension before that) so if the autoconf macros aren't defined we
+ * conservatively assume availability based on the language standard version
+ * the compiler claims to support.
+ */
 # define SNPRINTF snprintf
 #else
 # define SNPRINTF my_snprintf
@@ -69,54 +79,70 @@ static int my_snprintf(char *s, size_t size, const char *format, ...) {
 }
 #endif
 
-#define TIMENA "?"
-#ifdef IMG_HOSTED
-# include "debug.h"
-# include "filelist.h"
-# include "filename.h"
-# include "message.h"
-# include "osalloc.h"
-# include "useful.h"
-# define TIMEFMT msg(/*%a,%Y.%m.%d %H:%M:%S %Z*/107)
+// strdup() is POSIX but not in any C/C++ standard (yet at least).
+#ifdef HAVE_STRDUP
+# define STRDUP(STR) strdup(STR)
 #else
-# define TIMEFMT "%a,%Y.%m.%d %H:%M:%S %Z"
-# define EXT_SVX_3D "3d"
-# define FNM_SEP_EXT '.'
-# define METRES_PER_FOOT 0.3048 /* exact value */
-# define xosmalloc(L) malloc((L))
-# define xosrealloc(L,S) realloc((L),(S))
-# define osfree(P) free((P))
+# define STRDUP(STR) my_strdup(STR)
 
-/* in IMG_HOSTED mode, this tests if a filename refers to a directory */
-# define fDirectory(X) 0
-/* open file FNM with mode MODE, maybe using path PTH and/or extension EXT */
-/* path isn't used in img.c, but EXT is */
-# define fopenWithPthAndExt(PTH,FNM,EXT,MODE,X) \
-    ((*(X) = NULL), fopen(FNM,MODE))
-# ifndef PUTC
-#  define PUTC(C, FH) putc(C, FH)
-# endif
-# ifndef GETC
-#  define GETC(FH) getc(FH)
-# endif
-# define fputsnl(S, FH) (fputs((S), (FH)) == EOF ? EOF : putc('\n', (FH)))
-# define SVX_ASSERT(X)
-
-#ifdef __cplusplus
-# include <algorithm>
-using std::max;
-using std::min;
-#else
-/* Return max/min of two numbers. */
-/* May be defined already (e.g. by Borland C in stdlib.h) */
-/* NB Bad news if X or Y has side-effects... */
-# ifndef max
-#  define max(X, Y) ((X) > (Y) ? (X) : (Y))
-# endif
-# ifndef min
-#  define min(X, Y) ((X) < (Y) ? (X) : (Y))
-# endif
+static char *
+my_strdup(const char *str)
+{
+   char *p;
+   size_t len = strlen(str) + 1;
+   p = (char *)malloc(len);
+   if (p) memcpy(p, str, len);
+   return p;
+}
 #endif
+
+# ifndef FEOF
+#  ifdef HAVE_FEOF_UNLOCKED
+#   define FEOF(F) feof_unlocked(F)
+#  else
+#   define FEOF(F) feof(F)
+#  endif
+#endif
+
+# ifndef FERROR
+#  ifdef HAVE_FERROR_UNLOCKED
+#   define FERROR(F) ferror_unlocked(F)
+#  else
+#   define FERROR(F) ferror(F)
+#  endif
+#endif
+
+# ifndef FREAD
+#  ifdef HAVE_FREAD_UNLOCKED
+#   define FREAD(P, S, N, F) fread_unlocked(P, S, N, F)
+#  else
+#   define FREAD(P, S, N, F) fread(P, S, N, F)
+#  endif
+#endif
+
+# ifndef FWRITE_
+#  ifdef HAVE_FWRITE_UNLOCKED
+#   define FWRITE_(P, S, N, F) fwrite_unlocked(P, S, N, F)
+#  else
+#   define FWRITE_(P, S, N, F) fwrite(P, S, N, F)
+#  endif
+# endif
+
+# ifndef GETC
+#  ifdef HAVE_GETC_UNLOCKED
+#   define GETC(F) getc_unlocked(F)
+#  else
+#   define GETC(F) getc(F)
+#  endif
+# endif
+
+# ifndef PUTC
+#  ifdef HAVE_PUTC_UNLOCKED
+#   define PUTC(C, F) putc_unlocked(C, F)
+#  else
+#   define PUTC(C, F) putc(C, F)
+#  endif
+# endif
 
 static INT32_T
 get32(FILE *fh)
@@ -137,22 +163,46 @@ put32(UINT32_T w, FILE *fh)
    PUTC((char)(w >> 24l), fh);
 }
 
-static short
+static INT16_T
 get16(FILE *fh)
 {
-   UINT32_T w = GETC(fh);
-   w |= (UINT32_T)GETC(fh) << 8l;
+   UINT16_T w = GETC(fh);
+   w |= (UINT16_T)GETC(fh) << 8l;
    return (short)w;
 }
 
 static void
-put16(short word, FILE *fh)
+put16(INT16_T w, FILE *fh)
 {
-   unsigned short w = (unsigned short)word;
    PUTC((char)(w), fh);
    PUTC((char)(w >> 8l), fh);
 }
 
+#ifdef __cplusplus
+# include <algorithm>
+using std::max;
+using std::min;
+#else
+/* Return max/min of two numbers. */
+/* May be defined already (e.g. by Borland C in stdlib.h) */
+/* NB Bad news if X or Y has side-effects... */
+# ifndef max
+#  define max(X, Y) ((X) > (Y) ? (X) : (Y))
+# endif
+# ifndef min
+#  define min(X, Y) ((X) < (Y) ? (X) : (Y))
+# endif
+#endif
+
+#define METRES_PER_FOOT 0.3048 /* exact value */
+
+#define TIMENA "?"
+
+#ifndef SVX_ASSERT
+# define SVX_ASSERT(X)
+#endif
+
+#ifndef baseleaf_from_fnm
 static char *
 baseleaf_from_fnm(const char *fnm)
 {
@@ -167,18 +217,16 @@ baseleaf_from_fnm(const char *fnm)
    q = strrchr(p, '\\');
    if (q) p = q + 1;
 
-   q = strrchr(p, FNM_SEP_EXT);
+   q = strrchr(p, '.');
    if (q) len = (const char *)q - p; else len = strlen(p);
 
-   res = (char *)xosmalloc(len + 1);
+   res = (char *)malloc(len + 1);
    if (!res) return NULL;
    memcpy(res, p, len);
    res[len] = '\0';
    return res;
 }
 #endif
-
-static char * my_strdup(const char *str);
 
 static time_t
 mktime_with_tz(struct tm * tm, const char * tz)
@@ -187,48 +235,48 @@ mktime_with_tz(struct tm * tm, const char * tz)
     char * old_tz = getenv("TZ");
 #ifdef _MSC_VER
     if (old_tz) {
-	old_tz = my_strdup(old_tz);
+	old_tz = STRDUP(old_tz);
 	if (!old_tz)
 	    return (time_t)-1;
     }
     if (_putenv_s("TZ", tz) != 0) {
-	osfree(old_tz);
+	free(old_tz);
 	return (time_t)-1;
     }
 #elif defined HAVE_SETENV
     if (old_tz) {
-	old_tz = my_strdup(old_tz);
+	old_tz = STRDUP(old_tz);
 	if (!old_tz)
 	    return (time_t)-1;
     }
     if (setenv("TZ", tz, 1) < 0) {
-	osfree(old_tz);
+	free(old_tz);
 	return (time_t)-1;
     }
 #else
     char * p;
     if (old_tz) {
 	size_t len = strlen(old_tz) + 1;
-	p = (char *)xosmalloc(len + 3);
+	p = (char *)malloc(len + 3);
 	if (!p)
 	    return (time_t)-1;
 	memcpy(p, "TZ=", 3);
 	memcpy(p + 3, tz, len);
 	old_tz = p;
     }
-    p = (char *)xosmalloc(strlen(tz) + 4);
+    p = (char *)malloc(strlen(tz) + 4);
     if (!p) {
-	osfree(old_tz);
+	free(old_tz);
 	return (time_t)-1;
     }
     memcpy(p, "TZ=", 3);
     strcpy(p + 3, tz);
     if (putenv(p) != 0) {
-	osfree(p);
-	osfree(old_tz);
+	free(p);
+	free(old_tz);
 	return (time_t)-1;
     }
-#define CLEANUP() osfree(p)
+#define CLEANUP() free(p)
 #endif
     tzset();
     r = mktime(tm);
@@ -277,7 +325,7 @@ mktime_with_tz(struct tm * tm, const char * tz)
 #else
 	setenv("TZ", old_tz, 1);
 #endif
-	osfree(old_tz);
+	free(old_tz);
     } else {
 #ifdef _MSC_VER
 	_putenv_s("TZ", "");
@@ -396,7 +444,7 @@ struct compass_station {
 static void*
 compass_plt_allocate_hash(void)
 {
-    struct compass_station_name** htab = xosmalloc(HASH_BUCKETS * sizeof(struct compass_station_name*));
+    struct compass_station** htab = malloc(HASH_BUCKETS * sizeof(struct compass_station*));
     if (htab) {
 	unsigned i;
 	for (i = 0; i < HASH_BUCKETS; ++i)
@@ -422,7 +470,7 @@ compass_plt_update_station(img *pimg, const char *name, int name_len,
 	    }
 	}
     }
-    p = xosmalloc(offsetof(struct compass_station, name) + name_len);
+    p = malloc(offsetof(struct compass_station, name) + name_len);
     if (!p) return -1;
     p->flags = flags;
     p->len = name_len;
@@ -455,12 +503,12 @@ compass_plt_free_data(img *pimg)
 	struct compass_station *p = *htab;
 	while (p) {
 	    struct compass_station *next = p->next;
-	    osfree(p);
+	    free(p);
 	    p = next;
 	}
 	++htab;
     }
-    osfree(pimg->data);
+    free(pimg->data);
     pimg->data = NULL;
 }
 
@@ -484,16 +532,6 @@ compass_plt_get_station_flags(img *pimg, const char *name, int name_len)
     return -1;
 }
 
-static char *
-my_strdup(const char *str)
-{
-   char *p;
-   size_t len = strlen(str) + 1;
-   p = (char *)xosmalloc(len);
-   if (p) memcpy(p, str, len);
-   return p;
-}
-
 #define getline_alloc(FH) getline_alloc_len(FH, NULL)
 
 static char *
@@ -502,7 +540,7 @@ getline_alloc_len(FILE *fh, size_t * p_len)
    int ch;
    size_t i = 0;
    size_t len = 16;
-   char *buf = (char *)xosmalloc(len);
+   char *buf = (char *)malloc(len);
    if (!buf) return NULL;
 
    ch = GETC(fh);
@@ -511,9 +549,9 @@ getline_alloc_len(FILE *fh, size_t * p_len)
       if (i == len - 1) {
 	 char *p;
 	 len += len;
-	 p = (char *)xosrealloc(buf, len);
+	 p = (char *)realloc(buf, len);
 	 if (!p) {
-	    osfree(buf);
+	    free(buf);
 	    return NULL;
 	 }
 	 buf = p;
@@ -542,7 +580,7 @@ check_label_space(img *pimg, size_t len)
 {
    if (len > pimg->buf_len) {
       size_t label_offset = pimg->label - pimg->label_buf;
-      char *b = (char *)xosrealloc(pimg->label_buf, len);
+      char *b = (char *)realloc(pimg->label_buf, len);
       if (!b) return 0;
       pimg->label_buf = b;
       pimg->label = b + label_offset;
@@ -595,25 +633,14 @@ buf_included(img *pimg, const char *buf, size_t len)
 img *
 img_open_survey(const char *fnm, const char *survey)
 {
-   img *pimg;
-   FILE *fh;
-   char* filename_opened = NULL;
-
-   if (fDirectory(fnm)) {
-      img_errno = IMG_DIRECTORY;
-      return NULL;
+   FILE *fh = fopen(fnm, "rb");
+#ifdef ENOMEM
+   if (!fh && errno == ENOMEM) {
+       img_errno = IMG_OUTOFMEMORY;
+       return NULL;
    }
-
-   fh = fopenWithPthAndExt("", fnm, EXT_SVX_3D, "rb", &filename_opened);
-   pimg = img_read_stream_survey(fh, fclose,
-				 filename_opened ? filename_opened : fnm,
-				 survey);
-   if (pimg) {
-       pimg->filename_opened = filename_opened;
-   } else {
-       osfree(filename_opened);
-   }
-   return pimg;
+#endif
+   return img_read_stream_survey(fh, fclose, fnm, survey);
 }
 
 static int
@@ -623,7 +650,7 @@ initialise_survey_filter(img *pimg, const char* survey)
     if (survey[len - 1] == pimg->separator) len--;
     if (len) {
 	char *p;
-	pimg->survey = (char *)xosmalloc(len + 2);
+	pimg->survey = (char *)malloc(len + 2);
 	if (!pimg->survey) {
 	    return 0;
 	}
@@ -635,8 +662,8 @@ initialise_survey_filter(img *pimg, const char* survey)
 	pimg->survey[len] = '\0';
 	p = strrchr(pimg->survey, pimg->separator);
 	if (p) p++; else p = pimg->survey;
-	osfree(pimg->title);
-	pimg->title = my_strdup(p);
+	free(pimg->title);
+	pimg->title = STRDUP(p);
 	if (!pimg->title) {
 	    return 0;
 	}
@@ -662,7 +689,7 @@ compass_plt_open(img *pimg, const char *survey)
      * use space as the level separator */
     pimg->separator = ' ';
     pimg->start = -1;
-    pimg->datestamp = my_strdup(TIMENA);
+    pimg->datestamp = STRDUP(TIMENA);
     if (!pimg->datestamp) {
 	return IMG_OUTOFMEMORY;
     }
@@ -736,7 +763,7 @@ compass_plt_open(img *pimg, const char *survey)
 		}
 		if (value) {
 		    size_t len = strlen(template) + 4;
-		    pimg->cs = (char*)xosmalloc(len);
+		    pimg->cs = (char*)malloc(len);
 		    if (!pimg->cs) {
 			goto out_of_memory_error;
 		    }
@@ -744,14 +771,14 @@ compass_plt_open(img *pimg, const char *survey)
 		}
 	    }
 
-	    osfree(from);
+	    free(from);
 
 	    /* We set pimg->title to an empty string if we have multiple
 	     * different non-empty section names.  Tidy that up before we
 	     * return.
 	     */
 	    if (pimg->title && !pimg->title[0]) {
-		osfree(pimg->title);
+		free(pimg->title);
 		pimg->title = NULL;
 	    }
 	    return 0;
@@ -771,12 +798,12 @@ compass_plt_open(img *pimg, const char *survey)
 			    /* Two different non-empty section names found. */
 			    pimg->title[0] = '\0';
 			}
-			osfree(line);
+			free(line);
 		    } else {
 			pimg->title = line;
 		    }
 		} else {
-		    osfree(line);
+		    free(line);
 		}
 		continue;
 	    }
@@ -801,17 +828,17 @@ compass_plt_open(img *pimg, const char *survey)
 	      while (line[len] > 32) ++len;
 	      if (!buf_included(pimg, line, len)) {
 		  /* Not the survey we are looking for. */
-		  osfree(line);
+		  free(line);
 		  continue;
 	      }
 	      q = strchr(line + len, 'C');
 	      if (q && q[1]) {
-		  osfree(pimg->title);
-		  pimg->title = my_strdup(q + 1);
+		  free(pimg->title);
+		  pimg->title = STRDUP(q + 1);
 	      } else if (!pimg->title) {
-		  pimg->title = my_strdup(pimg->label);
+		  pimg->title = STRDUP(pimg->label);
 	      }
-	      osfree(line);
+	      free(line);
 	      if (!pimg->title) {
 		  goto out_of_memory_error;
 	      }
@@ -845,8 +872,8 @@ compass_plt_open(img *pimg, const char *survey)
 	      while (name[name_len] > ' ') ++name_len;
 	      if (name_len > 255) {
 		  /* The spec says "up to 12 characters", we allow up to 255. */
-		  osfree(name);
-		  osfree(from);
+		  free(name);
+		  free(from);
 		  return IMG_BADFORMAT;
 	      }
 
@@ -910,7 +937,7 @@ compass_plt_open(img *pimg, const char *survey)
 					     station_flags) < 0) {
 		  goto out_of_memory_error;
 	      }
-	      osfree(from);
+	      free(from);
 	      from = name;
 	      from_len = name_len;
 	      continue;
@@ -932,8 +959,8 @@ compass_plt_open(img *pimg, const char *survey)
 
 	      if (name_len > 255) {
 		  /* The spec says "up to 12 characters", we allow up to 255. */
-		  osfree(line);
-		  osfree(from);
+		  free(line);
+		  free(from);
 		  return IMG_BADFORMAT;
 	      }
 
@@ -942,7 +969,7 @@ compass_plt_open(img *pimg, const char *survey)
 		  goto out_of_memory_error;
 	      }
 
-	      osfree(line);
+	      free(line);
 	      continue;
 	  }
 	  case 'G': {
@@ -951,7 +978,7 @@ compass_plt_open(img *pimg, const char *survey)
 	      char *p = line;
 	      long v = strtol(p, &p, 10);
 	      if (v < -60 || v > 60 || v == 0 || *p > ' ') {
-		  osfree(line);
+		  free(line);
 		  continue;
 	      }
 	      if (utm_zone && utm_zone != v) {
@@ -963,7 +990,7 @@ compass_plt_open(img *pimg, const char *survey)
 	      } else {
 		  utm_zone = v;
 	      }
-	      osfree(line);
+	      free(line);
 	      continue;
 	  }
 	  case 'O': {
@@ -974,7 +1001,7 @@ compass_plt_open(img *pimg, const char *survey)
 		  goto out_of_memory_error;
 	      }
 	      if (utm_zone == 99) {
-		  osfree(line);
+		  free(line);
 		  continue;
 	      }
 
@@ -987,7 +1014,7 @@ compass_plt_open(img *pimg, const char *survey)
 		  utm_zone = 99;
 	      }
 
-	      osfree(line);
+	      free(line);
 	      continue;
 	  }
 	}
@@ -996,7 +1023,7 @@ compass_plt_open(img *pimg, const char *survey)
 	}
     }
 out_of_memory_error:
-    osfree(from);
+    free(from);
     return IMG_OUTOFMEMORY;
 }
 
@@ -1047,9 +1074,9 @@ cmap_xyz_open(img *pimg, const char *survey)
 	struct tm tm;
 	unsigned long v;
 	char * p;
-	pimg->datestamp = my_strdup(line + 45);
+	pimg->datestamp = STRDUP(line + 45);
 	if (!pimg->datestamp) {
-	    osfree(line);
+	    free(line);
 	    return IMG_OUTOFMEMORY;
 	}
 	p = pimg->datestamp;
@@ -1096,9 +1123,9 @@ cmap_xyz_open(img *pimg, const char *survey)
 	 */
 	pimg->datestamp_numeric = mktime_with_tz(&tm, "");
     } else {
-	pimg->datestamp = my_strdup(TIMENA);
+	pimg->datestamp = STRDUP(TIMENA);
 	if (!pimg->datestamp) {
-	    osfree(line);
+	    free(line);
 	    return IMG_OUTOFMEMORY;
 	}
     }
@@ -1113,14 +1140,14 @@ bad_cmap_date:
 	while (len > 2 && line[len - 1] == ' ') --len;
 	if (len > 2) {
 	    line[len] = '\0';
-	    pimg->title = my_strdup(line + 2);
+	    pimg->title = STRDUP(line + 2);
 	    if (!pimg->title) {
-		osfree(line);
+		free(line);
 		return IMG_OUTOFMEMORY;
 	    }
 	}
     }
-    osfree(line);
+    free(line);
     line = getline_alloc(pimg->fh);
     if (!line) {
 	return IMG_OUTOFMEMORY;
@@ -1133,7 +1160,7 @@ bad_cmap_date:
     } else {
 	pimg->version = IMG_VERSION_CMAP_SHOT;
     }
-    osfree(line);
+    free(line);
     line = getline_alloc(pimg->fh);
     if (!line) {
 	return IMG_OUTOFMEMORY;
@@ -1141,7 +1168,7 @@ bad_cmap_date:
     if (line[0] != ' ' || line[1] != '-') {
 	return IMG_BADFORMAT;
     }
-    osfree(line);
+    free(line);
     pimg->start = ftell(pimg->fh);
     return 0;
 }
@@ -1161,7 +1188,7 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
       return NULL;
    }
 
-   pimg = xosmalloc(sizeof(img));
+   pimg = malloc(sizeof(img));
    if (pimg == NULL) {
       img_errno = IMG_OUTOFMEMORY;
       if (close_func) close_func(stream);
@@ -1176,10 +1203,10 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
    pimg->close_func = close_func;
 
    pimg->buf_len = 257;
-   pimg->label_buf = (char *)xosmalloc(pimg->buf_len);
+   pimg->label_buf = (char *)malloc(pimg->buf_len);
    if (!pimg->label_buf) {
       if (pimg->close_func) pimg->close_func(pimg->fh);
-      osfree(pimg);
+      free(pimg);
       img_errno = IMG_OUTOFMEMORY;
       return NULL;
    }
@@ -1188,7 +1215,6 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
    img_errno = IMG_NONE;
 
    pimg->flags = 0;
-   pimg->filename_opened = NULL;
    pimg->data = NULL;
 
    /* for version >= 3 we use label_buf to store the prefix for reuse */
@@ -1243,7 +1269,7 @@ img_read_stream_survey(FILE *stream, int (*close_func)(FILE*),
      case EXT3('p', 'o', 's'): /* Survex .pos */
 pos_file:
        pimg->version = IMG_VERSION_SURVEX_POS;
-       pimg->datestamp = my_strdup(TIMENA);
+       pimg->datestamp = STRDUP(TIMENA);
        if (!pimg->datestamp) {
 	   goto out_of_memory_error;
        }
@@ -1283,9 +1309,9 @@ xyz_file:
      }
    }
 
-   if (fread(buf, LITLEN(FILEID) + 1, 1, pimg->fh) != 1 ||
+   if (FREAD(buf, LITLEN(FILEID) + 1, 1, pimg->fh) != 1 ||
        memcmp(buf, FILEID"\n", LITLEN(FILEID) + 1) != 0) {
-      if (fread(buf + LITLEN(FILEID) + 1, 8, 1, pimg->fh) == 1 &&
+      if (FREAD(buf + LITLEN(FILEID) + 1, 8, 1, pimg->fh) == 1 &&
 	  memcmp(buf, FILEID"\r\nv0.01\r\n", LITLEN(FILEID) + 9) == 0) {
 	 /* v0 3d file with DOS EOLs */
 	 pimg->version = 0;
@@ -1325,7 +1351,7 @@ xyz_file:
    }
    ch = GETC(pimg->fh);
    if (ch == '0') {
-      if (fread(buf, 4, 1, pimg->fh) != 1 || memcmp(buf, ".01\n", 4) != 0) {
+      if (FREAD(buf, 4, 1, pimg->fh) != 1 || memcmp(buf, ".01\n", 4) != 0) {
 	 img_errno = IMG_BADFORMAT;
 	 goto error;
       }
@@ -1412,7 +1438,7 @@ v03d:
 		       /* Allow +no_defs to be omitted as it seems to not
 			* actually do anything with recent PROJ - cavern always
 			* included it, but other software generating 3d files
-			* may not have.
+			* might not.
 			*/
 		       if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
 			   /* There are at least 45 bytes (see memcmp above)
@@ -1425,14 +1451,14 @@ v03d:
 		       /* Allow +no_defs to be omitted as it seems to not
 			* actually do anything with recent PROJ - cavern always
 			* included it, but other software generating 3d files
-			* may not have.
+			* might not.
 			*/
 		       if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
 			   strcpy(cs, "EPSG:3857");
 		       }
 		   }
 	       }
-	       if (cs[0]) pimg->cs = my_strdup(cs);
+	       if (cs[0]) pimg->cs = STRDUP(cs);
 	   }
 
 	   if (real_len != title_len) {
@@ -1442,7 +1468,7 @@ v03d:
        if (!pimg->title) {
 	   pimg->title = title;
        } else {
-	   osfree(title);
+	   free(title);
        }
    }
    pimg->datestamp = getline_alloc(pimg->fh);
@@ -1450,12 +1476,11 @@ v03d:
 out_of_memory_error:
       img_errno = IMG_OUTOFMEMORY;
 error:
-      osfree(pimg->title);
-      osfree(pimg->cs);
-      osfree(pimg->datestamp);
-      osfree(pimg->filename_opened);
+      free(pimg->title);
+      free(pimg->cs);
+      free(pimg->datestamp);
       if (pimg->close_func) pimg->close_func(pimg->fh);
-      osfree(pimg);
+      free(pimg);
       return NULL;
    }
 
@@ -1537,7 +1562,7 @@ initialise_survey_filter_and_return:
 successful_return:
    /* If no title from another source, default to the base leafname. */
    if (!pimg->title || !pimg->title[0]) {
-       osfree(pimg->title);
+       free(pimg->title);
        pimg->title = baseleaf_from_fnm(fnm);
    }
    return pimg;
@@ -1576,12 +1601,20 @@ img_rewind(img *pimg)
 img *
 img_open_write_cs(const char *fnm, const char *title, const char *cs, int flags)
 {
-   if (fDirectory(fnm)) {
-      img_errno = IMG_DIRECTORY;
-      return NULL;
+   FILE *fh = fopen(fnm, "wb");
+#ifdef EISDIR
+   if (!fh && errno == EISDIR) {
+       img_errno = IMG_DIRECTORY;
+       return NULL;
    }
-
-   return img_write_stream(fopen(fnm, "wb"), fclose, title, cs, flags);
+#endif
+#ifdef ENOMEM
+   if (!fh && errno == ENOMEM) {
+       img_errno = IMG_OUTOFMEMORY;
+       return NULL;
+   }
+#endif
+   return img_write_stream(fh, fclose, title, cs, flags);
 }
 
 img *
@@ -1596,7 +1629,7 @@ img_write_stream(FILE *stream, int (*close_func)(FILE*),
       return NULL;
    }
 
-   pimg = xosmalloc(sizeof(img));
+   pimg = malloc(sizeof(img));
    if (pimg == NULL) {
       img_errno = IMG_OUTOFMEMORY;
       if (close_func) close_func(stream);
@@ -1606,15 +1639,14 @@ img_write_stream(FILE *stream, int (*close_func)(FILE*),
    pimg->fh = stream;
    pimg->close_func = close_func;
    pimg->buf_len = 257;
-   pimg->label_buf = (char *)xosmalloc(pimg->buf_len);
+   pimg->label_buf = (char *)malloc(pimg->buf_len);
    if (!pimg->label_buf) {
       if (pimg->close_func) pimg->close_func(pimg->fh);
-      osfree(pimg);
+      free(pimg);
       img_errno = IMG_OUTOFMEMORY;
       return NULL;
    }
 
-   pimg->filename_opened = NULL;
    pimg->data = NULL;
 
    pimg->separator = (flags & 0x100) ? (flags >> 9) : '.';
@@ -1669,12 +1701,17 @@ img_write_stream(FILE *stream, int (*close_func)(FILE*),
    }
 
    if (tm == (time_t)-1) {
-      fputsnl(TIMENA, pimg->fh);
+      fputs(TIMENA, pimg->fh);
+      PUTC('\n', pimg->fh);
    } else if (pimg->version <= 7) {
       char date[256];
-      /* output current date and time in format specified */
-      strftime(date, 256, TIMEFMT, localtime(&tm));
-      fputsnl(date, pimg->fh);
+      /* 3d formats <= 7 stored the time the file was generated in this
+       * particular string format, which we then try to parse when
+       * reading.
+       */
+      strftime(date, 256, "%a,%Y.%m.%d %H:%M:%S %Z", localtime(&tm));
+      fputs(date, pimg->fh);
+      PUTC('\n', pimg->fh);
    } else {
       fprintf(pimg->fh, "@%ld\n", (long)tm);
    }
@@ -1691,7 +1728,7 @@ img_write_stream(FILE *stream, int (*close_func)(FILE*),
 	   4,  8,  8,  16, 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
 	   0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0
        };
-       fwrite(codelengths, 32, 1, pimg->fh);
+       FWRITE_(codelengths, 32, 1, pimg->fh);
    }
 #endif
    pimg->fRead = 0; /* writing to this file */
@@ -1770,8 +1807,8 @@ read_coord(FILE *fh, img_point *pt)
    pt->x = get32(fh) / 100.0;
    pt->y = get32(fh) / 100.0;
    pt->z = get32(fh) / 100.0;
-   if (ferror(fh) || feof(fh)) {
-      img_errno = feof(fh) ? IMG_BADFORMAT : IMG_READERROR;
+   if (FERROR(fh) || FEOF(fh)) {
+      img_errno = FEOF(fh) ? IMG_BADFORMAT : IMG_READERROR;
       return 0;
    }
    return 1;
@@ -1789,26 +1826,26 @@ read_v3label(img *pimg)
    char *q;
    long len = GETC(pimg->fh);
    if (len == EOF) {
-      img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+      img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
       return img_BAD;
    }
    if (len == 0xfe) {
       len += get16(pimg->fh);
-      if (feof(pimg->fh)) {
+      if (FEOF(pimg->fh)) {
 	 img_errno = IMG_BADFORMAT;
 	 return img_BAD;
       }
-      if (ferror(pimg->fh)) {
+      if (FERROR(pimg->fh)) {
 	 img_errno = IMG_READERROR;
 	 return img_BAD;
       }
    } else if (len == 0xff) {
       len = get32(pimg->fh);
-      if (ferror(pimg->fh)) {
+      if (FERROR(pimg->fh)) {
 	 img_errno = IMG_READERROR;
 	 return img_BAD;
       }
-      if (feof(pimg->fh) || len < 0xfe + 0xffff) {
+      if (FEOF(pimg->fh) || len < 0xfe + 0xffff) {
 	 img_errno = IMG_BADFORMAT;
 	 return img_BAD;
       }
@@ -1820,8 +1857,8 @@ read_v3label(img *pimg)
    }
    q = pimg->label_buf + pimg->label_len;
    pimg->label_len += len;
-   if (len && fread(q, len, 1, pimg->fh) != 1) {
-      img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+   if (len && FREAD(q, len, 1, pimg->fh) != 1) {
+      img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
       return img_BAD;
    }
    q[len] = '\0';
@@ -1839,7 +1876,7 @@ read_v8label(img *pimg, int common_flag, size_t common_val)
    } else {
       int ch = GETC(pimg->fh);
       if (ch == EOF) {
-	 img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+	 img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	 return img_BAD;
       }
       if (ch != 0x00) {
@@ -1848,28 +1885,28 @@ read_v8label(img *pimg, int common_flag, size_t common_val)
       } else {
 	 ch = GETC(pimg->fh);
 	 if (ch == EOF) {
-	    img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+	    img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	    return img_BAD;
 	 }
 	 if (ch != 0xff) {
 	    del = ch;
 	 } else {
 	    del = get32(pimg->fh);
-	    if (ferror(pimg->fh)) {
+	    if (FERROR(pimg->fh)) {
 	       img_errno = IMG_READERROR;
 	       return img_BAD;
 	    }
 	 }
 	 ch = GETC(pimg->fh);
 	 if (ch == EOF) {
-	    img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+	    img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	    return img_BAD;
 	 }
 	 if (ch != 0xff) {
 	    add = ch;
 	 } else {
 	    add = get32(pimg->fh);
-	    if (ferror(pimg->fh)) {
+	    if (FERROR(pimg->fh)) {
 	       img_errno = IMG_READERROR;
 	       return img_BAD;
 	    }
@@ -1888,8 +1925,8 @@ read_v8label(img *pimg, int common_flag, size_t common_val)
    pimg->label_len -= del;
    q = pimg->label_buf + pimg->label_len;
    pimg->label_len += add;
-   if (add && fread(q, add, 1, pimg->fh) != 1) {
-      img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+   if (add && FREAD(q, add, 1, pimg->fh) != 1) {
+      img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
       return img_BAD;
    }
    q[add] = '\0';
@@ -1938,7 +1975,7 @@ img_read_item_new(img *pimg, img_point *p)
    pimg->label = pimg->label_buf;
    opt = GETC(pimg->fh);
    if (opt == EOF) {
-      img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+      img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
       return img_BAD;
    }
    if (opt >> 6 == 0) {
@@ -2095,7 +2132,7 @@ img_read_item_v3to7(img *pimg, img_point *p)
    pimg->label = pimg->label_buf;
    opt = GETC(pimg->fh);
    if (opt == EOF) {
-      img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+      img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
       return img_BAD;
    }
    switch (opt >> 6) {
@@ -2184,11 +2221,11 @@ img_read_item_v3to7(img *pimg, img_point *p)
 		  pimg->E = get32(pimg->fh) / 100.0;
 		  pimg->H = get32(pimg->fh) / 100.0;
 		  pimg->V = get32(pimg->fh) / 100.0;
-		  if (feof(pimg->fh)) {
+		  if (FEOF(pimg->fh)) {
 		      img_errno = IMG_BADFORMAT;
 		      return img_BAD;
 		  }
-		  if (ferror(pimg->fh)) {
+		  if (FERROR(pimg->fh)) {
 		      img_errno = IMG_READERROR;
 		      return img_BAD;
 		  }
@@ -2200,11 +2237,11 @@ img_read_item_v3to7(img *pimg, img_point *p)
 		  }
 		  int days1 = (int)getu16(pimg->fh);
 		  int days2 = (int)getu16(pimg->fh);
-		  if (feof(pimg->fh)) {
+		  if (FEOF(pimg->fh)) {
 		      img_errno = IMG_BADFORMAT;
 		      return img_BAD;
 		  }
-		  if (ferror(pimg->fh)) {
+		  if (FERROR(pimg->fh)) {
 		      img_errno = IMG_READERROR;
 		      return img_BAD;
 		  }
@@ -2240,11 +2277,11 @@ img_read_item_v3to7(img *pimg, img_point *p)
 		      pimg->u = get32(pimg->fh) / 100.0;
 		      pimg->d = get32(pimg->fh) / 100.0;
 		  }
-		  if (feof(pimg->fh)) {
+		  if (FEOF(pimg->fh)) {
 		      img_errno = IMG_BADFORMAT;
 		      return img_BAD;
 		  }
-		  if (ferror(pimg->fh)) {
+		  if (FERROR(pimg->fh)) {
 		      img_errno = IMG_READERROR;
 		      return img_BAD;
 		  }
@@ -2262,11 +2299,11 @@ img_read_item_v3to7(img *pimg, img_point *p)
 		  img_errno = IMG_BADFORMAT;
 		  return img_BAD;
 	  }
-	  if (feof(pimg->fh)) {
+	  if (FEOF(pimg->fh)) {
 	      img_errno = IMG_BADFORMAT;
 	      return img_BAD;
 	  }
-	  if (ferror(pimg->fh)) {
+	  if (FERROR(pimg->fh)) {
 	      img_errno = IMG_READERROR;
 	      return img_BAD;
 	  }
@@ -2344,11 +2381,11 @@ img_read_item_ancient(img *pimg, img_point *p)
       opt = GETC(pimg->fh);
    }
 
-   if (feof(pimg->fh)) {
+   if (FEOF(pimg->fh)) {
       img_errno = IMG_BADFORMAT;
       return img_BAD;
    }
-   if (ferror(pimg->fh)) {
+   if (FERROR(pimg->fh)) {
       img_errno = IMG_READERROR;
       return img_BAD;
    }
@@ -2359,7 +2396,7 @@ img_read_item_ancient(img *pimg, img_point *p)
     case 1:
       /* skip coordinates */
       if (!skip_coord(pimg->fh)) {
-	 img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+	 img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	 return img_BAD;
       }
       goto again;
@@ -2367,7 +2404,7 @@ img_read_item_ancient(img *pimg, img_point *p)
       size_t len;
       result = img_LABEL;
       if (!fgets(pimg->label_buf, pimg->buf_len, pimg->fh)) {
-	 img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+	 img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	 return img_BAD;
       }
       if (pimg->label[0] == '\\') pimg->label++;
@@ -2394,11 +2431,11 @@ img_read_item_ancient(img *pimg, img_point *p)
 
       len = get32(pimg->fh);
 
-      if (feof(pimg->fh)) {
+      if (FEOF(pimg->fh)) {
 	 img_errno = IMG_BADFORMAT;
 	 return img_BAD;
       }
-      if (ferror(pimg->fh)) {
+      if (FERROR(pimg->fh)) {
 	 img_errno = IMG_READERROR;
 	 return img_BAD;
       }
@@ -2409,8 +2446,8 @@ img_read_item_ancient(img *pimg, img_point *p)
 	 img_errno = IMG_OUTOFMEMORY;
 	 return img_BAD;
       }
-      if (fread(pimg->label_buf, len, 1, pimg->fh) != 1) {
-	 img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+      if (FREAD(pimg->label_buf, len, 1, pimg->fh) != 1) {
+	 img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	 return img_BAD;
       }
       pimg->label_buf[len] = '\0';
@@ -2433,7 +2470,7 @@ img_read_item_ancient(img *pimg, img_point *p)
 	 pimg->flags = (int)opt & 0x3f;
 	 result = img_LABEL;
 	 if (!fgets(pimg->label_buf, pimg->buf_len, pimg->fh)) {
-	    img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+	    img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	    return img_BAD;
 	 }
 	 q = pimg->label_buf + strlen(pimg->label_buf) - 1;
@@ -2466,11 +2503,11 @@ img_read_item_ancient(img *pimg, img_point *p)
       /* peek at next code and see if it's an old-style label */
       opt_lookahead = get32(pimg->fh);
 
-      if (feof(pimg->fh)) {
+      if (FEOF(pimg->fh)) {
 	 img_errno = IMG_BADFORMAT;
 	 return img_BAD;
       }
-      if (ferror(pimg->fh)) {
+      if (FERROR(pimg->fh)) {
 	 img_errno = IMG_READERROR;
 	 return img_BAD;
       }
@@ -2487,7 +2524,7 @@ img_read_item_ascii_wrapper(img *pimg, img_point *p)
    /* We need to set the default locale for fscanf() to work on
     * numbers with "." as decimal point. */
    int result;
-   char * current_locale = my_strdup(setlocale(LC_NUMERIC, NULL));
+   char * current_locale = STRDUP(setlocale(LC_NUMERIC, NULL));
    setlocale(LC_NUMERIC, "C");
    result = img_read_item_ascii(pimg, p);
    setlocale(LC_NUMERIC, current_locale);
@@ -2504,7 +2541,7 @@ img_read_item_ascii(img *pimg, img_point *p)
    if (pimg->version == 0) {
       ascii_again:
       pimg->label[0] = '\0';
-      if (feof(pimg->fh)) return img_STOP;
+      if (FEOF(pimg->fh)) return img_STOP;
       if (pimg->pending) {
 	 pimg->pending = 0;
 	 result = img_LINE;
@@ -2522,7 +2559,7 @@ img_read_item_ascii(img *pimg, img_point *p)
 	    result = img_MOVE;
 	 } else if (strcmp(cmd, "cross") == 0) {
 	    if (fscanf(pimg->fh, "%lf%lf%lf", &p->x, &p->y, &p->z) < 3) {
-	       img_errno = feof(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
+	       img_errno = FEOF(pimg->fh) ? IMG_BADFORMAT : IMG_READERROR;
 	       return img_BAD;
 	    }
 	    goto ascii_again;
@@ -2532,7 +2569,7 @@ img_read_item_ascii(img *pimg, img_point *p)
 	    if (ch == ' ') ch = GETC(pimg->fh);
 	    while (ch != ' ') {
 	       if (ch == '\n' || ch == EOF) {
-		  img_errno = ferror(pimg->fh) ? IMG_READERROR : IMG_BADFORMAT;
+		  img_errno = FERROR(pimg->fh) ? IMG_READERROR : IMG_BADFORMAT;
 		  return img_BAD;
 	       }
 	       if (off == pimg->buf_len) {
@@ -2559,7 +2596,7 @@ img_read_item_ascii(img *pimg, img_point *p)
       }
 
       if (fscanf(pimg->fh, "%lf%lf%lf", &p->x, &p->y, &p->z) < 3) {
-	 img_errno = ferror(pimg->fh) ? IMG_READERROR : IMG_BADFORMAT;
+	 img_errno = FERROR(pimg->fh) ? IMG_READERROR : IMG_BADFORMAT;
 	 return img_BAD;
       }
 
@@ -2575,11 +2612,11 @@ img_read_item_ascii(img *pimg, img_point *p)
       pimg->flags = img_SFLAG_UNDERGROUND; /* default flags */
       againpos:
       while (fscanf(pimg->fh, "(%lf,%lf,%lf )", &p->x, &p->y, &p->z) != 3) {
-	 if (ferror(pimg->fh)) {
+	 if (FERROR(pimg->fh)) {
 	    img_errno = IMG_READERROR;
 	    return img_BAD;
 	 }
-	 if (feof(pimg->fh)) return img_STOP;
+	 if (FEOF(pimg->fh)) return img_STOP;
 	 if (pimg->pending) {
 	    img_errno = IMG_BADFORMAT;
 	    return img_BAD;
@@ -2602,7 +2639,7 @@ img_read_item_ascii(img *pimg, img_point *p)
       }
       pimg->label_buf[0] = ch;
       off = 1;
-      while (!feof(pimg->fh)) {
+      while (!FEOF(pimg->fh)) {
 	 if (!fgets(pimg->label_buf + off, pimg->buf_len - off, pimg->fh)) {
 	    img_errno = IMG_READERROR;
 	    return img_BAD;
@@ -2696,7 +2733,7 @@ skip_to_N:
 	       while (line[len] > 32) ++len;
 	       if (pimg->label_len == 0) pimg->pending = -1;
 	       if (!check_label_space(pimg, len + 1)) {
-		  osfree(line);
+		  free(line);
 		  img_errno = IMG_OUTOFMEMORY;
 		  return img_BAD;
 	       }
@@ -2760,7 +2797,7 @@ bad_plt_date:
 		  pimg->days1 = pimg->days2 = -1;
 #endif
 	       }
-	       osfree(line);
+	       free(line);
 	       break;
 	    case 'M':
 	       if (pimg->pending == PENDING_HAD_XSECT) {
@@ -2801,8 +2838,8 @@ bad_plt_date:
 	       }
 	       /* Compass stores coordinates as North, East, Up = (y,x,z)! */
 	       if (sscanf(line, "%lf%lf%lf", &p->y, &p->x, &p->z) != 3) {
-		  osfree(line);
-		  if (ferror(pimg->fh)) {
+		  free(line);
+		  if (FERROR(pimg->fh)) {
 		     img_errno = IMG_READERROR;
 		  } else {
 		     img_errno = IMG_BADFORMAT;
@@ -2814,7 +2851,7 @@ bad_plt_date:
 	       p->z *= METRES_PER_FOOT;
 	       q = strchr(line, 'S');
 	       if (!q) {
-		  osfree(line);
+		  free(line);
 		  img_errno = IMG_BADFORMAT;
 		  return img_BAD;
 	       }
@@ -2851,8 +2888,8 @@ bad_plt_date:
 		   if (sscanf(q, "%lf%lf%lf%lf%n",
 			      &dim[0], &dim[1], &dim[2], &dim[3],
 			      &bytes_used) != 4) {
-		       osfree(line);
-		       if (ferror(pimg->fh)) {
+		       free(line);
+		       if (FERROR(pimg->fh)) {
 			   img_errno = IMG_READERROR;
 		       } else {
 			   img_errno = IMG_BADFORMAT;
@@ -2939,7 +2976,7 @@ no_xsect:
 	       if (shot_flags & img_FLAG_SURFACE) {
 		   /* Suppress passage? */
 	       }
-	       osfree(line);
+	       free(line);
 	       if (fpos != -1) {
 		   fseek(pimg->fh, fpos, SEEK_SET);
 	       }
@@ -3002,8 +3039,8 @@ no_xsect:
 cmap_xyz_next_line:
       pimg->label = pimg->label_buf;
       do {
-	 osfree(line);
-	 if (feof(pimg->fh)) return img_STOP;
+	 free(line);
+	 if (FEOF(pimg->fh)) return img_STOP;
 	 line = getline_alloc(pimg->fh);
 	 if (!line) {
 out_of_memory_error:
@@ -3017,7 +3054,7 @@ out_of_memory_error:
       if (pimg->version == IMG_VERSION_CMAP_STATION) {
 	 /* station variant */
 	 if (len < 37) {
-	    osfree(line);
+	    free(line);
 	    img_errno = IMG_BADFORMAT;
 	    return img_BAD;
 	 }
@@ -3042,7 +3079,7 @@ out_of_memory_error:
 	 /* Shot variant (IMG_VERSION_CMAP_SHOT) */
 	 char old[8], new_[8];
 	 if (len < 61) {
-	    osfree(line);
+	    free(line);
 	    img_errno = IMG_BADFORMAT;
 	    return img_BAD;
 	 }
@@ -3068,13 +3105,13 @@ out_of_memory_error:
 		goto out_of_memory_error;
 	    if (r > 0) {
 		// We've already emitted img_LABEL for this station.
-		osfree(line);
+		free(line);
 		pimg->label[0] = '\0';
 		pimg->flags = 0;
 		return img_MOVE;
 	    }
 	    memcpy(pimg->label, new_, new_len + 1);
-	    osfree(line);
+	    free(line);
 	    pimg->pending = img_MOVE + 4;
 	    return img_LABEL;
 	 }
@@ -3086,13 +3123,13 @@ out_of_memory_error:
 		goto out_of_memory_error;
 	    if (r > 0) {
 		// We've already emitted img_LABEL for this station.
-		osfree(line);
+		free(line);
 		pimg->label = pimg->label_buf + strlen(pimg->label_buf);
 		pimg->flags = 0;
 		return img_LINE;
 	    }
 	    memcpy(pimg->label, new_, new_len + 1);
-	    osfree(line);
+	    free(line);
 	    pimg->pending = img_LINE + 4;
 	    return img_LABEL;
 	 }
@@ -3104,7 +3141,7 @@ out_of_memory_error:
 	 memcpy(pimg->label + 16, line, 70);
 	 if (r > 0) {
 	     // We've already emitted img_LABEL for this station.
-	     osfree(line);
+	     free(line);
 	     pimg->label = pimg->label_buf + strlen(pimg->label_buf);
 	     pimg->flags = 0;
 	     read_xyz_shot_coords(p, pimg->label_buf + 16);
@@ -3116,7 +3153,7 @@ out_of_memory_error:
 	 memcpy(pimg->label, new_, new_len + 1);
 	 pimg->pending = img_LABEL + 4;
 
-	 osfree(line);
+	 free(line);
 	 return img_LABEL;
       }
    }
@@ -3182,7 +3219,7 @@ write_v3label(img *pimg, int opt, const char *s)
       PUTC(0xff, pimg->fh);
       put32(n, pimg->fh);
    }
-   fwrite(s + len, n, 1, pimg->fh);
+   FWRITE_(s + len, n, 1, pimg->fh);
 
    n += len;
    pimg->label_len = n;
@@ -3190,7 +3227,7 @@ write_v3label(img *pimg, int opt, const char *s)
       return 0; /* FIXME: distinguish out of memory... */
    memcpy(pimg->label_buf + len, s + len, n - len + 1);
 
-   return !ferror(pimg->fh);
+   return !FERROR(pimg->fh);
 }
 
 static int
@@ -3231,7 +3268,7 @@ write_v8label(img *pimg, int opt, int common_flag, size_t common_val,
    }
 
    if (add)
-      fwrite(s + len, add, 1, pimg->fh);
+      FWRITE_(s + len, add, 1, pimg->fh);
 
    pimg->label_len = len + add;
    if (add > del && !check_label_space(pimg, pimg->label_len + 1))
@@ -3239,7 +3276,7 @@ write_v8label(img *pimg, int opt, int common_flag, size_t common_val,
 
    memcpy(pimg->label_buf + len, s + len, add + 1);
 
-   return !ferror(pimg->fh);
+   return !FERROR(pimg->fh);
 }
 
 static void
@@ -3543,7 +3580,8 @@ img_write_item_ancient(img *pimg, int code, int flags, const char *s,
 	 /* put a move before each label */
 	 img_write_item_ancient(pimg, img_MOVE, 0, NULL, x, y, z);
 	 put32(2, pimg->fh);
-	 fputsnl(s, pimg->fh);
+	 fputs(s, pimg->fh);
+	 PUTC('\n', pimg->fh);
 	 return;
       }
       len = strlen(s);
@@ -3557,7 +3595,8 @@ img_write_item_ancient(img *pimg, int code, int flags, const char *s,
 	 fputs(s, pimg->fh);
       } else {
 	 PUTC(0x40 | (flags & 0x3f), pimg->fh);
-	 fputsnl(s, pimg->fh);
+	 fputs(s, pimg->fh);
+	 PUTC('\n', pimg->fh);
       }
       opt = 0;
       break;
@@ -3608,10 +3647,10 @@ img_close(img *pimg)
    if (pimg) {
       if (pimg->fh) {
 	 if (pimg->fRead) {
-	    osfree(pimg->survey);
-	    osfree(pimg->title);
-	    osfree(pimg->cs);
-	    osfree(pimg->datestamp);
+	    free(pimg->survey);
+	    free(pimg->title);
+	    free(pimg->cs);
+	    free(pimg->datestamp);
 	 } else {
 	    /* write end of data marker */
 	    switch (pimg->version) {
@@ -3630,7 +3669,7 @@ img_close(img *pimg)
 	       break;
 	    }
 	 }
-	 if (ferror(pimg->fh)) result = 0;
+	 if (FERROR(pimg->fh)) result = 0;
 	 if (pimg->close_func && pimg->close_func(pimg->fh))
 	     result = 0;
 	 if (!result) img_errno = pimg->fRead ? IMG_READERROR : IMG_WRITEERROR;
@@ -3641,12 +3680,11 @@ img_close(img *pimg)
 	      compass_plt_free_data(pimg);
 	      break;
 	    default:
-	      osfree(pimg->data);
+	      free(pimg->data);
 	  }
       }
-      osfree(pimg->label_buf);
-      osfree(pimg->filename_opened);
-      osfree(pimg);
+      free(pimg->label_buf);
+      free(pimg);
    }
    return result;
 }
@@ -3768,7 +3806,7 @@ img_compass_utm_proj_str(img_datum datum, int utm_zone)
     }
 
     if (epsg_code) {
-	char *proj_str = xosmalloc(11);
+	char *proj_str = malloc(11);
 	if (!proj_str) {
 	    img_errno = IMG_OUTOFMEMORY;
 	    return NULL;
@@ -3786,7 +3824,7 @@ img_compass_utm_proj_str(img_datum datum, int utm_zone)
 	    south = "+south ";
 	    len += 7;
 	}
-	proj_str = xosmalloc(len);
+	proj_str = malloc(len);
 	if (!proj_str) {
 	    img_errno = IMG_OUTOFMEMORY;
 	    return NULL;

@@ -4,7 +4,7 @@
 //  Core drawing code for Aven.
 //
 //  Copyright (C) 2000-2001,2002,2005 Mark R. Shinwell.
-//  Copyright (C) 2001-2024 Olly Betts
+//  Copyright (C) 2001-2025 Olly Betts
 //  Copyright (C) 2005 Martin Green
 //
 //  This program is free software; you can redistribute it and/or modify
@@ -31,7 +31,7 @@
 #include <limits.h>
 #include <time.h>
 
-#include "img_hosted.h"
+#include "img_for_survex.h"
 
 #include "guicontrol.h"
 #include "labelinfo.h"
@@ -645,6 +645,20 @@ public:
 	for (int i = 0; i < LIST_LIMIT_; ++i) {
 	    InvalidateList(i);
 	}
+    }
+
+    void SetZStretch(double factor) {
+	GLACanvas::SetZStretch(factor);
+	InvalidateList(LIST_UNDERGROUND_LEGS);
+	InvalidateList(LIST_TUBES);
+	InvalidateList(LIST_SURFACE_LEGS);
+	InvalidateList(LIST_BLOBS);
+	InvalidateList(LIST_CROSSES);
+	InvalidateList(LIST_GRID);
+	InvalidateList(LIST_SHADOW);
+	InvalidateList(LIST_TERRAIN);
+	InvalidateList(LIST_OVERLAYS);
+	ForceRefresh();
     }
 
     void SetZoomBox(wxPoint p1, wxPoint p2, bool centred, bool aspect);

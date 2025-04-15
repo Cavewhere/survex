@@ -73,7 +73,7 @@ skipline(const char *fnm, FILE *fh)
    } while (ch != '\n' && ch != EOF);
 
    if (ch == EOF) {
-      if (ferror(fh))
+      if (FERROR(fh))
 	 fatalerror_in_file(fnm, 0, /*Error reading file*/18);
       fatalerror_in_file(fnm, 0, /*Couldn’t parse .err file*/112);
    }
@@ -90,7 +90,7 @@ printline(const char *fnm, FILE *fh, FILE *fh_out)
    PUTC('\n', fh_out);
 
    if (ch == EOF) {
-      if (ferror(fh))
+      if (FERROR(fh))
 	 fatalerror_in_file(fnm, 0, /*Error reading file*/18);
       fatalerror_in_file(fnm, 0, /*Couldn’t parse .err file*/112);
    }
@@ -140,7 +140,7 @@ main(int argc, char **argv)
    if (argv[optind]) howmany = atoi(argv[optind]);
 
    fh = fopen(fnm, "rb");
-   if (!fh) fatalerror(/*Couldn’t open file “%s”*/24, fnm);
+   if (!fh) fatalerror(/*Couldn’t open file “%s”*/1, fnm);
 
    /* 4 line paragraphs, separated by blank lines...
     * 041.verhall.12 - 041.verhall.13
@@ -153,7 +153,7 @@ main(int argc, char **argv)
       int ch;
       if (next == len) {
 	 len += len;
-	 blk = osrealloc(blk, len * ossizeof(trav));
+	 blk = osrealloc(blk, len * sizeof(trav));
       }
       blk[next].fpos = ftell(fh);
       ch = GETC(fh);
@@ -227,7 +227,7 @@ main(int argc, char **argv)
    if (fh_out == NULL) {
       char *base = base_from_fnm(fnm);
       fnm_out = add_ext(base, "tmp");
-      osfree(base);
+      free(base);
       fh_out = safe_fopen(fnm_out, "w");
    }
 

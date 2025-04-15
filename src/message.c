@@ -1,6 +1,6 @@
 /* message.c
  * Fairly general purpose message and error routines
- * Copyright (C) 1993-2024 Olly Betts
+ * Copyright (C) 1993-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -61,77 +61,34 @@ static const char *exe_pth = "";
 
 /* error code for failed osmalloc and osrealloc calls */
 static void
-outofmem(OSSIZE_T size)
+outofmem(size_t size)
 {
    /* TRANSLATORS: "%lu" is a placeholder for the number of bytes which Survex
     * was trying to allocate space for. */
-   fatalerror(/*Out of memory (couldn’t find %lu bytes).*/1,
+   fatalerror(/*Out of memory (couldn’t find %lu bytes).*/24,
 	      (unsigned long)size);
 }
-
-#ifdef TOMBSTONES
-#define TOMBSTONE_SIZE 16
-static const char tombstone[TOMBSTONE_SIZE] = "012345\xfftombstone";
-#endif
 
 /* malloc with error catching if it fails. Also allows us to write special
  * versions easily eg for MS Windows.
  */
 void *
-osmalloc(OSSIZE_T size)
+osmalloc(size_t size)
 {
-   void *p;
-#ifdef TOMBSTONES
-   size += TOMBSTONE_SIZE * 2;
-   p = malloc(size);
-#else
-   p = xosmalloc(size);
-#endif
+   void *p = malloc(size);
    if (p == NULL) outofmem(size);
-#ifdef TOMBSTONES
-   printf("osmalloc truep=%p truesize=%d\n", p, size);
-   memcpy(p, tombstone, TOMBSTONE_SIZE);
-   memcpy(p + size - TOMBSTONE_SIZE, tombstone, TOMBSTONE_SIZE);
-   *(size_t *)p = size;
-   p += TOMBSTONE_SIZE;
-#endif
    return p;
 }
 
 /* realloc with error catching if it fails. */
 void *
-osrealloc(void *p, OSSIZE_T size)
+osrealloc(void *p, size_t size)
 {
    /* some pre-ANSI realloc implementations don't cope with a NULL pointer */
    if (p == NULL) {
-      p = xosmalloc(size);
+      p = malloc(size);
    } else {
-#ifdef TOMBSTONES
-      int true_size;
-      size += TOMBSTONE_SIZE * 2;
-      p -= TOMBSTONE_SIZE;
-      true_size = *(size_t *)p;
-      printf("osrealloc (in truep=%p truesize=%d)\n", p, true_size);
-      if (memcmp(p + sizeof(size_t), tombstone + sizeof(size_t),
-		 TOMBSTONE_SIZE - sizeof(size_t)) != 0) {
-	 printf("start tombstone for block %p, size %d corrupted!",
-		p + TOMBSTONE_SIZE, true_size - TOMBSTONE_SIZE * 2);
-      }
-      if (memcmp(p + true_size - TOMBSTONE_SIZE, tombstone,
-		 TOMBSTONE_SIZE) != 0) {
-	 printf("end tombstone for block %p, size %d corrupted!",
-		p + TOMBSTONE_SIZE, true_size - TOMBSTONE_SIZE * 2);
-      }
       p = realloc(p, size);
-      if (p == NULL) outofmem(size);
-      printf("osrealloc truep=%p truesize=%d\n", p, size);
-      memcpy(p, tombstone, TOMBSTONE_SIZE);
-      memcpy(p + size - TOMBSTONE_SIZE, tombstone, TOMBSTONE_SIZE);
-      *(size_t *)p = size;
-      p += TOMBSTONE_SIZE;
-#else
-      p = xosrealloc(p, size);
-#endif
    }
    if (p == NULL) outofmem(size);
    return p;
@@ -141,48 +98,19 @@ char *
 osstrdup(const char *str)
 {
    char *p;
-   OSSIZE_T len;
+   size_t len;
    len = strlen(str) + 1;
    p = osmalloc(len);
    memcpy(p, str, len);
    return p;
 }
 
-/* osfree is usually just a macro in osalloc.h */
-#ifdef TOMBSTONES
-void
-osfree(void *p)
-{
-   int true_size;
-   if (!p) return;
-   p -= TOMBSTONE_SIZE;
-   true_size = *(size_t *)p;
-   printf("osfree truep=%p truesize=%d\n", p, true_size);
-   if (memcmp(p + sizeof(size_t), tombstone + sizeof(size_t),
-	      TOMBSTONE_SIZE - sizeof(size_t)) != 0) {
-      printf("start tombstone for block %p, size %d corrupted!",
-	     p + TOMBSTONE_SIZE, true_size - TOMBSTONE_SIZE * 2);
-   }
-   if (memcmp(p + true_size - TOMBSTONE_SIZE, tombstone,
-	      TOMBSTONE_SIZE) != 0) {
-      printf("end tombstone for block %p, size %d corrupted!",
-	     p + TOMBSTONE_SIZE, true_size - TOMBSTONE_SIZE * 2);
-   }
-   free(p);
-}
-#endif
-
 static int
 default_charset(void)
 {
    if (getenv("SURVEX_UTF8")) return CHARSET_UTF8;
 #ifdef _WIN32
-# ifdef AVEN
-#  define CODEPAGE GetACP()
-# else
-#  define CODEPAGE GetConsoleOutputCP()
-# endif
-   switch (CODEPAGE) {
+   switch (GetConsoleOutputCP()) {
     case 0: return CHARSET_UTF8;
     case 1252: return CHARSET_WINCP1252;
     case 1250: return CHARSET_WINCP1250;
@@ -190,17 +118,11 @@ default_charset(void)
    }
    return CHARSET_USASCII;
 #else
-#ifdef AVEN
-   return CHARSET_UTF8;
-#else
    const char *p = getenv("LC_ALL");
    if (p == NULL || p[0] == '\0') {
       p = getenv("LC_CTYPE");
       if (p == NULL || p[0] == '\0') {
 	 p = getenv("LANG");
-	 /* Something (AutoCAD?) on Microsoft Windows sets LANG to a number. */
-	 if (p == NULL || !isalpha((unsigned char)p[0]))
-	    p = msg_lang;
       }
    }
 
@@ -218,12 +140,12 @@ default_charset(void)
       name_len = p - chset;
 
       if (name_len) {
-	 int only_digit = 1;
+	 bool only_digit = true;
 	 size_t cnt;
 
 	 for (cnt = 0; cnt < name_len; ++cnt)
 	    if (isalpha((unsigned char)chset[cnt])) {
-	       only_digit = 0;
+	       only_digit = false;
 	       break;
 	    }
 
@@ -263,7 +185,6 @@ default_charset(void)
       }
    }
    return CHARSET_USASCII;
-#endif
 #endif
 }
 
@@ -796,23 +717,21 @@ parse_msgs(int n, unsigned char *p, int charset_code) {
    return msgs;
 }
 
-/* This is the name of the default language, which can be set like so:
- * ./configure --enable-defaultlang=fr
+/* No point making these errors translatable as they only get used if we fail
+ * to open the messages file.
+ *
+ * NB These messages should be in plain ASCII.
  */
-#ifdef DEFAULTLANG
-/* No point extracting these errors as they won't get used if file opens */
-# include "../lib/defaultlang.h"
-#else
-#define N_DONTEXTRACTMSGS 5
-static unsigned char dontextractmsgs[] =
-   "Can't open message file \"%s\" using path \"%s\"\0"/*1000*/
-   "Problem with message file \"%s\"\0"/*1001*/
-   "I don't understand this message file version\0"/*1002*/
-   "Message file truncated?\0"/*1003*/
-   "Out of memory (couldn't find %lu bytes).\0"/*1004*/;
-#endif
-
-static char **dontextract = NULL;
+static const char dontextractmsgs[][45] = {
+   "Out of memory (couldn't find %lu bytes)."/*1000*/,
+   "Problem with message file \"%s\""/*1001*/,
+   "I don't understand this message file version"/*1002*/,
+   "Message file truncated?"/*1003*/,
+   "Can't open message file \"%s\" using path \"%s\""/*1004*/
+};
+#define N_DONTEXTRACTMSGS \
+    ((int)(sizeof(dontextractmsgs) / sizeof(dontextractmsgs[0])))
+#define DONTEXTRACTMSGS_BASE 1000
 
 static void
 parse_msg_file(int charset_code)
@@ -828,9 +747,6 @@ parse_msg_file(int charset_code)
 #ifdef DEBUG
    fprintf(stderr, "parse_msg_file(%d)\n", charset_code);
 #endif
-
-   /* sort out messages we need to print if we can't open the message file */
-   dontextract = parse_msgs(N_DONTEXTRACTMSGS, dontextractmsgs, charset_code);
 
    fnm = osstrdup(msg_lang);
    /* trim off charset from stuff like "de_DE.iso8859_1" */
@@ -856,18 +772,18 @@ parse_msg_file(int charset_code)
       if (fnm[0] && fnm[1]) {
 	 strcpy(fnm, "en");
       } else {
-	 osfree(fnm);
+	 free(fnm);
 	 fnm = osstrdup("en");
       }
       fh = fopenWithPthAndExt(pth_cfg_files, fnm, EXT_SVX_MSG, "rb", NULL);
    }
 
    if (!fh) {
-      fatalerror(/*Can't open message file “%s” using path “%s”*/1000,
+      fatalerror(/*Can't open message file “%s” using path “%s”*/1004,
 		 fnm, pth_cfg_files);
    }
 
-   if (fread(header, 1, 20, fh) < 20 ||
+   if (FREAD(header, 1, 20, fh) < 20 ||
        memcmp(header, "Svx\nMsg\r\n\xfe\xff", 12) != 0) {
       fatalerror(/*Problem with message file “%s”*/1001, fnm);
    }
@@ -881,7 +797,7 @@ parse_msg_file(int charset_code)
    for (i = 16; i < 20; i++) len = (len << 8) | header[i];
 
    p = osmalloc(len);
-   if (fread(p, 1, len, fh) < len)
+   if (FREAD(p, 1, len, fh) < len)
       fatalerror(/*Message file truncated?*/1003);
 
    fclose(fh);
@@ -889,7 +805,7 @@ parse_msg_file(int charset_code)
 #ifdef DEBUG
    fprintf(stderr, "fnm = “%s”, n = %d, len = %d\n", fnm, n, len);
 #endif
-   osfree(fnm);
+   free(fnm);
 
    msg_array = parse_msgs(n, p, charset_code);
    num_msgs = n;
@@ -962,7 +878,7 @@ void
 	    pth_cfg_files = use_path(exe_pth, "share/survex");
 	    goto macos_got_msg;
 	 }
-	 osfree(p);
+	 free(p);
 # endif
 	 /* In the diskimage package, this case is used for aven, and for
 	  * the hardlinked copies of cavern and extend alongside the aven
@@ -973,7 +889,7 @@ void
 	    pth_cfg_files = use_path(exe_pth, "../Resources");
 	    goto macos_got_msg;
 	 }
-	 osfree(p);
+	 free(p);
 #endif
 	 /* If we're run with an explicit path, check if "../lib/en.msg"
 	  * from the program's path exists, and if so look there for
@@ -996,7 +912,7 @@ void
 #ifdef __APPLE__
 macos_got_msg:
 #endif
-	 osfree(p);
+	 free(p);
       }
 #elif defined _WIN32
       DWORD len = 256;
@@ -1012,7 +928,7 @@ macos_got_msg:
       /* Strange Win32 nastiness - strip prefix "\\?\" if present */
       if (strncmp(modname, "\\\\?\\", 4) == 0) modname += 4;
       pth_cfg_files = path_from_fnm(modname);
-      osfree(buf);
+      free(buf);
 #else
       /* Get the path to the support files from argv[0] */
       pth_cfg_files = exe_pth;
@@ -1175,33 +1091,36 @@ msg_opt(int en, const char * fallback)
 const char *
 msg(int en)
 {
-   /* NB can't use SVX_ASSERT here! */
-   if (dontextract && en >= 1000 && en < 1000 + N_DONTEXTRACTMSGS)
-      return dontextract[en - 1000];
-   if (!msg_array) {
-      if (en != 1)  {
-	 fprintf(STDERR, "Message %d requested before fully initialised\n", en);
-	 return "Message requested before fully initialised\n";
-      }
-      /* this should be the only other message which can be requested before
-       * the message file is opened and read... */
-      if (!dontextract) return "Out of memory (couldn't find %lu bytes).";
-      return dontextract[(/*Out of memory (couldn't find %lu bytes).*/1004)
-			 - 1000];
-   }
+    /* NB can't use SVX_ASSERT here! */
+    if (en >= DONTEXTRACTMSGS_BASE &&
+	en < DONTEXTRACTMSGS_BASE + N_DONTEXTRACTMSGS) {
+	return dontextractmsgs[en - DONTEXTRACTMSGS_BASE];
+    }
 
-   if (en < 0 || en >= num_msgs) {
-      fprintf(STDERR, "Message %d out of range\n", en);
-      return "Message out of range\n";
-   }
+    if (!msg_array) {
+	/* This should be the only other message which can be requested before
+	 * the message file is opened and read.
+	 */
+	if (en != /*Out of memory (couldn’t find %lu bytes).*/24)  {
+	    fprintf(STDERR, "Message %d requested before fully initialised\n", en);
+	    return "Message requested before fully initialised\n";
+	}
+	en = /*Out of memory (couldn't find %lu bytes).*/1000;
+	return dontextractmsgs[en - DONTEXTRACTMSGS_BASE];
+    }
 
-   if (en == 0) {
-      const char *p = msg_array[0];
-      if (!*p) p = "(C)";
-      return p;
-   }
+    if (en < 0 || en >= num_msgs) {
+	fprintf(STDERR, "Message %d out of range\n", en);
+	return "Message out of range\n";
+    }
 
-   return msg_array[en];
+    if (en == 0) {
+	const char *p = msg_array[0];
+	if (!*p) p = "(C)";
+	return p;
+    }
+
+    return msg_array[en];
 }
 
 void
@@ -1230,7 +1149,7 @@ v_report(int severity, const char *fnm, int line, int col, int en, va_list ap)
     case DIAG_WARN:
       /* TRANSLATORS: Indicates a warning message e.g.:
        * "spoon.svx:12: warning: *prefix is deprecated" */
-      level = msg_opt(/*warning*/4, "warning");
+      level = msg_opt(/*warning*/106, "warning");
       break;
     default:
       /* TRANSLATORS: Indicates an error message e.g.:
@@ -1306,6 +1225,8 @@ select_charset(int charset_code)
    fprintf(stderr, "select_charset(%d), old charset = %d\n", charset_code,
 	   charset);
 #endif
+
+   if (charset == charset_code) return charset;
 
    charset = charset_code;
 

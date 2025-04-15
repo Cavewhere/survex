@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Survex test suite - cavern tests
-# Copyright (C) 1999-2024 Olly Betts
+# Copyright (C) 1999-2025 Olly Betts
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -56,11 +56,13 @@ esac
  cross firststn\
  deltastar deltastar2 deltastarhanging\
  bug3 calibrate_tape nosurvey2 cartesian cartesian2\
- lengthunits angleunits cmd_alias cmd_alias_bad cmd_truncate cmd_truncate_bad\
- cmd_case cmd_case_bad cmd_fix\
- cmd_solve cmd_entrance cmd_entrance_bad cmd_sd cmd_sd_bad cmd_fix_bad cmd_set\
- cmd_set_bad cmd_set_dot_in_name\
+ lengthunits angleunits cmd_alias cmd_alias_bad cmd_case cmd_case_bad\
+ cmd_copyright cmd_copyright_bad cmd_fix cmd_fix2 cmd_fix_bad cmd_fix_bad2\
+ cmd_solve cmd_entrance cmd_entrance_bad cmd_ref cmd_ref_bad\
+ cmd_sd cmd_sd_bad cmd_set cmd_set_bad cmd_set_dot_in_name\
+ cmd_truncate cmd_truncate_bad\
  beginroot revcomplist break_replace_pfx bug0 bug1 bug2 bug4 bug5\
+ equate_bug\
  expobug require export export2 includecomment\
  self_loop self_eq_loop reenterwarn cmd_default cmd_default_bad\
  cmd_prefix cmd_prefix_bad\
@@ -74,6 +76,7 @@ esac
  tapelessthandepth longname chinabug chinabug2\
  multinormal multinormignall multidiving multicylpolar multicartesian\
  multinosurv multinormalbad multibug\
+ cmd_team cmd_team_bad\
  cmd_title cmd_titlebad cmd_dummy cmd_infer cmd_date cmd_datebad cmd_datebad2\
  cartes diving cylpolar normal normal_bad normignall nosurv cmd_flags\
  bad_cmd_flags plumb unusedstation exportnakedbegin oldestyle bugdz\

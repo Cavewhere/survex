@@ -12,9 +12,10 @@ cross.svx cross.pos\
 deltastar.svx deltastar.pos\
 deltastar2.svx deltastar2.pos\
 deltastarhanging.svx deltastarhanging.out\
+equate_bug.svx equate_bug.out\
 firststn.svx firststn.pos\
 break_replace_pfx.svx\
-bug0.svx bug1.svx bug2.svx bug3.svx bug3.pos bug4.svx bug5.svx\
+bug0.svx bug1.svx bug2.svx bug3.svx bug3.out bug3.pos bug4.svx bug5.svx\
 expobug.svx\
 nosurvey2.svx nosurvey2.pos nosurvey2.out\
 cartesian.svx cartesian.pos cartesian.out\
@@ -46,6 +47,8 @@ angleunits.svx angleunits.pos\
 lengthunits.svx lengthunits.out lengthunits.pos\
 cmd_alias.svx cmd_alias.out cmd_alias.pos\
 cmd_alias_bad.svx cmd_alias_bad.out\
+cmd_copyright.svx\
+cmd_copyright_bad.svx cmd_copyright_bad.out\
 cmd_default.svx\
 cmd_default_bad.svx cmd_default_bad.out\
 cmd_prefix.svx cmd_truncate.svx cmd_truncate.pos\
@@ -54,7 +57,11 @@ cmd_case.svx cmd_case.pos\
 cmd_case_bad.svx cmd_case_bad.out\
 cmd_cartesian.svx cmd_cartesian.dump cmd_cartesian.out\
 cmd_cartesian_bad.svx cmd_cartesian_bad.out\
-cmd_fix.svx cmd_fix.out cmd_fix.pos cmd_solve.svx cmd_solve.pos\
+cmd_fix.svx cmd_fix.out cmd_fix.pos\
+cmd_fix2.svx cmd_fix2.out\
+cmd_ref.svx\
+cmd_ref_bad.svx cmd_ref_bad.out\
+cmd_solve.svx cmd_solve.out cmd_solve.pos\
 cmd_entrance.svx\
 stnsurvey1.svx stnsurvey2.svx\
 tapelessthandepth.svx longname.svx\
@@ -66,6 +73,8 @@ multicylpolar.svx multicylpolar.pos\
 multicartesian.svx multicartesian.pos multicartesian.out\
 multinosurv.svx multinosurv.dump multinosurv.out\
 multinormalbad.svx multibug.svx\
+cmd_team.svx\
+cmd_team_bad.svx cmd_team_bad.out\
 cmd_title.svx cmd_titlebad.svx\
 cmd_dummy.svx cmd_infer.svx cmd_infer.pos\
 cartes.svx cartes.pos cartes.out\
@@ -83,6 +92,7 @@ cmd_begin_bad.svx cmd_begin_bad.out\
 cmd_equate_bad.svx cmd_equate_bad.out\
 cmd_export_bad.svx cmd_export_bad.out\
 cmd_fix_bad.svx cmd_fix_bad.out\
+cmd_fix_bad2.svx cmd_fix_bad2.out\
 cmd_sd.svx cmd_sd_bad.svx cmd_sd_bad.out\
 cmd_set.svx cmd_set.pos\
 cmd_set_bad.svx cmd_set_bad.out\
@@ -127,7 +137,8 @@ dot17.svx dot17.pos 3dcorner.svx 3dcorner.pos\
 nosurveyhanging.svx nosurveyhanging.out\
 nosurveyhanging2.svx nosurveyhanging2.dump nosurveyhanging2.out\
 cmd_solve_hanging.svx passage.svx hanging_lrud.svx\
-cmd_solve_nothing.svx cmd_solve_nothing_implicit.svx\
+cmd_solve_nothing.svx\
+cmd_solve_nothing_implicit.svx cmd_solve_nothing_implicit.out\
 cmd_date.dump cmd_date.svx cmd_date.out\
 cmd_datebad.svx cmd_datebad.out cmd_datebad2.svx cmd_datebad2.out\
 cmd_calibrate.svx cmd_calibrate.out cmd_calibrate.pos\

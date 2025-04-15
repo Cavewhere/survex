@@ -1,7 +1,7 @@
 /* netskel.c
  * Survex network reduction - remove trailing traverses and concatenate
  * traverses between junctions
- * Copyright (C) 1991-2024 Olly Betts
+ * Copyright (C) 1991-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,11 +36,12 @@
 #include "filename.h"
 #include "message.h"
 #include "filelist.h"
-#include "img_hosted.h"
+#include "img_for_survex.h"
 #include "netartic.h"
 #include "netbits.h"
 #include "netskel.h"
 #include "network.h"
+#include "osalloc.h"
 #include "out.h"
 
 #define sqrdd(X) (sqrd((X)[0]) + sqrd((X)[1]) + sqrd((X)[2]))
@@ -60,8 +61,10 @@ static const char *szLink = " - ";
 static const char *szLinkEq = " = "; /* use this one for equates */
 
 #if 0
-#define fprint_prefix(FH, NAME) BLK((fprint_prefix)((FH), (NAME));\
-				    fprintf((FH), " [%p]", (void*)(NAME)); )
+#define fprint_prefix(FH, NAME) do {\
+    (fprint_prefix)((FH), (NAME));\
+    fprintf((FH), " [%p]", (void*)(NAME));\
+  } while (0)
 #endif
 
 static stack *ptr; /* Ptr to TRaverse linked list for in-between travs */
@@ -83,25 +86,23 @@ static void err_stat(int cLegsTrav, double lenTrav,
 extern void
 solve_network(void)
 {
-   static bool first_solve = true;
-
    /* We can't average across solving to fix positions. */
    clear_last_leg();
 
    if (stnlist == NULL && fixedlist == NULL) {
-      if (first_solve) fatalerror(/*No survey data*/43);
-      /* We've had a *solve followed by another *solve (or the implicit
-       * *solve at the end of the data.  Don't moan about that. */
+      if (cSolves == 0) fatalerror(/*No survey data*/43);
+      /* We've had a *solve followed immediately by another *solve (or the
+       * implicit *solve at the end of the data).  Don't moan about that. */
       return;
    }
    ptr = NULL;
    ptrTrail = NULL;
    dump_network();
 
-   if (!fixedlist && first_solve && !pcs->proj_str && !proj_str_out) {
+   if (!fixedlist && cSolves == 0 && !pcs->proj_str && !proj_str_out) {
       /* If there are no fixed points and we haven't already solved to find
        * some station positions, and there's no specified coordinate system,
-       * the we pick a station and fixed it at (0,0,0).
+       * then we pick a station and fix it at (0,0,0).
        *
        * We do this first so the solving part is just like the standard case -
        * this avoid problems, such as sub-nodes of the invented fix having been
@@ -133,11 +134,11 @@ solve_network(void)
 			     sprint_prefix(stn_to_fix->name));
       static const double origin[3] = { 0.0, 0.0, 0.0 };
       fix_station(stn_to_fix->name, origin);
-      // We should set the FIXED flag for the invented fix though.
+      // We should not set the FIXED flag for the invented fix though.
       stn_to_fix->name->sflags &= ~BIT(SFLAGS_FIXED);
    }
 
-   first_solve = false;
+   ++cSolves;
 
    remove_trailing_travs();
    validate(); dump_network();
@@ -310,7 +311,7 @@ concatenate_trav(node *stn, int i)
    stn->leg[j] = newleg2;
 
 #if PRINT_NETBITS
-   putchar(' ');
+   PUTCHAR(' ');
    print_var(&(newleg->v));
    printf("\nStacked ");
    print_prefix(newleg2->l.to->name);
@@ -329,7 +330,7 @@ do_gross(delta e, delta v, node *stn1, node *stn2, double expected_error)
    double hsqrd, rsqrd, s, cx, cy, cz;
    double tot;
    int i;
-   int output = 0;
+   bool output = false;
    prefix *name1 = stn1->name, *name2 = stn2->name;
 
 #if 0
@@ -357,7 +358,7 @@ printf( " v = ( %.2f, %.2f, %.2f )\n", v[0], v[1], v[2] );
       fprintf(fhErrStat, " L: %.2f", sqrt(tot));
       /* checked - works */
       fprintf(fhErrStat, " (%.2fm -> %.2fm)", sqrt(sqrdd(v)), sqrt(sqrdd(v)) * (1 - s));
-      output = 1;
+      output = true;
    }
 
    s = sqrd(cx) + sqrd(cy);
@@ -381,7 +382,7 @@ printf( " v = ( %.2f, %.2f, %.2f )\n", v[0], v[1], v[2] );
 	 oldval = deg(atan2(v[0], v[1]));
 	 if (oldval < 0) oldval += 360;
 	 fprintf(fhErrStat, " (%.2fdeg -> %.2fdeg)", oldval, newval);
-	 output = 1;
+	 output = true;
       }
    }
 
@@ -407,7 +408,7 @@ printf( " v = ( %.2f, %.2f, %.2f )\n", v[0], v[1], v[2] );
 	    fprintf(fhErrStat, " (%.2fdeg -> %.2fdeg)",
 		    deg(atan2(v[2], sqrt(v[0] * v[0] + v[1] * v[1]))),
 		    deg(atan2(cz, sqrt(nx * nx + ny * ny))));
-	    output = 1;
+	    output = true;
 	 }
       }
    }
@@ -442,7 +443,7 @@ replace_travs(void)
       pimg = img_open_write_cs(fnm, s_str(&survey_title), proj_str_out,
 			       img_FFLAG_SEPARATOR(output_separator));
       if (!pimg) fatalerror(img_error(), fnm);
-      osfree(fnm);
+      free(fnm);
    }
 
    if (!fhErrStat && !fSuppress)
@@ -585,10 +586,10 @@ replace_travs(void)
 		     POS(stn1, 0), POS(stn1, 1), POS(stn1, 2));
 
       fArtic = stn1->leg[i]->l.reverse & FLAG_ARTICULATION;
-      osfree(stn1->leg[i]);
+      free(stn1->leg[i]);
       stn1->leg[i] = ptr->join1; /* put old link back in */
 
-      osfree(stn2->leg[j]);
+      free(stn2->leg[j]);
       stn2->leg[j] = ptr->join2; /* and the other end */
 
 #ifdef BLUNDER_DETECTION
@@ -730,7 +731,7 @@ replace_travs(void)
 skip_hanging_traverse:
       ptrOld = ptr;
       ptr = ptr->next;
-      osfree(ptrOld);
+      free(ptrOld);
    }
 
    /* Leave fhErrStat open in case we're asked to close loops again... */
@@ -872,7 +873,7 @@ replace_trailing_travs(void)
 skip:
       ptrOld = ptrTrail;
       ptrTrail = ptrTrail->next;
-      osfree(ptrOld);
+      free(ptrOld);
    }
 
    /* write out connections with no survey data */
@@ -902,7 +903,7 @@ skip:
 		     POS(p->to, 0), POS(p->to, 1), POS(p->to, 2));
 skip_nosurvey:
       nosurveyhead = p->next;
-      osfree(p);
+      free(p);
    }
 
    /* write stations to .3d file and free legs and stations */
@@ -979,34 +980,6 @@ skip_nosurvey:
 	  }
       }
 
-      d = stn1->name->shape;
-      if (d <= 1 && !TSTBIT(stn1->name->sflags, SFLAGS_USED)) {
-	 bool unused_fixed_point = false;
-	 if (d == 0) {
-	    /* Unused fixed point without error estimates */
-	    unused_fixed_point = true;
-	 } else if (stn1->leg[0]) {
-	    prefix *pfx = stn1->leg[0]->l.to->name;
-	    if (!prefix_ident(pfx) && !TSTBIT(pfx->sflags, SFLAGS_ANON)) {
-	       /* Unused fixed point with error estimates */
-	       unused_fixed_point = true;
-	    }
-	 }
-	 if (unused_fixed_point) {
-	    /* TRANSLATORS: fixed survey station that is not part of any survey
-	     */
-	    warning_in_file(stn1->name->filename, stn1->name->line,
-		    /*Unused fixed point “%s”*/73, sprint_prefix(stn1->name));
-	 }
-      }
-
-      /* For stations fixed with error estimates, we need to ignore the leg to
-       * the "real" fixed point in the node stats.
-       */
-      if (stn1->leg[0] && !prefix_ident(stn1->leg[0]->l.to->name) &&
-	  !TSTBIT(stn1->leg[0]->l.to->name->sflags, SFLAGS_ANON))
-	 stn1->name->shape--;
-
       for (i = 0; i <= 2; i++) {
 	 leg = stn1->leg[i];
 	 /* only want to think about forwards legs */
@@ -1032,8 +1005,8 @@ skip_nosurvey:
 		  totvert += fabs(leg->d[2]);
 	       }
 	    }
-	    osfree(leg);
-	    osfree(legRev);
+	    free(leg);
+	    free(legRev);
 	    stn1->leg[i] = stnB->leg[iB] = NULL;
 	 }
       }
@@ -1045,7 +1018,7 @@ skip_nosurvey:
    for (stn1 = fixedlist; stn1; stn1 = stn2) {
       stn2 = stn1->next;
       stn1->name->stn = NULL;
-      osfree(stn1);
+      free(stn1);
    }
    fixedlist = NULL;
 }
@@ -1077,7 +1050,7 @@ write_passage_models(void)
 	 name = sprint_prefix(pfx);
 	 oldx = xsect;
 	 xsect = xsect->next;
-	 osfree(oldx);
+	 free(oldx);
 
 	 if (!pfx->pos) {
 	     /* TRANSLATORS: e.g. the user specifies a passage cross-section at
@@ -1093,7 +1066,7 @@ write_passage_models(void)
       }
       oldp = psg;
       psg = psg->next;
-      osfree(oldp);
+      free(oldp);
    }
    model = NULL;
 }

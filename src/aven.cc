@@ -4,7 +4,7 @@
 //  Main class for Aven.
 //
 //  Copyright (C) 2001 Mark R. Shinwell.
-//  Copyright (C) 2002-2024 Olly Betts
+//  Copyright (C) 2002-2025 Olly Betts
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -33,6 +33,8 @@
 #include "cmdline.h"
 #include "message.h"
 #include "useful.h"
+
+#include <algorithm>
 
 #include <assert.h>
 #include <stdio.h>
@@ -146,6 +148,9 @@ bool Aven::Initialize(int& my_argc, wxChar **my_argv)
 	// Convert wide characters to UTF-8.
 	utf8_argv = new char * [utf8_argc + 1];
 	for (int i = 0; i < utf8_argc; ++i){
+	    // We can't use osstrdup() before msg_init() but this is
+	    // platform-specific code so we can assume strdup() is
+	    // available.
 	    utf8_argv[i] = strdup(wxString(new_argv[i]).utf8_str());
 	}
 	utf8_argv[utf8_argc] = NULL;
@@ -154,7 +159,6 @@ bool Aven::Initialize(int& my_argc, wxChar **my_argv)
     }
 
     msg_init(utf8_argv);
-    select_charset(CHARSET_UTF8);
     /* Want --version and decent --help output, which cmdline does for us.
      * wxCmdLine is much less good.
      */
@@ -166,6 +170,9 @@ bool Aven::Initialize(int& my_argc, wxChar **my_argv)
     cmdline_set_syntax_message(/*[SURVEY_FILE]*/269, 0, NULL);
     cmdline_init(utf8_argc, utf8_argv, short_opts, long_opts, NULL, help, 0, 1);
     getopt_first_response = cmdline_getopt();
+
+    // We're done writing to the terminal so switch to UTF-8 messages.
+    select_charset(CHARSET_UTF8);
 
     // The argc and argv arguments don't actually get used here.
     int dummy_argc = 0;
@@ -202,7 +209,6 @@ int main(int argc, char **argv)
     // Call msg_init() and start processing the command line first so that
     // we can respond to --help and --version even without an X display.
     msg_init(argv);
-    select_charset(CHARSET_UTF8);
     /* Want --version and decent --help output, which cmdline does for us.
      * wxCmdLine is much less good.
      */
@@ -210,6 +216,8 @@ int main(int argc, char **argv)
     cmdline_init(argc, argv, short_opts, long_opts, NULL, help, 0, 1);
     getopt_first_response = cmdline_getopt();
 
+    // We're done writing to the terminal so switch to UTF-8 messages.
+    select_charset(CHARSET_UTF8);
     utf8_argv = argv;
 
 #if wxUSE_UNICODE
@@ -465,7 +473,7 @@ aven_v_report(int severity, const char *fnm, int line, int en, va_list ap)
     }
 
     if (severity == DIAG_WARN) {
-	m += wmsg(/*warning*/4);
+	m += wmsg(/*warning*/106);
 	m += wxT(": ");
     }
 

@@ -149,13 +149,15 @@ typedef struct {
    double length;
    double E, H, V;
 
-   /* The filename actually opened (e.g. may have ".3d" added).
+   /* This member was documented as being set to the filename of the file
+    * loaded but was actually always set to NULL when using img outside the
+    * Survex code.
     *
-    * This is only set if img opened the filename - if an existing stream
-    * is used (via img_read_stream() or similar) then this member will be
-    * NULL.
+    * It has now been removed, so if you are referencing it in your code
+    * then instead use the filename you passed to img_open_survey() when
+    * opening the file.
     */
-   char * filename_opened;
+   /* char * filename_opened; */
 
    /* Non-zero if reading an extended elevation: */
    int is_extended_elevation;
@@ -172,11 +174,9 @@ typedef struct {
    size_t label_len;
    int fRead;        /* 1 for reading, 0 for writing */
    long start;
-   /* version of file format:
-    *  IMG_VERSION_CMAP_SHOT => CMAP XYZ file, shot variant (.sht)
-    *  IMG_VERSION_CMAP_STATION => CMAP XYZ file, station variant (.adj, .una)
-    *  IMG_VERSION_COMPASS_PLT => Compass .plt file
-    *  IMG_VERSION_SURVEX_POS => .pos file
+   /* Version of file format.
+    *
+    * Positive values are .3d file format versions:
     *   0 => 0.01 ascii
     *   1 => 0.01 binary,
     *   2 => byte actions and flags
@@ -186,6 +186,12 @@ typedef struct {
     *   6 => error info
     *   7 => more compact dates with wider range
     *   8 => lots of changes
+    *
+    * Negative values are other formats which img can read:
+    *  IMG_VERSION_CMAP_SHOT => CMAP XYZ file, shot variant (.sht)
+    *  IMG_VERSION_CMAP_STATION => CMAP XYZ file, station variant (.adj, .una)
+    *  IMG_VERSION_COMPASS_PLT => Compass .plt (or .plf) file
+    *  IMG_VERSION_SURVEX_POS => .pos file
     */
    int version;
    char *survey;
@@ -340,8 +346,8 @@ img *img_open_write_cs(const char *fnm, const char *title, const char * cs,
  *
  * cs is a string describing the coordinate system, suitable for passing to
  * PROJ (or NULL to not specify a coordinate system).  For a coordinate system
- * with an EPSG, "EPSG:" followed by the code number is the recommended way
- * to specify this.
+ * with an assigned EPSG code number, "EPSG:" followed by the code number is
+ * the recommended way to specify this.
  *
  * flags contains a bitwise-or of any file-wide flags - currently these are
  * available:

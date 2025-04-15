@@ -30,8 +30,15 @@
 #include "netbits.h"
 #include "validate.h"
 
-/* maximum absolute value allowed for a coordinate of a fixed station */
-#define MAX_POS 10000000.0
+/* Maximum absolute value of a coordinate of a fixed station for validate()
+ * to allow, in metres.
+ *
+ * The Northing of the equator in southern hemisphere UTM zones is 10000000m,
+ * which seems to be the largest coordinate in any common CRS.  We add an
+ * extra 100km to allow for extending such a zone North to cover a cave system
+ * which straddles the equator.
+ */
+#define MAX_POS 10100000.0
 
 static bool validate_prefix_tree(void);
 static bool validate_prefix_subtree(prefix *pfx);
@@ -235,23 +242,41 @@ validate_station_list(void)
 extern void
 dump_node(node *stn)
 {
-   int d;
-   if (stn->name)
-      print_prefix(stn->name);
-   else
-      printf("<null>");
+    printf("stn [%p]", stn);
+    if (stn->name) {
+	if (stn->name->stn == stn) {
+	    printf("<->");
+	} else {
+	    printf("-->");
+	}
+	printf("name ");
+	print_prefix(stn->name);
+	printf(" (%p)", stn->name);
+    } else {
+	printf("-->NULL");
+    }
 
-   printf(" stn [%p] name (%p) colour %ld %sfixed\n",
-	  stn, stn->name, stn->colour, fixed(stn) ? "" : "un");
+    printf(" colour %ld", stn->colour);
+    if (fixed(stn)) {
+	printf(" FIXED\n");
+    } else {
+	putnl();
+    }
 
-   for (d = 0; d <= 2; d++) {
-      if (stn->leg[d]) {
-	 printf("  leg %d -> stn [%p] rev %d ", d, stn->leg[d]->l.to,
-		reverse_leg_dirn(stn->leg[d]));
-	 print_prefix(stn->leg[d]->l.to->name);
-	 putnl();
-      }
-   }
+    for (int d = 0; d <= 2; d++) {
+	linkfor *leg = stn->leg[d];
+	if (leg) {
+	    const char* type;
+	    if (data_here(leg)) {
+		type = fZeros(&leg->v) ? "=>" : "->";
+	    } else {
+		type = fZeros(&reverse_leg(leg)->v) ? "<=" : "<-";
+	    }
+	    printf("  leg #%d %s stn [%p] ", d, type, leg->l.to);
+	    print_prefix(leg->l.to->name);
+	    printf(" | rev %d\n", reverse_leg_dirn(leg));
+	}
+    }
 }
 
 /* This doesn't cover removed stations - might be nice to have

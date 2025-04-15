@@ -51,6 +51,7 @@
 #define __STDC_CONSTANT_MACROS
 
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -103,7 +104,7 @@ write_packet(void *opaque,
 	     int buf_size)
 {
     FILE * fh = (FILE*)opaque;
-    size_t res = fwrite(buf, 1, buf_size, fh);
+    size_t res = FWRITE_(buf, 1, buf_size, fh);
     return res > 0 ? res : -1;
 }
 

@@ -21,10 +21,12 @@
    Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
    02110-1301 USA.  */
 
+#if 0 /* Survex doesn't use getopt() so we don't declare it. */
 /* This tells Alpha OSF/1 not to define a getopt prototype in <stdio.h>.
    Ditto for AIX 3.2 and <stdlib.h>.  */
 #ifndef _NO_PROTO
 # define _NO_PROTO
+#endif
 #endif
 
 #ifdef HAVE_CONFIG_H
@@ -65,7 +67,7 @@
 
 /* This needs to come after some library #include
    to get __GNU_LIBRARY__ defined.  */
-#ifdef	__GNU_LIBRARY__
+#if 1 /* Survex doesn't use getopt() so we don't declare it. */
 /* Don't include stdlib.h for non-GNU C libraries because some of them
    contain conflicting prototypes for getopt.  */
 # include <stdlib.h>
@@ -218,10 +220,12 @@ static char *posixly_correct;
 /* Avoid depending on library functions or files
    whose names are inconsistent.  */
 
+#if 0 /* Survex doesn't use getopt() so we include <stdlib.h>. */
 #ifndef getenv
 /* avoid "warning C4273: 'getenv' : inconsistent dll linkage." */
 #ifndef __WIN32__
 extern char *getenv ();
+#endif
 #endif
 #endif
 
@@ -1200,6 +1204,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
   }
 }
 
+#if 0 /* Survex doesn't use getopt() so we don't declare it. */
 int
 svx_getopt (argc, argv, optstring)
      int argc;
@@ -1211,6 +1216,7 @@ svx_getopt (argc, argv, optstring)
 			   (int *) 0,
 			   0);
 }
+#endif
 
 #endif	/* Not ELIDE_CODE.  */
 

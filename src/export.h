@@ -22,7 +22,7 @@
 #ifndef SURVEX_INCLUDED_EXPORT_H
 #define SURVEX_INCLUDED_EXPORT_H
 
-#include "img_hosted.h"
+#include "img_for_survex.h"
 #include <GL/glew.h>
 #include "wx.h"
 
@@ -62,7 +62,7 @@ extern const format_info export_format_info[];
 // img_FLAG_DUPLICATE
 #define SPLAYS		img_FLAG_SPLAY
 #define MASK_ (img_FLAG_SURFACE|img_FLAG_DUPLICATE|img_FLAG_SPLAY)
-static_assert(MASK_ < 0x00000008);
+static_assert(MASK_ < 0x00000008, "MASK_ only contains expected bits");
 #define LEGS		0x00000008
 #define STNS		0x00000010
 #define LABELS		0x00000020
@@ -89,7 +89,6 @@ static_assert(MASK_ < 0x00000008);
 #define DEFAULT_MARKER_SIZE 0.8
 
 bool Export(const wxString &fnm_out, const wxString &title,
-	    const wxString &datestamp,
 	    const Model& model,
 	    const SurveyFilter* filter,
 	    double pan, double tilt, int show_mask, export_format format,

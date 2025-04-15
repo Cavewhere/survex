@@ -1,5 +1,5 @@
 /* OS dependent filename manipulation routines
- * Copyright (c) Olly Betts 1998-2003,2004,2005,2010,2011,2014
+ * Copyright (c) Olly Betts 1998-2003,2004,2005,2010,2011,2014,2025
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -77,10 +77,10 @@ safe_fopen(const char *fnm, const char *mode)
    FILE *f;
    SVX_ASSERT(mode[0] == 'w'); /* only expect to be used for writing */
    if (fDirectory(fnm))
-      fatalerror(/*Filename “%s” refers to directory*/44, fnm);
+      fatalerror(/*Filename “%s” refers to directory*/5, fnm);
 
    f = fopen(fnm, mode);
-   if (!f) fatalerror(/*Failed to open output file “%s”*/47, fnm);
+   if (!f) fatalerror(/*Failed to open output file “%s”*/3, fnm);
 
    filename_register_output_with_fh(fnm, f);
    return f;
@@ -94,7 +94,7 @@ safe_fclose(FILE *f)
 {
    SVX_ASSERT(f);
    /* NB: use of | rather than || - we always want to call fclose() */
-   if (ferror(f) | (fclose(f) == EOF)) {
+   if (FERROR(f) | (fclose(f) == EOF)) {
       filelist *p;
       for (p = flhead; p != NULL; p = p->next)
 	 if (p->fh == f) break;
@@ -104,7 +104,7 @@ safe_fclose(FILE *f)
 	 p->fnm = NULL;
 	 p->fh = NULL;
 	 (void)remove(fnm);
-	 fatalerror(/*Error writing to file “%s”*/110, fnm);
+	 fatalerror(/*Error writing to file “%s”*/7, fnm);
       }
       /* f wasn't opened with safe_fopen(), so we don't know the filename. */
       fatalerror(/*Error writing to file*/111);
@@ -118,7 +118,7 @@ safe_fopen_with_ext(const char *fnm, const char *ext, const char *mode)
    char *p;
    p = add_ext(fnm, ext);
    f = safe_fopen(p, mode);
-   osfree(p);
+   free(p);
    return f;
 }
 
@@ -182,7 +182,7 @@ extern char *
 baseleaf_from_fnm(const char *fnm)
 {
    const char *p;
-   char *q;
+   const char *q;
    size_t len;
 
    p = fnm;
@@ -196,10 +196,10 @@ baseleaf_from_fnm(const char *fnm)
    q = strrchr(p, FNM_SEP_EXT);
    if (q) len = (const char *)q - p; else len = strlen(p);
 
-   q = osmalloc(len + 1);
-   memcpy(q, p, len);
-   q[len] = '\0';
-   return q;
+   char* res = osmalloc(len + 1);
+   memcpy(res, p, len);
+   res[len] = '\0';
+   return res;
 }
 
 extern char *
@@ -335,7 +335,7 @@ fopenWithPthAndExt(const char *pth, const char *fnm, const char *ext,
 	    char *fnmTmp;
 	    fnmTmp = fnmFull;
 	    fnmFull = add_ext(fnmFull, ext);
-	    osfree(fnmTmp);
+	    free(fnmTmp);
 	    fh = fopen_not_dir(fnmFull, mode);
 	 }
       }
@@ -344,7 +344,7 @@ fopenWithPthAndExt(const char *pth, const char *fnm, const char *ext,
    /* either it opened or didn't. If not, fh == NULL from fopen_not_dir() */
 
    /* free name if it didn't open or name isn't wanted */
-   if (fh == NULL || fnmUsed == NULL) osfree(fnmFull);
+   if (fh == NULL || fnmUsed == NULL) free(fnmFull);
    if (fnmUsed) *fnmUsed = (fh ? fnmFull : NULL);
    return fh;
 }
@@ -407,7 +407,7 @@ fopen_portable(const char *pth, const char *fnm, const char *ext,
 	    }
 	 }
       }
-      osfree(fnm_trans);
+      free(fnm_trans);
 #endif
    }
    return fh;
@@ -443,8 +443,8 @@ filename_delete_output(void)
       flhead = flhead->next;
       if (p->fnm) {
 	 (void)remove(p->fnm);
-	 osfree(p->fnm);
+	 free(p->fnm);
       }
-      osfree(p);
+      free(p);
    }
 }

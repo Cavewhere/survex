@@ -27,6 +27,8 @@
 #include "message.h"
 #include "osalloc.h"
 
+#include <algorithm>
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -62,10 +64,6 @@
 #endif
 
 enum { LOG_REPROCESS = 1234, LOG_SAVE = 1235 };
-
-static const wxString badutf8_html(
-    wxT("<span style=\"color:white;background-color:red;\">&#xfffd;</span>"));
-static const wxString badutf8(wxUniChar(0xfffd));
 
 // New event type for signalling cavern output to process.
 wxDEFINE_EVENT(EVT_CAVERN_OUTPUT, wxCommandEvent);
@@ -142,7 +140,7 @@ CavernLogWindow::OnPaint(wxPaintEvent&)
 	    dc.SetFont(font);
 	}
 	if (info.colour_len) {
-	    dc.SetTextForeground(*wxBLACK);
+	    dc.SetTextForeground(dark_mode ? *wxWHITE : *wxBLACK);
 	    {
 		size_t s_len = info.start_offset + info.colour_start - offset;
 		wxString s = wxString::FromUTF8(&log_txt[offset], s_len);
@@ -170,7 +168,7 @@ CavernLogWindow::OnPaint(wxPaintEvent&)
 	    x += dc.GetTextExtent(d).GetWidth();
 	    dc.SetFont(font);
 	}
-	dc.SetTextForeground(*wxBLACK);
+	dc.SetTextForeground(dark_mode ? *wxWHITE : *wxBLACK);
 	dc.DrawText(wxString::FromUTF8(&log_txt[offset], len), x, y);
     }
     int x = GetClientSize().x;
@@ -271,7 +269,7 @@ wxString get_command_path(const wxChar * command_name)
 	if (slash) {
 	    cmd.assign(start, slash - start + 1);
 	}
-	osfree(buf);
+	free(buf);
     }
 #else
     wxString cmd = wxString::FromUTF8(msg_exepth());
@@ -287,6 +285,15 @@ CavernLogWindow::CavernLogWindow(MainFrm * mainfrm_, const wxString & survey_, w
       survey(survey_),
       timer(this)
 {
+#if wxCHECK_VERSION(3,2,0)
+    if (wxSystemSettings::GetAppearance().IsDark()) {
+	SetOwnBackgroundColour(*wxBLACK);
+	dark_mode = true;
+	return;
+    }
+#endif
+
+    SetOwnBackgroundColour(*wxWHITE);
 }
 
 CavernLogWindow::~CavernLogWindow()
@@ -529,7 +536,7 @@ CavernLogWindow::ProcessCavernOutput()
 		line_info.back().link_len = link_len;
 
 		static string info_marker = string(msg(/*info*/485)) + ':';
-		static string warning_marker = string(msg(/*warning*/4)) + ':';
+		static string warning_marker = string(msg(/*warning*/106)) + ':';
 		static string error_marker = string(msg(/*error*/93)) + ':';
 
 		size_t offset = link_len + 2;
@@ -659,10 +666,10 @@ CavernLogWindow::OnSave(wxCommandEvent &)
     filelog = dlg.GetPath();
     FILE * fh_log = wxFopen(filelog, wxT("w"));
     if (!fh_log) {
-	wxGetApp().ReportError(wxString::Format(wmsg(/*Error writing to file “%s”*/110), filelog.c_str()));
+	wxGetApp().ReportError(wxString::Format(wmsg(/*Error writing to file “%s”*/7), filelog.c_str()));
 	return;
     }
-    fwrite(log_txt.data(), log_txt.size(), 1, fh_log);
+    FWRITE_(log_txt.data(), log_txt.size(), 1, fh_log);
     fclose(fh_log);
 }
 

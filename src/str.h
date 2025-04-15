@@ -22,6 +22,7 @@
 #include "osalloc.h"
 #include "stdbool.h"
 #include <string.h>
+#include <stdlib.h>
 
 typedef struct {
     char *s;
@@ -71,7 +72,7 @@ static inline void s_truncate(string *pstr, int new_len) {
 
 /* Release allocated memory. */
 static inline void s_free(string *pstr) {
-    osfree(pstr->s);
+    free(pstr->s);
     pstr->s = NULL;
     pstr->len = 0;
     pstr->capacity = 0;
@@ -89,7 +90,7 @@ static inline char *s_steal(string *pstr) {
 
 /* Donate a malloc-ed C string. */
 static inline void s_donate(string *pstr, char *s) {
-    osfree(pstr->s);
+    free(pstr->s);
     pstr->s = s;
     pstr->capacity = pstr->len = strlen(s);
 }

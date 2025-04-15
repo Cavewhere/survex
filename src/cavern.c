@@ -1,6 +1,6 @@
 /* cavern.c
  * SURVEX Cave surveying software: data reduction main and related functions
- * Copyright (C) 1991-2024 Olly Betts
+ * Copyright (C) 1991-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,10 +34,11 @@
 #include "message.h"
 #include "filename.h"
 #include "filelist.h"
-#include "img_hosted.h"
+#include "img_for_survex.h"
 #include "listpos.h"
 #include "netbits.h"
 #include "netskel.h"
+#include "osalloc.h"
 #include "out.h"
 #include "str.h"
 #include "validate.h"
@@ -52,8 +53,9 @@ node *stnlist = NULL; // Unfixed stations
 settings *pcs;
 prefix *root;
 prefix *anon_list = NULL;
-long cLegs, cStns;
-long cComponents;
+long cLegs = 0, cStns = 0;
+long cComponents = 0;
+long cSolves = 0;
 bool fExportUsed = false;
 char * proj_str_out = NULL;
 PJ * pj_cached = NULL;
@@ -77,7 +79,7 @@ string survey_title = S_INIT;
 bool fExplicitTitle = false;
 
 char *fnm_output_base = NULL;
-int fnm_output_base_is_dir = 0;
+bool fnm_output_base_is_dir = false;
 
 lrudlist * model = NULL;
 lrud ** next_lrud = NULL;
@@ -143,6 +145,7 @@ pause_on_exit(void)
 #endif
 
 int current_days_since_1900;
+unsigned current_year;
 
 static void discarding_proj_logger(void *ctx, int level, const char *message) {
     (void)ctx;
@@ -157,9 +160,12 @@ main(int argc, char **argv)
    time_t tmUserStart = time(NULL);
    clock_t tmCPUStart = clock();
    {
-       /* FIXME: localtime? */
+       // Convert the current date in the local timezone to the number of days
+       // since 1900 which we use to warn if a `*date` command specifies a date
+       // in the future.
        struct tm * t = localtime(&tmUserStart);
        int y = t->tm_year + 1900;
+       current_year = (unsigned)y;
        current_days_since_1900 = days_since_1900(y, t->tm_mon + 1, t->tm_mday);
    }
 
@@ -178,7 +184,7 @@ main(int argc, char **argv)
    pcs = osnew(settings);
    pcs->next = NULL;
    pcs->from_equals_to_is_only_a_warning = false;
-   pcs->Translate = ((short*) osmalloc(ossizeof(short) * 257)) + 1;
+   pcs->Translate = ((short*) osmalloc(sizeof(short) * 257)) + 1;
    pcs->meta = NULL;
    pcs->proj_str = NULL;
    pcs->declination = HUGE_REAL;
@@ -209,7 +215,6 @@ main(int argc, char **argv)
 
    fixedlist = NULL;
    stnlist = NULL;
-   cLegs = cStns = cComponents = 0;
    totadj = total = totplan = totvert = 0.0;
 
    for (d = 0; d < 9; d++) {
@@ -234,14 +239,14 @@ main(int argc, char **argv)
 	 /* Ignore for compatibility with older versions. */
 	 break;
        case 'o': {
-	 osfree(fnm_output_base); /* in case of multiple -o options */
+	 free(fnm_output_base); /* in case of multiple -o options */
 	 /* can be a directory (in which case use basename of leaf input)
 	  * or a file (in which case just trim the extension off) */
 	 if (fDirectory(optarg)) {
 	    /* this is a little tricky - we need to note the path here,
 	     * and then add the leaf later on (in datain.c) */
 	    fnm_output_base = base_from_fnm(optarg);
-	    fnm_output_base_is_dir = 1;
+	    fnm_output_base_is_dir = true;
 	 } else {
 	    fnm_output_base = base_from_fnm(optarg);
 	 }
@@ -267,11 +272,11 @@ main(int argc, char **argv)
 	 break;
        case 'z': {
 	 /* Control which network optimisations are used (development tool) */
-	 static int first_opt_z = 1;
+	 static bool seen_opt_z = false;
 	 char c;
-	 if (first_opt_z) {
+	 if (!seen_opt_z) {
 	    optimize = 0;
-	    first_opt_z = 0;
+	    seen_opt_z = true;
 	 }
 	 /* Lollipops, Parallel legs, Iterate mx, Delta* */
 	 while ((c = *optarg++) != '\0')
@@ -295,22 +300,22 @@ main(int argc, char **argv)
 	 char *p;
      p = baseleaf_from_fnm(argv[optind]);
 	 fnm = add_ext(p, EXT_LOG);
-	 osfree(p);
+	 free(p);
       } else if (fnm_output_base_is_dir) {
 	 char *p;
      fnm = baseleaf_from_fnm(argv[optind]);
 	 p = use_path(fnm_output_base, fnm);
-	 osfree(fnm);
+	 free(fnm);
 	 fnm = add_ext(p, EXT_LOG);
-	 osfree(p);
+	 free(p);
       } else {
 	 fnm = add_ext(fnm_output_base, EXT_LOG);
       }
 
       if (!freopen(fnm, "w", stdout))
-	 fatalerror(/*Failed to open output file “%s”*/47, fnm);
+	 fatalerror(/*Failed to open output file “%s”*/3, fnm);
 
-      osfree(fnm);
+      free(fnm);
    }
 
    if (!fMute) {
@@ -323,7 +328,7 @@ main(int argc, char **argv)
 	      puts(q);
 	      break;
 	  }
-	  fwrite(q, 1, p - q, stdout);
+	  FWRITE_(q, 1, p - q, stdout);
 	  fputs(msg(/*©*/0), stdout);
 	  p += 3;
       }
@@ -342,7 +347,7 @@ main(int argc, char **argv)
 	  } else {
 	      s_appendch(&survey_title, ' ');
 	      s_append(&survey_title, lf);
-	      osfree(lf);
+	      free(lf);
 	  }
       }
 
@@ -359,6 +364,8 @@ main(int argc, char **argv)
 
    solve_network(); /* Find coordinates of all points */
    validate();
+
+   check_for_unused_fixed_points();
 
    /* close .3d file */
    if (!img_close(pimg)) {
@@ -402,6 +409,7 @@ main(int argc, char **argv)
       putnl();
    }
    if (msg_warnings || msg_errors) {
+      putnl();
       if (msg_errors || (f_warnings_are_errors && msg_warnings)) {
 	 printf(msg(/*There were %d warning(s) and %d error(s) - no output files produced.*/113),
 		msg_warnings, msg_errors);
@@ -438,7 +446,7 @@ do_range(int d, int msgno, real length_factor, const char * units)
    real hi = max[d] * length_factor;
    real lo = min[d] * length_factor;
    printf(msg(msgno), hi - lo, units, pfx_hi, hi, units, pfx_lo, lo, units);
-   osfree(pfx_hi);
+   free(pfx_hi);
    putnl();
 
    /* Range without anonymous stations at offset 3. */
@@ -450,8 +458,6 @@ do_range(int d, int msgno, real length_factor, const char * units)
 static void
 do_stats(void)
 {
-   long cLoops = cComponents + cLegs - cStns;
-
    putnl();
 
    if (proj_str_out) {
@@ -503,7 +509,7 @@ do_stats(void)
 	   printf(msg(/*Approximate full range of grid convergence: %.1f%s at %s to %.1f%s at %s\n*/531),
 		  deg(convergence_min), deg_sign, pfx_lo,
 		  deg(convergence_max), deg_sign, pfx_hi);
-	   osfree(pfx_hi);
+	   free(pfx_hi);
        }
    }
 
@@ -518,23 +524,27 @@ do_stats(void)
    } else {
       printf(msg(/* joined by %ld legs.*/175), cLegs);
    }
-
    putnl();
 
-   if (cLoops == 1) {
-      fputs(msg(/*There is 1 loop.*/138), stdout);
-   } else {
-      printf(msg(/*There are %ld loops.*/139), cLoops);
-   }
+   if (cSolves == 1) {
+       // If *solve is used then cComponents will often be wrong.  Rather than
+       // reporting incorrect counts of loops and components we omit these in
+       // this case for now.
+       long cLoops = cComponents + cLegs - cStns;
+       if (cLoops == 1) {
+	  fputs(msg(/*There is 1 loop.*/138), stdout);
+       } else {
+	  printf(msg(/*There are %ld loops.*/139), cLoops);
+       }
+       putnl();
 
-   putnl();
-
-   if (cComponents != 1) {
-      /* TRANSLATORS: "Connected component" in the graph theory sense - it
-       * means there are %ld bits of survey with no connections between them.
-       * This message is only used if there are more than 1. */
-      printf(msg(/*Survey has %ld connected components.*/178), cComponents);
-      putnl();
+       if (cComponents != 1) {
+	  /* TRANSLATORS: "Connected component" in the graph theory sense - it
+	   * means there are %ld bits of survey with no connections between
+	   * them.  This message is only used if there are more than 1. */
+	  printf(msg(/*Survey has %ld connected components.*/178), cComponents);
+	  putnl();
+       }
    }
 
    int length_units = get_length_units(Q_LENGTH);
@@ -564,9 +574,5 @@ do_stats(void)
 	       length_factor, units);
    }
 
-   print_node_stats();
-   /* Also, could give:
-    *  # nodes stations (ie have other than two references or are fixed)
-    *  # fixed stations (list of?)
-    */
+   check_node_stats();
 }

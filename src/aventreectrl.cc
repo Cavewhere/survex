@@ -26,8 +26,8 @@
 
 #include "aventreectrl.h"
 #include "mainfrm.h"
-#include "osalloc.h"
 
+#include <algorithm>
 #include <stack>
 
 using namespace std;
@@ -371,6 +371,7 @@ void AvenTreeCtrl::OnMenu(wxTreeEvent& e)
     } else if (data->IsStation()) {
 	// Station: name is data->GetLabel()->GetText()
 	wxMenu menu;
+        // TRANSLATORS: Menu item in right-click menu in survey tree.
 	menu.Append(wxID_FIND, wmsg(/*Find*/332));
 	PopupMenu(&menu);
     } else if (ItemHasChildren(menu_item)) {
@@ -605,7 +606,7 @@ void AvenTreeCtrl::AddOverlay(const wxString& file)
 {
     char* leaf = leaf_from_fnm(file.utf8_str());
     auto id = AppendItem(GetRootItem(), leaf);
-    osfree(leaf);
+    free(leaf);
     SetItemState(id, STATE_ON);
     SetItemData(id, new TreeData(file));
 }

@@ -31,11 +31,13 @@
 #include <wx/notebook.h>
 #include <wx/print.h>
 #include <wx/printdlg.h>
+#include <wx/srchctrl.h>
+#include <wx/spinctrl.h>
 
 #include "aventreectrl.h"
 #include "gfxcore.h"
 #include "guicontrol.h"
-#include "img_hosted.h"
+#include "img_for_survex.h"
 #include "labelinfo.h"
 #include "message.h"
 #include "model.h"
@@ -149,7 +151,7 @@ enum {
     menu_SURVEY_SHOW,
     menu_SURVEY_HIDE_SIBLINGS,
     textctrl_FIND,
-    button_HIDE,
+    spinctrl_Z_STRETCH,
     listctrl_PRES
 };
 
@@ -164,7 +166,7 @@ class MainFrm : public wxFrame, public Model {
     GUIControl* m_Control;
     wxSplitterWindow* m_Splitter;
     AvenTreeCtrl* m_Tree;
-    wxTextCtrl* m_FindBox;
+    wxSearchCtrl* m_FindBox;
     // wxCheckBox* m_RegexpCheckBox;
     wxNotebook* m_Notebook;
     AvenPresList* m_PresList;
@@ -243,8 +245,7 @@ public:
     void OnFind(wxCommandEvent& event);
     void OnIdle(wxIdleEvent& event);
     void OnGotoFound(wxCommandEvent& event);
-    void OnHide(wxCommandEvent& event);
-    void OnHideUpdate(wxUpdateUIEvent& ui);
+    void OnZStretch(wxSpinDoubleEvent& event);
 
     void OnOpen(wxCommandEvent& event);
     void OnOpenTerrain(wxCommandEvent&);

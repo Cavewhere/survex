@@ -52,7 +52,7 @@ csv_quote(const char* s, FILE* fh)
 	++i;
     }
     PUTC('"', fh);
-    fwrite(s, i, 1, fh);
+    FWRITE_(s, i, 1, fh);
     while (s[i]) {
 	// Double up any " in the string to escape them.
 	if (s[i] == '"')
@@ -79,7 +79,7 @@ POS::passes() const
     return default_passes;
 }
 
-void POS::header(const char *, const char *, time_t,
+void POS::header(const char *, time_t,
 		 double, double, double, double, double, double)
 {
     if (csv) {
@@ -92,12 +92,12 @@ void POS::header(const char *, const char *, time_t,
 	    csv_quote(msg(msgno), fh);
 	    comma = true;
 	}
-	PUTC('\n', fh);
     } else {
 	/* TRANSLATORS: Heading line for .pos file.  Please try to ensure the
 	 * “,”s (or at least the columns) are in the same place */
-	fputsnl(msg(/*( Easting, Northing, Altitude )*/195), fh);
+	fputs(msg(/*( Easting, Northing, Altitude )*/195), fh);
     }
+    PUTC('\n', fh);
 }
 
 void

@@ -1,6 +1,6 @@
 /* netbits.c
  * Miscellaneous primitive network routines for Survex
- * Copyright (C) 1992-2024 Olly Betts
+ * Copyright (C) 1992-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,8 @@
 #include "message.h"
 #include "netbits.h"
 #include "datain.h" /* for compile_error */
-#include "validate.h" /* for compile_error */
+#include "osalloc.h"
+#include "validate.h"
 #include <math.h>
 
 #define THRESHOLD (REAL_EPSILON * 1000) /* 100 was too small */
@@ -51,11 +52,11 @@ static char freeleg(node **stnptr);
 
 #ifdef NO_COVARIANCES
 static void check_var(const var *v) {
-   int bad = 0;
+   bool bad = false;
 
    for (int i = 0; i < 3; i++) {
       if (isnan(v[i])
-	 printf("*** NaN!!!\n"), bad = 1;
+	 printf("*** NaN!!!\n"), bad = true;
    }
    if (bad) print_var(v);
    return;
@@ -63,8 +64,8 @@ static void check_var(const var *v) {
 #else
 #define V(A,B) ((*v)[A][B])
 static void check_var(const var *v) {
-   int bad = 0;
-   int ok = 0;
+   bool bad = false;
+   bool ok = false;
 #if DEBUG_INVALID
    real det = 0.0;
 #endif
@@ -72,8 +73,8 @@ static void check_var(const var *v) {
    for (int i = 0; i < 3; i++) {
       for (int j = 0; j < 3; j++) {
 	 if (isnan(V(i, j)))
-	    printf("*** NaN!!!\n"), bad = 1, ok = 1;
-	 if (V(i, j) != 0.0) ok = 1;
+	    printf("*** NaN!!!\n"), bad = true, ok = true;
+	 if (V(i, j) != 0.0) ok = true;
       }
    }
    if (!ok) return; /* ignore all-zero matrices */
@@ -85,7 +86,7 @@ static void check_var(const var *v) {
    }
 
    if (fabs(det) < THRESHOLD)
-      printf("*** Singular!!!\n"), bad = 1;
+      printf("*** Singular!!!\n"), bad = true;
 #endif
 
 #if 0
@@ -93,13 +94,13 @@ static void check_var(const var *v) {
    if (fabs(V(0,1) - V(1,0)) > THRESHOLD ||
        fabs(V(0,2) - V(2,0)) > THRESHOLD ||
        fabs(V(1,2) - V(2,1)) > THRESHOLD)
-      printf("*** Not symmetric!!!\n"), bad = 1;
+      printf("*** Not symmetric!!!\n"), bad = true;
    if (V(0,0) <= 0.0 || V(1,1) <= 0.0 || V(2,2) <= 0.0)
-      printf("*** Not positive definite (diag <= 0)!!!\n"), bad = 1;
+      printf("*** Not positive definite (diag <= 0)!!!\n"), bad = true;
    if (sqrd(V(0,1)) >= V(0,0)*V(1,1) || sqrd(V(0,2)) >= V(0,0)*V(2,2) ||
        sqrd(V(1,0)) >= V(0,0)*V(1,1) || sqrd(V(2,0)) >= V(0,0)*V(2,2) ||
        sqrd(V(1,2)) >= V(2,2)*V(1,1) || sqrd(V(2,1)) >= V(2,2)*V(1,1))
-      printf("*** Not positive definite (off diag^2 >= diag product)!!!\n"), bad = 1;
+      printf("*** Not positive definite (off diag^2 >= diag product)!!!\n"), bad = true;
 #endif
    if (bad) print_var(*v);
 }
@@ -108,16 +109,16 @@ static void check_var(const var *v) {
 #define S(A,B) SN(v,A,B)
 
 static void check_svar(const svar *v) {
-   int bad = 0;
-   int ok = 0;
+   bool bad = false;
+   bool ok = false;
 #if DEBUG_INVALID
    real det = 0.0;
 #endif
 
    for (int i = 0; i < 6; i++) {
       if (isnan((*v)[i]))
-	 printf("*** NaN!!!\n"), bad = 1, ok = 1;
-      if ((*v)[i] != 0.0) ok = 1;
+	 printf("*** NaN!!!\n"), bad = true, ok = true;
+      if ((*v)[i] != 0.0) ok = true;
    }
    if (!ok) return; /* ignore all-zero matrices */
 
@@ -128,28 +129,28 @@ static void check_svar(const svar *v) {
    }
 
    if (fabs(det) < THRESHOLD)
-      printf("*** Singular!!!\n"), bad = 1;
+      printf("*** Singular!!!\n"), bad = true;
 #endif
 
 #if 0
    /* don't check this - it isn't always the case! */
    if ((*v)[0] <= 0.0 || (*v)[1] <= 0.0 || (*v)[2] <= 0.0)
-      printf("*** Not positive definite (diag <= 0)!!!\n"), bad = 1;
+      printf("*** Not positive definite (diag <= 0)!!!\n"), bad = true;
    if (sqrd((*v)[3]) >= (*v)[0]*(*v)[1] ||
        sqrd((*v)[4]) >= (*v)[0]*(*v)[2] ||
        sqrd((*v)[5]) >= (*v)[1]*(*v)[2])
-      printf("*** Not positive definite (off diag^2 >= diag product)!!!\n"), bad = 1;
+      printf("*** Not positive definite (off diag^2 >= diag product)!!!\n"), bad = true;
 #endif
    if (bad) print_svar(*v);
 }
 #endif
 
 static void check_d(const delta *d) {
-   int bad = 0;
+   bool bad = false;
 
    for (int i = 0; i < 3; i++) {
       if (isnan((*d)[i]))
-	 printf("*** NaN!!!\n"), bad = 1;
+	 printf("*** NaN!!!\n"), bad = true;
    }
 
    if (bad) printf("(%4.2f,%4.2f,%4.2f)\n", (*d)[0], (*d)[1], (*d)[2]);
@@ -301,9 +302,6 @@ addleg_(node *fr, node *to,
    fr->leg[i] = leg;
    to->leg[j] = leg2;
 
-   ++fr->name->shape;
-   ++to->name->shape;
-
    return leg;
 }
 
@@ -364,6 +362,10 @@ addlegbyname(prefix *fr_name, prefix *to_name, bool fToFirst,
    }
    cLegs++;
 
+   /* Suppress "unused fixed point" warnings for these stations. */
+   fr_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+   to_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+
    last_leg.to_name = to_name;
    last_leg.fr_name = fr_name;
    last_leg.n = 1;
@@ -378,10 +380,7 @@ addlegbyname(prefix *fr_name, prefix *to_name, bool fToFirst,
 static void
 replace_pfx_(node *stn, node *from, pos *pos_with, bool move_to_fixedlist)
 {
-   SVX_ASSERT(!fixed(stn));
    if (move_to_fixedlist) {
-      SVX_ASSERT(pos_fixed(pos_with));
-      SVX_ASSERT(!fixed(stn));
       remove_stn_from_list(&stnlist, stn);
       add_stn_to_list(&fixedlist, stn);
    }
@@ -400,11 +399,11 @@ replace_pfx_(node *stn, node *from, pos *pos_with, bool move_to_fixedlist)
 /* We used to iterate over the whole station list (inefficient) - now we
  * just look at any neighbouring nodes to see if they are equated */
 static void
-replace_pfx(const prefix *pfx_replace, const prefix *pfx_with,
-	    bool move_to_fixedlist)
+replace_pfx(const prefix *pfx_replace, const prefix *pfx_with)
 {
    SVX_ASSERT(pfx_replace);
    SVX_ASSERT(pfx_with);
+   bool move_to_fixedlist = !pfx_fixed(pfx_replace) && pfx_fixed(pfx_with);
    pos *pos_replace = pfx_replace->pos;
    SVX_ASSERT(pos_replace != pfx_with->pos);
 
@@ -420,7 +419,7 @@ replace_pfx(const prefix *pfx_replace, const prefix *pfx_with,
 #endif
 
    /* free the (now-unused) old pos */
-   osfree(pos_replace);
+   free(pos_replace);
 }
 
 // Add equating leg between existing stations whose names are name1 and name2.
@@ -449,7 +448,7 @@ process_equate(prefix *name1, prefix *name2)
 	       if (name1->pos->p[d] != name2->pos->p[d]) {
 		  compile_diagnostic(DIAG_ERR, /*Tried to equate two non-equal fixed stations: “%s” and “%s”*/52,
 				     s, sprint_prefix(name2));
-		  osfree(s);
+		  free(s);
 		  return;
 	       }
 	    }
@@ -460,15 +459,19 @@ process_equate(prefix *name1, prefix *name2)
 	     * *equate a b */
 	    compile_diagnostic(DIAG_WARN, /*Equating two equal fixed points: “%s” and “%s”*/53,
 			       s, sprint_prefix(name2));
-	    osfree(s);
+	    free(s);
 	 }
 
 	 /* name1 is fixed, so replace all refs to name2's pos with name1's */
-	 replace_pfx(name2, name1, !name2_fixed);
+	 replace_pfx(name2, name1);
       } else {
 	 /* name1 isn't fixed, so replace all refs to its pos with name2's */
-	 replace_pfx(name1, name2, pfx_fixed(name2));
+	 replace_pfx(name1, name2);
       }
+
+      /* Suppress "unused fixed point" warnings for these stations. */
+      name1->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+      name2->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
 
       /* count equates as legs for now... */
       cLegs++;
@@ -482,10 +485,11 @@ process_equate(prefix *name1, prefix *name2)
    }
 }
 
-/* Add a 'fake' leg (not counted) between existing stations *fr and *to
- * (which *must* be different)
+/* Add a 'fake' leg (not counted or treated as a use of a fixed point) between
+ * existing stations *fr and *to (which *must* be different).
+ *
  * If either node is a three node, then it is split into two
- * and the data structure adjusted as necessary
+ * and the data structure adjusted as necessary.
  */
 void
 addfakeleg(node *fr, node *to,
@@ -567,7 +571,9 @@ StnFromPfx(prefix *name)
    stn->leg[0] = stn->leg[1] = stn->leg[2] = NULL;
    add_stn_to_list(fixed ? &fixedlist : &stnlist, stn);
    name->stn = stn;
-   cStns++;
+   // Don't re-count a station which already exists from before a `*solve`.
+   // After we solve we delete and NULL-out its `node*`, but set SFLAGS_SOLVED.
+   if (!TSTBIT(name->sflags, SFLAGS_SOLVED)) cStns++;
    return stn;
 }
 
@@ -592,17 +598,17 @@ fprint_prefix(FILE *fh, const prefix *ptr)
 }
 
 static char *buffer = NULL;
-static OSSIZE_T buffer_len = 256;
+static size_t buffer_len = 256;
 
-static OSSIZE_T
+static size_t
 sprint_prefix_(const prefix *ptr)
 {
-   OSSIZE_T len = 1;
+   size_t len = 1;
    if (ptr->up != NULL) {
       const char *ident = prefix_ident(ptr);
       SVX_ASSERT(ident);
       len = sprint_prefix_(ptr->up);
-      OSSIZE_T end = len - 1;
+      size_t end = len - 1;
       if (ptr->up->up != NULL) len++;
       len += strlen(ident);
       if (len > buffer_len) {

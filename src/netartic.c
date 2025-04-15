@@ -33,6 +33,7 @@
 #include "netbits.h"
 #include "netskel.h"
 #include "matrix.h"
+#include "osalloc.h"
 #include "out.h"
 
 static void
@@ -409,9 +410,9 @@ articulate(void)
 	}
     }
 
-    osfree(dirn_stack);
+    free(dirn_stack);
     dirn_stack = NULL;
-    osfree(oldest_stack);
+    free(oldest_stack);
     oldest_stack = NULL;
 
     SVX_ASSERT(!fixedlist);
@@ -433,7 +434,7 @@ articulate(void)
 
 	articulation *old_art = art;
 	art = art->next;
-	osfree(old_art);
+	free(old_art);
     }
 
 #ifdef DEBUG_ARTIC

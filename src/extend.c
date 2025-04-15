@@ -1,6 +1,6 @@
 /* extend.c
  * Produce an extended elevation
- * Copyright (C) 1995-2002,2005,2010,2011,2013,2014,2016,2017,2024 Olly Betts
+ * Copyright (C) 1995-2025 Olly Betts
  * Copyright (C) 2004,2005 John Pybus
  *
  * This program is free software; you can redistribute it and/or modify
@@ -30,7 +30,7 @@
 #include "filelist.h"
 #include "filename.h"
 #include "hash.h"
-#include "img_hosted.h"
+#include "img_for_survex.h"
 #include "message.h"
 #include "osalloc.h"
 #include "useful.h"
@@ -86,7 +86,7 @@ static leg headleg = {NULL, NULL, NULL, 0, 0, 0, 0, NULL};
 
 static img *pimg_out;
 
-static int show_breaks = 0;
+static bool show_breaks = false;
 
 static void do_stn(point *, double, const char *, int, int, double, double);
 
@@ -129,7 +129,7 @@ find_point(const img_point *pt)
       }
    }
 
-   p = osmalloc(ossizeof(point));
+   p = osmalloc(sizeof(point));
    p->p = *pt;
    p->X = HUGE_VAL;
    p->stns = NULL;
@@ -149,7 +149,7 @@ add_leg(point *fr, point *to, const char *prefix, int flags)
    leg *l;
    fr->order++;
    to->order++;
-   l = osmalloc(ossizeof(leg));
+   l = osmalloc(sizeof(leg));
    l->fr = fr;
    l->to = to;
    if (prefix)
@@ -184,7 +184,7 @@ getline_alloc(FILE *fh, size_t ilen)
    int ch;
    size_t i = 0;
    size_t len = ilen;
-   char *buf = xosmalloc(len);
+   char *buf = malloc(len);
    if (!buf) return NULL;
 
    ch = GETC(fh);
@@ -193,9 +193,9 @@ getline_alloc(FILE *fh, size_t ilen)
       if (i == len - 1) {
 	 char *p;
 	 len += len;
-	 p = xosrealloc(buf, len);
+	 p = realloc(buf, len);
 	 if (!p) {
-	    osfree(buf);
+	    free(buf);
 	    return NULL;
 	 }
 	 buf = p;
@@ -235,6 +235,18 @@ delimword(char *ln, char** lr)
 
    *le = '\0';
    return ln;
+}
+
+static const char*
+check_label(const char* label, const char* ll, const char* ln)
+{
+    if (strcmp(label, ll) == 0) {
+	return ln;
+    } else if (strcmp(label, ln) == 0) {
+	return ll;
+    } else {
+	return NULL;
+    }
 }
 
 static void
@@ -296,9 +308,8 @@ parseconfigline(const char *fnm, char *ln)
 	    point * to = l->to;
 	    if (fr && to) {
 	       for (s=fr->stns; s; s=s->next) {
-		  int b = 0;
-		  if (strcmp(s->label,ll)==0 || (strcmp(s->label, ln)==0 && (b = 1)) ) {
-		     char * lr = (b ? ll : ln);
+		  const char* lr = check_label(s->label, ll, ln);
+		  if (lr) {
 		     for (t=to->stns; t; t=t->next) {
 			if (strcmp(t->label,lr)==0) {
 			   /* TRANSLATORS: for extend: */
@@ -343,9 +354,8 @@ parseconfigline(const char *fnm, char *ln)
 	    point * to = l->to;
 	    if (fr && to) {
 	       for (s=fr->stns; s; s=s->next) {
-		  int b = 0;
-		  if (strcmp(s->label,ll)==0 || (strcmp(s->label, ln)==0 && (b = 1)) ) {
-		     char * lr = (b ? ll : ln);
+		  const char* lr = check_label(s->label, ll, ln);
+		  if (lr) {
 		     for (t=to->stns; t; t=t->next) {
 			if (strcmp(t->label,lr)==0) {
 			   /* TRANSLATORS: for extend: */
@@ -387,9 +397,8 @@ parseconfigline(const char *fnm, char *ln)
 	    point * to = l->to;
 	    if (fr && to) {
 	       for (s=fr->stns; s; s=s->next) {
-		  int b = 0;
-		  if (strcmp(s->label,ll)==0 || (strcmp(s->label, ln)==0 && (b = 1)) ) {
-		     char * lr = (b ? ll : ln);
+		  const char* lr = check_label(s->label, ll, ln);
+		  if (lr) {
 		     for (t=to->stns; t; t=t->next) {
 			if (strcmp(t->label,lr)==0) {
 			   /* TRANSLATORS: for extend: */
@@ -432,15 +441,14 @@ parseconfigline(const char *fnm, char *ln)
 	    point * to = l->to;
 	    if (fr && to) {
 	       for (s=fr->stns; s; s=s->next) {
-		  int b = 0;
-		  if (strcmp(s->label,ll)==0 || (strcmp(s->label, ln)==0 && (b = 1)) ) {
-		     char * lr = (b ? ll : ln);
+		  const char* lr = check_label(s->label, ll, ln);
+		  if (lr) {
 		     for (t=to->stns; t; t=t->next) {
 			if (strcmp(t->label,lr)==0) {
 			   /* TRANSLATORS: for extend: */
 			   printf(msg(/*Breaking survey loop at leg %s → %s*/518), s->label, t->label);
 			   putnl();
-			   l->broken = (b ? BREAK_TO : BREAK_FR);
+			   l->broken = (lr == ll ? BREAK_TO : BREAK_FR);
 			   goto loopend;
 			}
 		     }
@@ -555,7 +563,7 @@ main(int argc, char **argv)
       if (opt == EOF) break;
       switch (opt) {
 	 case 'b':
-	    show_breaks = 1;
+	    show_breaks = true;
 	    break;
 	 case 's':
 	    survey = optarg;
@@ -574,18 +582,18 @@ main(int argc, char **argv)
       strcpy(base_out, base_in);
       strcat(base_out, "_extend");
       fnm_out = add_ext(base_out, EXT_SVX_3D);
-      osfree(base_in);
-      osfree(base_out);
+      free(base_in);
+      free(base_out);
    }
 
    /* try to open image file, and check it has correct header */
-   pimg = img_open_survey(fnm_in, survey);
+   pimg = img_for_survex_open_survey(fnm_in, survey);
    if (pimg == NULL) fatalerror(img_error2msg(img_error()), fnm_in);
 
    putnl();
    puts(msg(/*Reading in data - please wait…*/105));
 
-   htab = osmalloc(ossizeof(pfx*) * HTAB_SIZE);
+   htab = osmalloc(sizeof(pfx*) * HTAB_SIZE);
    {
        int i;
        for (i = 0; i < HTAB_SIZE; ++i) htab[i] = NULL;
@@ -644,7 +652,7 @@ main(int argc, char **argv)
 	    to = find_point(&pt);
 	    if (!(pimg->flags & img_FLAG_SURFACE)) {
 	       if (pimg->flags & img_FLAG_SPLAY) {
-		  splay *sp = osmalloc(ossizeof(splay));
+		  splay *sp = osmalloc(sizeof(splay));
 		  --splays;
 		  if (fr->order) {
 		     if (to->order == 0) {
@@ -653,7 +661,7 @@ main(int argc, char **argv)
 			fr->splays = sp;
 		     } else {
 			printf("Splay without a dead end from %s to %s\n", fr->stns->label, to->stns->label);
-			osfree(sp);
+			free(sp);
 		     }
 		  } else if (to->order) {
 		     sp->pt = fr;
@@ -661,7 +669,7 @@ main(int argc, char **argv)
 		     to->splays = sp;
 		  } else {
 		     printf("Isolated splay from %s to %s\n", fr->stns->label, to->stns->label);
-		     osfree(sp);
+		     free(sp);
 		  }
 	       }
 	    }
@@ -680,16 +688,16 @@ main(int argc, char **argv)
       printf(msg(/*Applying specfile: “%s”*/521), specfile);
       putnl();
       fs = fopenWithPthAndExt("", specfile, NULL, "r", &fnm_used);
-      if (fs == NULL) fatalerror(/*Couldn’t open file “%s”*/24, specfile);
-      while (!feof(fs)) {
+      if (fs == NULL) fatalerror(/*Couldn’t open file “%s”*/1, specfile);
+      while (!FEOF(fs)) {
 	 char *lbuf = getline_alloc(fs, 32);
 	 lineno++;
 	 if (!lbuf)
 	    fatalerror_in_file(fnm_used, lineno, /*Error reading file*/18);
 	 parseconfigline(fnm_used, lbuf);
-	 osfree(lbuf);
+	 free(lbuf);
       }
-      osfree(fnm_used);
+      free(fnm_used);
    }
 
    if (start == NULL) {
@@ -723,7 +731,7 @@ main(int argc, char **argv)
 	    if (result == img_XSECT_END)
 	       flags |= img_XFLAG_END;
 	    img_write_item(pimg_out, img_XSECT, flags, label, 0, 0, 0);
-	    osfree(label);
+	    free(label);
 	    label = NULL;
 	 }
 	 if (result == img_XSECT) {

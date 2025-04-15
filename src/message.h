@@ -27,7 +27,6 @@ extern "C" {
 #include <stdarg.h>
 
 #include "filename.h"
-#include "osalloc.h"
 
 #define STDERR stdout
 
@@ -103,7 +102,7 @@ int select_charset(int charset_code);
 	    proj_context_set_search_paths(PJ_DEFAULT_CTX, 1,\
 					  &msg_init_proj_path_const);\
 	}\
-	osfree(msg_init_proj_path);\
+	free(msg_init_proj_path);\
     } while (0)
 # endif
 #endif

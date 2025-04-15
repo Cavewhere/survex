@@ -1,6 +1,6 @@
-/* img_hosted.h
+/* img_for_survex.c
  * Build img for use in Survex code
- * Copyright (C) 2013 Olly Betts
+ * Copyright (C) 1997-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,21 +17,35 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifndef IMG_HOSTED_H
-#define IMG_HOSTED_H
+#include <config.h>
 
-#ifdef __cplusplus
-extern "C" {
+#include "img_for_survex.h"
+
+#include "debug.h" // For SVX_ASSERT().
+
+#include "img.c"
+
+#include "filename.h"
+
+img *
+img_for_survex_open_survey(const char *fnm, const char *survey)
+{
+   if (fDirectory(fnm)) {
+      img_errno = IMG_DIRECTORY;
+      return NULL;
+   }
+
+   char *filename_opened = NULL;
+   FILE *fh = fopenWithPthAndExt("", fnm, "3d", "rb", &filename_opened);
+#ifdef ENOMEM
+   if (!fh && errno == ENOMEM) {
+       img_errno = IMG_OUTOFMEMORY;
+       return NULL;
+   }
 #endif
-
-#define IMG_API_VERSION 1
-
-#include "img.h"
-
-int img_error2msg(img_errcode err);
-
-#ifdef __cplusplus
+   img *pimg = img_read_stream_survey(fh, fclose,
+				      filename_opened ? filename_opened : fnm,
+				      survey);
+   free(filename_opened);
+   return pimg;
 }
-#endif
-
-#endif /* IMG_HOSTED_H */

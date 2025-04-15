@@ -1,6 +1,6 @@
 /* useful.h
  * Lots of oddments that come in handy generally
- * Copyright (C) 1993-2003,2004,2010,2011,2014 Olly Betts
+ * Copyright (C) 1993-2003,2004,2010,2011,2014,2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,39 +25,13 @@
 # error config.h must be included first in each C/C++ source file
 #endif
 
-#include <stdint.h>
-#include <stdlib.h> /* for Borland C which #defines max() & min() there */
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
 
-/* Macro to allow easy building of macros contain multiple statements, such
- * that the likes of “if (x == y) macro1(x); else x = 2;” works properly  */
-#define BLK(X) do {X} while(0)
-
-/* Macro to do nothing, but avoid compiler warnings about empty if bodies &c */
-#define NOP (void)0
-
-/* In C++ code, #include<algorithm> and use std::max and std::min instead. */
-#ifndef __cplusplus
-/* Return max/min of two numbers. */
-/* May be defined already (e.g. by Borland C in stdlib.h) */
-/* NB Bad news if X or Y has side-effects... */
-# ifndef max
-#  define max(X, Y) ((X) > (Y) ? (X) : (Y))
-# endif
-# ifndef min
-#  define min(X, Y) ((X) < (Y) ? (X) : (Y))
-# endif
-#endif
-
 /* M_PI, etc may be defined in math.h */
 #ifndef M_PI
-# ifdef PI /* MSVC defines PI IIRC */
-#  define M_PI PI
-# else
-#  define M_PI 3.14159265358979323846264338327950288419716939937510582097494459
-# endif
+# define M_PI 3.14159265358979323846264338327950288419716939937510582097494459
 #endif
 #ifndef M_PI_2
 # define M_PI_2 (M_PI / 2.0)
@@ -71,11 +45,14 @@
 #define POINTS_PER_INCH	72.0
 #define POINTS_PER_MM (POINTS_PER_INCH / MM_PER_INCH)
 
-#define putnl() putchar('\n')    /* print a newline char */
-#define fputnl(FH) PUTC('\n', (FH)) /* print a newline char to a file */
-/* print a line followed by a newline char to a file */
-#define fputsnl(SZ, FH) BLK(fputs((SZ), (FH)); PUTC('\n', (FH));)
-#define sqrd(X) ((X) * (X))        /* macro to square things */
+// Write a newline char.
+#define putnl() PUTCHAR('\n')
+
+// Write a newline char to a file.
+#define fputnl(FH) PUTC('\n', (FH))
+
+// Square X.
+#define sqrd(X) ((X) * (X))
 
 /* 2D Euclidean distance */
 #ifndef HAVE_HYPOT
@@ -87,46 +64,5 @@
 /* macro to convert argument to a string literal */
 #define STRING(X) STRING_(X)
 #define STRING_(X) #X
-
-#ifndef WORDS_BIGENDIAN
-# define put16(W, FH) BLK(int16_t w = (W); fwrite(&w, 2, 1, (FH));)
-# define put32(W, FH) BLK(int32_t w = (W); fwrite(&w, 4, 1, (FH));)
-
-# ifdef __GNUC__
-__attribute__((unused))
-# endif
-static inline int16_t get16(FILE *fh) {
-    int16_t w;
-    if (fread(&w, 2, 1, fh) == 0) {
-	/* We check feof() and ferror() afterwards, so checking the return
-	 * value achieves nothing, but we get a warning from glibc's
-	 * _FORTIFY_SOURCE if we don't pretend to. */
-    }
-    return w;
-}
-
-# ifdef __GNUC__
-__attribute__((unused))
-# endif
-static inline int32_t get32(FILE *fh) {
-    int32_t w;
-    if (fread(&w, 4, 1, fh) == 0) {
-	/* We check feof() and ferror() afterwards, so checking the return
-	 * value achieves nothing, but we get a warning from glibc's
-	 * _FORTIFY_SOURCE if we don't pretend to. */
-    }
-    return w;
-}
-#else
-void useful_put16(int16_t, FILE *);
-void useful_put32(int32_t, FILE *);
-int16_t useful_get16(FILE *);
-int32_t useful_get32(FILE *);
-
-# define put16(W, FH) useful_put16(W, FH)
-# define put32(W, FH) useful_put32(W, FH)
-# define get16(FH) useful_get16(FH)
-# define get32(FH) useful_get32(FH)
-#endif
 
 #endif /* !USEFUL_H */

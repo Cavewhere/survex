@@ -43,6 +43,8 @@ class CavernLogWindow : public wxScrolledWindow {
 
     bool init_done = false;
 
+    bool dark_mode = false;
+
     wxString survey;
 
     wxTimer timer;

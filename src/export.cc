@@ -2,7 +2,7 @@
  * Export to GIS formats, CAD formats, and other formats.
  */
 
-/* Copyright (C) 1994-2024 Olly Betts
+/* Copyright (C) 1994-2025 Olly Betts
  * Copyright (C) 2004 John Pybus (SVG Output code)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -52,7 +52,7 @@
 #include "debug.h"
 #include "filename.h"
 #include "hash.h"
-#include "img_hosted.h"
+#include "img_for_survex.h"
 #include "message.h"
 #include "useful.h"
 
@@ -176,7 +176,7 @@ class DXF : public ExportFilter {
 	: text_height(text_height_) { pending[0] = '\0'; }
     const int * passes() const override;
     bool fopen(const wxString& fnm_out) override;
-    void header(const char *, const char *, time_t,
+    void header(const char *, time_t,
 		double min_x, double min_y, double min_z,
 		double max_x, double max_y, double max_z) override;
     void line(const img_point *, const img_point *, unsigned, bool) override;
@@ -207,7 +207,7 @@ DXF::fopen(const wxString& fnm_out)
 }
 
 void
-DXF::header(const char *, const char *, time_t,
+DXF::header(const char *, time_t,
 	    double min_x, double min_y, double min_z,
 	    double max_x, double max_y, double max_z)
 {
@@ -542,7 +542,7 @@ class SVG : public ExportFilter {
 	pending[0] = '\0';
     }
     const int * passes() const override;
-    void header(const char *, const char *, time_t,
+    void header(const char *, time_t,
 		double min_x, double min_y, double min_z,
 		double max_x, double max_y, double max_z) override;
     void start_pass(int layer) override;
@@ -566,13 +566,13 @@ SVG::passes() const
 }
 
 void
-SVG::header(const char * title, const char *, time_t,
+SVG::header(const char * title, time_t,
 	    double min_x, double min_y, double /*min_z*/,
 	    double max_x, double max_y, double /*max_z*/)
 {
    const char *unit = "mm";
    const double SVG_MARGIN = 5.0; // In units of "unit".
-   htab = (point **)osmalloc(HTAB_SIZE * ossizeof(point *));
+   htab = (point **)osmalloc(HTAB_SIZE * sizeof(point *));
    for (size_t i = 0; i < HTAB_SIZE; ++i) htab[i] = NULL;
    fprintf(fh, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
    double width = (max_x - min_x) * factor + SVG_MARGIN * 2;
@@ -742,7 +742,7 @@ class PLT : public ExportFilter {
   public:
     PLT() { }
     const int * passes() const override;
-    void header(const char *, const char *, time_t,
+    void header(const char *, time_t,
 		double min_x, double min_y, double min_z,
 		double max_x, double max_y, double max_z) override;
     void line(const img_point *, const img_point *, unsigned, bool) override;
@@ -758,13 +758,13 @@ PLT::passes() const
 }
 
 void
-PLT::header(const char *title, const char *, time_t,
+PLT::header(const char *title, time_t,
 	    double min_x, double min_y, double min_z,
 	    double max_x, double max_y, double max_z)
 {
    // FIXME: allow survey to be set from aven somehow!
    const char *survey = NULL;
-   htab = (point **)osmalloc(HTAB_SIZE * ossizeof(point *));
+   htab = (point **)osmalloc(HTAB_SIZE * sizeof(point *));
    for (size_t i = 0; i < HTAB_SIZE; ++i) htab[i] = NULL;
    /* Survex is E, N, Alt - PLT file is N, E, Alt */
    min_N = min_y / METRES_PER_FOOT;
@@ -865,7 +865,7 @@ class EPS : public ExportFilter {
     explicit EPS(double scale)
 	: factor(POINTS_PER_MM * 1000.0 / scale) { }
     const int * passes() const override;
-    void header(const char *, const char *, time_t,
+    void header(const char *, time_t,
 		double min_x, double min_y, double min_z,
 		double max_x, double max_y, double max_z) override;
     void start_pass(int layer) override;
@@ -889,7 +889,7 @@ EPS::passes() const
 }
 
 void
-EPS::header(const char *title, const char *, time_t,
+EPS::header(const char *title, time_t,
 	    double min_x, double min_y, double /*min_z*/,
 	    double max_x, double max_y, double /*max_z*/)
 {
@@ -1236,7 +1236,7 @@ class UseNumericCLocale {
 
     ~UseNumericCLocale() {
 	setlocale(LC_NUMERIC, current_locale);
-	osfree(current_locale);
+	free(current_locale);
     }
 };
 
@@ -1261,7 +1261,6 @@ transform_point(const Point& pos, const Vector3* pre_offset,
 
 bool
 Export(const wxString &fnm_out, const wxString &title,
-       const wxString &datestamp,
        const Model& model,
        const SurveyFilter* filter,
        double pan, double tilt, int show_mask, export_format format,
@@ -1269,7 +1268,7 @@ Export(const wxString &fnm_out, const wxString &title,
        double scale)
 {
    UseNumericCLocale dummy;
-   int fPendingMove = 0;
+   bool fPendingMove = false;
    img_point p, p1;
    const int *pass;
    double SIN = sin(rad(pan));
@@ -1445,7 +1444,7 @@ Export(const wxString &fnm_out, const wxString &title,
    }
 
    /* Header */
-   filt->header(title.utf8_str(), datestamp.utf8_str(), model.GetDateStamp(),
+   filt->header(title.utf8_str(), model.GetDateStamp(),
 		min_x, min_y, min_z, max_x, max_y, max_z);
 
    p1.x = p1.y = p1.z = 0; /* avoid compiler warning */
@@ -1482,10 +1481,10 @@ Export(const wxString &fnm_out, const wxString &title,
 
 		      if (pos == trav->begin()) {
 			  // First point is move...
-			  fPendingMove = 1;
+			  fPendingMove = true;
 		      } else {
 			  filt->line(&p1, &p, flags, fPendingMove);
-			  fPendingMove = 0;
+			  fPendingMove = false;
 		      }
 		      p1 = p;
 		  }
@@ -1584,7 +1583,7 @@ Export(const wxString &fnm_out, const wxString &title,
    }
    filt->footer();
    delete filt;
-   osfree(htab);
+   free(htab);
    htab = NULL;
    return true;
 }

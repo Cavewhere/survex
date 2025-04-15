@@ -5,13 +5,13 @@ AM_CFLAGS += $(WERROR)
 AM_CXXFLAGS += $(WERROR)
 
 noinst_HEADERS = cavern.h commands.h cmdline.h date.h datain.h debug.h\
- filelist.h filename.h getopt.h hash.h img.c img.h img_hosted.h kml.h\
+ filelist.h filename.h getopt.h hash.h img.c img.h img_for_survex.h kml.h\
  labelinfo.h listpos.h matrix.h message.h namecmp.h namecompare.h netartic.h\
  netbits.h netskel.h network.h osalloc.h\
  out.h readval.h str.h useful.h validate.h gdalexport.h\
  glbitmapfont.h gllogerror.h guicontrol.h gla.h gpx.h moviemaker.h\
  export3d.h exportfilter.h hpgl.h cavernlog.h aboutdlg.h aven.h avenpal.h\
- gfxcore.h json.h log.h mainfrm.h pos.h vector3.h wx.h aventypes.h\
+ gfxcore.h json.h log.h mainfrm.h pos.h vector3.h wx.h\
  aventreectrl.h export.h model.h printing.h avenprcore.h img2aven.h\
  thgeomag.h thgeomagdata.h moviemaker-legacy.cc
 
@@ -33,7 +33,7 @@ check_PROGRAMS = imgtest
 COMMONSRC = cmdline.c message.c str.c filename.c z_getopt.c getopt1.c
 
 cavern_SOURCES = cavern.c date.c commands.c datain.c hash.c listpos.c \
- netskel.c network.c readval.c matrix.c img_hosted.c netbits.c useful.c \
+ netskel.c network.c readval.c matrix.c img_for_survex.c netbits.c \
  validate.c netartic.c thgeomag.c \
  $(COMMONSRC)
 cavern_LDADD = $(PROJ_LIBS)
@@ -43,13 +43,13 @@ aven_SOURCES = aven.cc gfxcore.cc mainfrm.cc model.cc vector3.cc aboutdlg.cc \
  gdalexport.cc gla-gl.cc glbitmapfont.cc gpx.cc guicontrol.cc  \
  json.cc kml.cc log.cc moviemaker.cc hpgl.cc \
  cavernlog.cc avenprcore.cc printing.cc pos.cc \
- date.c img_hosted.c useful.c hash.c \
+ date.c img_for_survex.c hash.c \
  brotatemask.xbm brotate.xbm handmask.xbm hand.xbm \
  rotatemask.xbm rotate.xbm vrotatemask.xbm vrotate.xbm \
  rotatezoom.xbm rotatezoommask.xbm \
  $(COMMONSRC)
 
-dump3d_SOURCES = dump3d.c date.c img_hosted.c useful.c \
+dump3d_SOURCES = dump3d.c date.c img_for_survex.c \
  $(COMMONSRC)
 
 aven_LDADD = $(LIBOBJS) $(WX_LIBS) $(GDAL_LIBS) $(PROJ_LIBS) $(FFMPEG_LIBS)
@@ -78,17 +78,17 @@ survexport_CXXFLAGS = $(AM_CXXFLAGS) $(GDAL_CFLAGS) $(PROJ_CFLAGS) $(WX_CXXFLAGS
 survexport_LDFLAGS =
 survexport_LDADD = $(LIBOBJS) $(WX_LIBS) $(GDAL_LIBS) $(PROJ_LIBS)
 
-diffpos_SOURCES = diffpos.c namecmp.c img_hosted.c useful.c hash.c \
+diffpos_SOURCES = diffpos.c namecmp.c img_for_survex.c hash.c \
  $(COMMONSRC)
 sorterr_SOURCES = sorterr.c $(COMMONSRC)
-extend_SOURCES = extend.c img_hosted.c useful.c hash.c \
+extend_SOURCES = extend.c img_for_survex.c hash.c \
  $(COMMONSRC)
 
 survexport_SOURCES = survexport.cc model.cc export.cc export3d.cc \
-		gdalexport.cc namecompare.cc useful.c hash.c img_hosted.c \
+		gdalexport.cc namecompare.cc hash.c img_for_survex.c \
 		gpx.cc hpgl.cc json.cc kml.cc pos.cc vector3.cc $(COMMONSRC)
 
-#testerr_SOURCES = testerr.c message.c filename.c useful.c
+#testerr_SOURCES = testerr.c message.c filename.c
 
 imgtest_SOURCES = imgtest.c img.c
 

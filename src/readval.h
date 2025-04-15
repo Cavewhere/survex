@@ -1,6 +1,6 @@
 /* readval.h
  * Routines to read a prefix or number from the current input file
- * Copyright (C) 1991-2024 Olly Betts
+ * Copyright (C) 1991-2025 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,7 @@ enum {
 prefix *read_prefix(unsigned flags);
 
 // Read a sequence of NAMES characters.  Returns NULL if none.
-// Caller is responsible for calling osfree() on the returned value.
+// Caller is responsible for calling free() on the returned value.
 char *read_walls_prefix(void);
 
 prefix *read_walls_station(char * const walls_prefix[3],
@@ -58,13 +58,15 @@ real read_numeric(bool f_optional);
 real read_numeric_multi(bool f_optional, bool f_quadrants, int *p_n_readings);
 real read_bearing_multi_or_omit(bool f_quadrants, int *p_n_readings);
 
-/* Don't skip blanks, variable error code */
-unsigned int read_uint_raw(int errmsg, const filepos *fp);
+/* Don't skip blanks; can specify diagnostic type and error code. */
+unsigned int read_uint_raw(int diag_type, int errmsg, const filepos *fp);
 
 unsigned int read_uint(void);
 
 int read_int(int min_val, int max_val);
 
 void read_string(string *pstr);
+
+bool read_string_warning(string *pstr);
 
 void read_walls_srv_date(int *py, int *pm, int *pd);
