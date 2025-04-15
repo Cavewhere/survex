@@ -201,11 +201,9 @@ add_library(survex_core STATIC
     ${SRC_DIR}/cmdline.c
     ${SRC_DIR}/filename.c
     ${SRC_DIR}/str.c
-#    ${SRC_DIR}/useful.c
     ${SRC_DIR}/getopt.c
     ${SRC_DIR}/getopt1.c
     ${SRC_DIR}/img_for_survex.c
-#    ${SRC_DIR}/img_hosted.c
     ${SRC_DIR}/hash.c
 )
 
@@ -230,7 +228,6 @@ add_executable(cavern
     ${SRC_DIR}/readval.c
     ${SRC_DIR}/matrix.c
     ${SRC_DIR}/netbits.c
-#    ${SRC_DIR}/useful.c
     ${SRC_DIR}/validate.c
     ${SRC_DIR}/netartic.c
     ${SRC_DIR}/thgeomag.c
@@ -254,7 +251,6 @@ target_compile_definitions(cavern PUBLIC
 add_executable(dump3d
     ${SRC_DIR}/dump3d.c
     ${SRC_DIR}/date.c
-#    ${SRC_DIR}/useful.c
     )
 target_include_directories(dump3d PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 target_link_libraries(dump3d survex_core)
@@ -385,8 +381,6 @@ add_executable(aven WIN32
     ${SRC_DIR}/pos.cc
     ${SRC_DIR}/date.c
     ${SRC_DIR}/img_for_survex.c
-   # ${SRC_DIR}/img_hosted.c
-   # ${SRC_DIR}/useful.c
     ${SRC_DIR}/hash.c
     ${SRC_DIR}/export3d.cc
     ${SRC_DIR}/gdalexport.cc
