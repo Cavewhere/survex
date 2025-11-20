@@ -430,14 +430,15 @@ target_link_libraries(imgtest
 )
 
 if(BUILD_TESTING)
-    add_executable(cavernlib_multi_test
-        ${PROJECT_SOURCE_DIR}/tests/cavernlib_multi_test.c
+    add_executable(cavernlib_state_test
+        ${PROJECT_SOURCE_DIR}/tests/cavernlib_state_test.c
     )
-    target_include_directories(cavernlib_multi_test PRIVATE ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
-    target_link_libraries(cavernlib_multi_test cavernlib)
-    add_test(NAME cavernlib_multi_test
-        COMMAND cavernlib_multi_test
-            ${PROJECT_SOURCE_DIR}/tests/normal.svx
-            ${CMAKE_BINARY_DIR}/cavernlib_multi_out
+    target_include_directories(cavernlib_state_test PRIVATE ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
+    target_link_libraries(cavernlib_state_test cavernlib)
+    target_compile_definitions(cavernlib_state_test PRIVATE
+        TEST_SRCDIR="${PROJECT_SOURCE_DIR}/tests"
+        SURVEX_LIBDIR="${SURVEX_OUTPUT_DIR}"
+        TEST_OUTPUT_DIR="${CMAKE_BINARY_DIR}/cavernlib_state_out"
     )
+    add_test(NAME cavernlib_state_test COMMAND cavernlib_state_test)
 endif()
