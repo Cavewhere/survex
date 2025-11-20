@@ -1,4 +1,5 @@
-from conans import ConanFile, CMake, tools
+from conan import ConanFile
+from conan.tools.cmake import CMake, CMakeToolchain, CMakeDeps
 import os, sys
 
 class SurvexConan(ConanFile):
@@ -11,15 +12,19 @@ class SurvexConan(ConanFile):
     version = "1.0"
     settings = "os", "compiler", "build_type", "arch"
     requires = [
-    ("wxwidgets/[>=3.2.5]"),
+    ("wxwidgets/[>=3.2.6]"),
     ("glew/2.2.0"),
-    ("proj/9.2.1"),
-    ("zlib/1.2.13"),
-    ("libtiff/4.0.9"),
-    ("gdal/[>=3.8.3]")
+    ("proj/9.3.1"),
+    # ("zlib/1.2.13"),
+    ("libtiff/[>=4.5.1]"),
+    ("gdal/[>=3.5.3]")
     ]
 
-    generators = "cmake_find_package", "cmake_paths", "cmake"
+    def requirements(self):
+        self.requires("expat/[>=2.6.2]", override=True)
+        self.requires("libpng/[>=1.6.44]", override=True)
+
+    generators = "CMakeDeps", "CMakeToolchain", "VirtualBuildEnv", "VirtualRunEnv"
 
     def configure(self):
         #This is survex dependancy
@@ -27,5 +32,10 @@ class SurvexConan(ConanFile):
         self.options["wxwidgets"].shared=True
         self.options["proj"].shared=True
         self.options["proj"].with_tiff=False
-        self.options["zlib"].shared=True
+        # self.options["zlib"].shared=True
+        self.options["libtiff"].zstd=False
+        self.options["gdal"].with_arrow = False
+        self.options["gdal"].with_curl = False
+        self.options["gdal"].with_libiconv = False
+        self.options["proj"].with_curl = False
 
