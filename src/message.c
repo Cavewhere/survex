@@ -36,6 +36,7 @@
 #include "filelist.h"
 #include "debug.h"
 #include "str.h"
+#include "svx_exit.h"
 
 #ifdef AVEN
 # include "aven.h"
@@ -52,6 +53,13 @@
 
 int msg_warnings = 0; /* keep track of how many warnings we've given */
 int msg_errors = 0;   /* and how many (non-fatal) errors */
+
+void
+msg_reset_counters(void)
+{
+   msg_warnings = 0;
+   msg_errors = 0;
+}
 
 /* in case osmalloc() fails before appname_copy is set up */
 static const char *appname_copy = "anonymous program";
@@ -859,7 +867,7 @@ void
     * correct message file can't be found... */
    if (argv[1] && strcmp(argv[1], "--version") == 0) {
       cmdline_version();
-      exit(0);
+      svx_exit(0);
    }
    char *pth = getenv("SURVEXLIB");
    if (pth && pth[0]) {
@@ -1180,7 +1188,7 @@ v_report(int severity, const char *fnm, int line, int col, int en, va_list ap)
 	 fatalerror_in_file(fnm, 0, /*Too many errors - giving up*/19);
       break;
     case DIAG_FATAL:
-      exit(EXIT_FAILURE);
+      svx_exit(EXIT_FAILURE);
    }
 }
 

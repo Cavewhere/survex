@@ -435,16 +435,28 @@ filename_register_output_with_fh(const char *fnm, FILE *fh)
    flhead = p;
 }
 
-void
-filename_delete_output(void)
+static void
+filename_clear_list(bool delete_files)
 {
    while (flhead) {
       filelist *p = flhead;
       flhead = flhead->next;
       if (p->fnm) {
-	 (void)remove(p->fnm);
+	 if (delete_files) (void)remove(p->fnm);
 	 free(p->fnm);
       }
       free(p);
    }
+}
+
+void
+filename_delete_output(void)
+{
+   filename_clear_list(true);
+}
+
+void
+filename_forget_output(void)
+{
+   filename_clear_list(false);
 }

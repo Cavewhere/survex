@@ -34,6 +34,7 @@
 #include "filename.h"
 
 #include "message.h"
+#include "svx_exit.h"
 
 /*
  * bad command line give:
@@ -151,7 +152,7 @@ cmdline_help(void)
       }
    }
 
-   exit(0);
+   svx_exit(0);
 }
 
 void
@@ -192,7 +193,7 @@ syntax_and_help_pointer(void)
    cmdline_syntax();
    fprintf(stderr, msg(/*Try “%s --help” for more information.\n*/157),
 	   msg_appname());
-   exit(1);
+   svx_exit(1);
 }
 
 static void
@@ -202,7 +203,7 @@ moan_and_die(int msgno)
    fprintf(stderr, msg(msgno), optarg);
    fputnl(stderr);
    cmdline_syntax();
-   exit(1);
+   svx_exit(1);
 }
 
 void
@@ -302,13 +303,13 @@ cmdline_getopt(void)
       break;
     case HLP_VERSION: /* --version */
       cmdline_version();
-      exit(0);
+      svx_exit(0);
     case HLP_HELP: /* --help */
       cmdline_version();
       cmdline_syntax();
       PUTCHAR('\n');
       cmdline_help();
-      exit(0);
+      svx_exit(0);
    }
    return opt;
 }

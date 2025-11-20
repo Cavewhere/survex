@@ -94,3 +94,5 @@ CMakeLists.txt.user
 Makefile.am.user.*
 .qtc_clangd
 .DS_Store
+build
+Testing

@@ -22,10 +22,18 @@
 #define MSG_SETUP_PROJ_SEARCH_PATH 1
 
 #include <limits.h>
+#include <setjmp.h>
 #include <stdlib.h>
 #include <time.h>
 
+#ifdef _WIN32
+# include <io.h>
+#else
+# include <unistd.h>
+#endif
+
 #include "cavern.h"
+#include "cavern_lib.h"
 #include "cmdline.h"
 #include "commands.h"
 #include "date.h"
@@ -41,7 +49,18 @@
 #include "osalloc.h"
 #include "out.h"
 #include "str.h"
+#include "svx_exit.h"
 #include "validate.h"
+
+#ifdef _WIN32
+# define SVX_DUP  _dup
+# define SVX_DUP2 _dup2
+# define SVX_CLOSE _close
+#else
+# define SVX_DUP  dup
+# define SVX_DUP2 dup2
+# define SVX_CLOSE close
+#endif
 
 #ifdef _WIN32
 # include <conio.h> /* for _kbhit() and _getch() */
@@ -67,6 +86,8 @@ bool fMute = false; /* just show errors */
 bool fSuppress = false; /* only output 3d file */
 static bool fLog = false; /* stdout to .log file */
 static bool f_warnings_are_errors = false; /* turn warnings into errors */
+static bool fPauseOnExit = false;
+static int stdout_backup_fd = -1;
 
 nosurveylink *nosurveyhead;
 
@@ -87,6 +108,22 @@ lrud ** next_lrud = NULL;
 char output_separator = '.';
 
 static void do_stats(void);
+static void cavern_prepare_state(void);
+static void cavern_cleanup_state(void);
+static void cavern_free_settings_chain(settings *s);
+static void cavern_free_nosurvey_links(void);
+static void cavern_free_model(void);
+static void cavern_restore_stdout(void);
+static int cavern_run_impl(int argc, char **argv);
+
+typedef struct {
+   jmp_buf buf;
+   int code;
+   bool handler_restored;
+   svx_exit_state prev_state;
+} cavern_exit_context;
+
+static void cavern_exit_handler(int code, void *ctx);
 
 static const struct option long_opts[] = {
    /* const char *name; int has_arg (0 no_argument, 1 required_*, 2 optional_*); int *flag; int val; */
@@ -135,6 +172,18 @@ delete_output_on_error(void)
       filename_delete_output();
 }
 
+static void
+cavern_exit_handler(int code, void *ctx)
+{
+   cavern_exit_context *info = (cavern_exit_context *)ctx;
+   info->code = code;
+   if (!info->handler_restored) {
+      svx_leave_exit_handler(info->prev_state);
+      info->handler_restored = true;
+   }
+   longjmp(info->buf, 1);
+}
+
 #ifdef _WIN32
 static void
 pause_on_exit(void)
@@ -153,12 +202,13 @@ static void discarding_proj_logger(void *ctx, int level, const char *message) {
     (void)message;
 }
 
-extern int
-main(int argc, char **argv)
+static int
+cavern_run_impl(int argc, char **argv)
 {
    int d;
    time_t tmUserStart = time(NULL);
    clock_t tmCPUStart = clock();
+   cavern_prepare_state();
    {
        // Convert the current date in the local timezone to the number of days
        // since 1900 which we use to warn if a `*date` command specifies a date
@@ -287,7 +337,7 @@ main(int argc, char **argv)
 	 break;
 #ifdef _WIN32
        case 2:
-	 atexit(pause_on_exit);
+	 fPauseOnExit = true;
 	 break;
 #endif
        }
@@ -312,6 +362,9 @@ main(int argc, char **argv)
 	 fnm = add_ext(fnm_output_base, EXT_LOG);
       }
 
+      if (stdout_backup_fd == -1) {
+	 stdout_backup_fd = SVX_DUP(fileno(stdout));
+      }
       if (!freopen(fnm, "w", stdout))
 	 fatalerror(/*Failed to open output file “%s”*/3, fnm);
 
@@ -333,8 +386,6 @@ main(int argc, char **argv)
 	  p += 3;
       }
    }
-
-   atexit(delete_output_on_error);
 
    /* end of options, now process data files */
    while (argv[optind]) {
@@ -372,7 +423,11 @@ main(int argc, char **argv)
       char *fnm = add_ext(fnm_output_base, EXT_SVX_3D);
       fatalerror(img_error2msg(img_error()), fnm);
    }
-   if (fhErrStat) safe_fclose(fhErrStat);
+   pimg = NULL;
+   if (fhErrStat) {
+      safe_fclose(fhErrStat);
+      fhErrStat = NULL;
+   }
 
    out_current_action(msg(/*Calculating statistics*/120));
    if (!fMute) do_stats();
@@ -420,6 +475,161 @@ main(int argc, char **argv)
       putnl();
    }
    return EXIT_SUCCESS;
+}
+
+int
+cavern_run(int argc, char **argv)
+{
+   cavern_exit_context exit_ctx;
+   exit_ctx.code = EXIT_FAILURE;
+   exit_ctx.handler_restored = false;
+   exit_ctx.prev_state = svx_enter_exit_handler(cavern_exit_handler, &exit_ctx);
+   int status;
+   if (setjmp(exit_ctx.buf)) {
+      status = exit_ctx.code;
+   } else {
+      status = cavern_run_impl(argc, argv);
+      svx_leave_exit_handler(exit_ctx.prev_state);
+      exit_ctx.handler_restored = true;
+   }
+   cavern_cleanup_state();
+   return status;
+}
+
+static void
+cavern_prepare_state(void)
+{
+   msg_reset_counters();
+   fQuiet = false;
+   fMute = false;
+   fSuppress = false;
+   fLog = false;
+   f_warnings_are_errors = false;
+   fPauseOnExit = false;
+   fExplicitTitle = false;
+   fExportUsed = false;
+   cLegs = cStns = cComponents = cSolves = 0;
+   fnm_output_base = NULL;
+   fnm_output_base_is_dir = false;
+   pcs = NULL;
+   nosurveyhead = NULL;
+   model = NULL;
+   next_lrud = NULL;
+   fhErrStat = NULL;
+   pimg = NULL;
+   fixedlist = NULL;
+   stnlist = NULL;
+   anon_list = NULL;
+   proj_str_out = NULL;
+   stdout_backup_fd = -1;
+   s_free(&survey_title);
+   survey_title = (string)S_INIT;
+   img_output_version = IMG_VERSION_MAX;
+   optimize = BITA('l') | BITA('p') | BITA('d');
+}
+
+static void
+cavern_restore_stdout(void)
+{
+   if (stdout_backup_fd != -1) {
+      fflush(stdout);
+      SVX_DUP2(stdout_backup_fd, fileno(stdout));
+      SVX_CLOSE(stdout_backup_fd);
+      stdout_backup_fd = -1;
+#ifndef _MSC_VER
+      setvbuf(stdout, NULL, _IOLBF, 0);
+#endif
+   }
+}
+
+static void
+cavern_cleanup_state(void)
+{
+   if (fhErrStat) {
+      safe_fclose(fhErrStat);
+      fhErrStat = NULL;
+   }
+   if (pimg) {
+      img_close(pimg);
+      pimg = NULL;
+   }
+   delete_output_on_error();
+   filename_forget_output();
+   cavern_restore_stdout();
+   free(fnm_output_base);
+   fnm_output_base = NULL;
+   fnm_output_base_is_dir = false;
+   if (proj_str_out) {
+      free(proj_str_out);
+      proj_str_out = NULL;
+   }
+   cavern_free_settings_chain(pcs);
+   pcs = NULL;
+   cavern_free_nosurvey_links();
+   cavern_free_model();
+   s_free(&survey_title);
+   survey_title = (string)S_INIT;
+   invalidate_pj_cached();
+   anon_list = NULL;
+   fixedlist = NULL;
+   stnlist = NULL;
+   root = NULL;
+}
+
+static void
+cavern_free_settings_chain(settings *s)
+{
+   while (s) {
+      settings *next = s->next;
+      if (s->Translate) {
+	 short *base = s->Translate - 1;
+	 free(base);
+      }
+      free(s->proj_str);
+      free(s->dec_context);
+      free(s);
+      s = next;
+   }
+}
+
+static void
+cavern_free_nosurvey_links(void)
+{
+   while (nosurveyhead) {
+      nosurveylink *next = nosurveyhead->next;
+      free(nosurveyhead);
+      nosurveyhead = next;
+   }
+}
+
+static void
+cavern_free_model(void)
+{
+   while (model) {
+      lrudlist *next_psg = model->next;
+      lrud *tube = model->tube;
+      while (tube) {
+	 lrud *next_tube = tube->next;
+	 free(tube);
+	 tube = next_tube;
+      }
+      free(model);
+      model = next_psg;
+   }
+   next_lrud = NULL;
+}
+
+void
+cavern_pause_if_requested(void)
+{
+#ifdef _WIN32
+   if (fPauseOnExit) {
+      fPauseOnExit = false;
+      pause_on_exit();
+   }
+#else
+   (void)fPauseOnExit;
+#endif
 }
 
 static void

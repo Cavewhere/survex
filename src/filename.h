@@ -65,6 +65,7 @@ void safe_fclose(FILE *f);
 
 void filename_register_output(const char *fnm);
 void filename_delete_output(void);
+void filename_forget_output(void);
 
 bool fDirectory(const char *fnm);
 

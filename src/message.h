@@ -50,6 +50,7 @@ extern const char *msg_lang;
 extern const char *msg_lang2;
 
 void msg_init(char *const *argv);
+void msg_reset_counters(void);
 
 const char *msg_cfgpth(void);
 const char *msg_exepth(void);

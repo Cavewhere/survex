@@ -2,3 +2,15 @@ This is Survex, a software package to assist surveying and mapping cave
 systems.
 
 See INSTALL for how to install it.
+
+## Embedding cavern
+
+The `cavern` reducer is now available as a library target named `cavernlib`.
+Link your project against it (or add the target as a dependency if you use the
+top-level CMake project) and include `src/cavern_lib.h`.  Call
+`cavern_run(argc, argv)` with the same argument vector you would pass to the
+CLI.  The reducer still works entirely via file I/O, so arguments and output
+paths should match the command-line usage.  The function returns the usual exit
+codes (0 for success, non-zero for failures) and never terminates the host
+process.  On Windows, call `cavern_pause_if_requested()` after `cavern_run` if
+you want to honour the `--pause` switch.

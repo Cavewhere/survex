@@ -39,6 +39,7 @@
 #include "osalloc.h"
 #include "out.h"
 #include "str.h"
+#include "svx_exit.h"
 #include "thgeomag.h"
 
 #include <proj.h>
@@ -256,7 +257,7 @@ compile_v_report_fpos(int diag_flags, long fpos, int en, va_list ap)
 	    file.filename, line, col, en, ap);
    if (file.fh) show_line(col, caret_width);
    if (severity == DIAG_FATAL) {
-      exit(EXIT_FAILURE);
+      svx_exit(EXIT_FAILURE);
    }
    if (line != file.line) {
       file.lpos += prev_line_len;

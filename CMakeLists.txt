@@ -25,6 +25,8 @@ string(REGEX REPLACE ${VERSION_REGEX} "\\1.\\2.\\3" PERIOD_VERSION "${GIT_TAG}")
 # set the project name
 project(Survex VERSION ${PERIOD_VERSION})
 
+include(CTest)
+
 option(SURVEX_CONAN "Use Conan to manage dependencies" ON)
 
 # In this file we are doing all of our 'configure' checks. Things like checking
@@ -205,6 +207,7 @@ add_library(survex_core STATIC
     ${SRC_DIR}/getopt1.c
     ${SRC_DIR}/img_for_survex.c
     ${SRC_DIR}/hash.c
+    ${SRC_DIR}/svx_exit.c
 )
 
 target_compile_definitions(survex_core
@@ -216,8 +219,8 @@ target_compile_definitions(survex_core
     )
 target_link_libraries(survex_core PROJ::proj)
 
-# add the executable
-add_executable(cavern
+# add the library that powers the cavern CLI and the embeddable API
+add_library(cavernlib STATIC
     ${SRC_DIR}/cavern.c
     ${SRC_DIR}/date.c
     ${SRC_DIR}/listpos.c
@@ -233,20 +236,26 @@ add_executable(cavern
     ${SRC_DIR}/thgeomag.c
 )
 
-add_dependencies(cavern
+add_dependencies(cavernlib
     messageFiles
     thgeomagdata
     )
 
-target_include_directories(cavern PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
-target_link_libraries(cavern
+target_include_directories(cavernlib PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
+target_link_libraries(cavernlib
     PROJ::proj
     survex_core
 )
-target_compile_definitions(cavern PUBLIC
+target_compile_definitions(cavernlib PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
     )
+
+add_executable(cavern
+    ${SRC_DIR}/cavern_main.c
+)
+
+target_link_libraries(cavern cavernlib)
 
 add_executable(dump3d
     ${SRC_DIR}/dump3d.c
@@ -419,3 +428,16 @@ add_executable(imgtest
 target_link_libraries(imgtest
     surveximg
 )
+
+if(BUILD_TESTING)
+    add_executable(cavernlib_multi_test
+        ${PROJECT_SOURCE_DIR}/tests/cavernlib_multi_test.c
+    )
+    target_include_directories(cavernlib_multi_test PRIVATE ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
+    target_link_libraries(cavernlib_multi_test cavernlib)
+    add_test(NAME cavernlib_multi_test
+        COMMAND cavernlib_multi_test
+            ${PROJECT_SOURCE_DIR}/tests/normal.svx
+            ${CMAKE_BINARY_DIR}/cavernlib_multi_out
+    )
+endif()
