@@ -441,4 +441,17 @@ if(BUILD_TESTING)
         TEST_OUTPUT_DIR="${CMAKE_BINARY_DIR}/cavernlib_state_out"
     )
     add_test(NAME cavernlib_state_test COMMAND cavernlib_state_test)
+
+    add_executable(cavernlib_validation_test
+        ${PROJECT_SOURCE_DIR}/tests/cavernlib_validation_test.c
+    )
+    target_include_directories(cavernlib_validation_test PRIVATE ${PROJECT_SOURCE_DIR}/${SRC_DIR} ${PROJECT_BINARY_DIR})
+    target_link_libraries(cavernlib_validation_test cavernlib)
+    target_compile_definitions(cavernlib_validation_test PRIVATE
+        TEST_SRCDIR="${PROJECT_SOURCE_DIR}/tests"
+        SURVEX_LIBDIR="${SURVEX_OUTPUT_DIR}"
+        SURVEX_BINDIR="${SURVEX_OUTPUT_DIR}"
+        TEST_OUTPUT_DIR="${CMAKE_BINARY_DIR}/cavernlib_validation_out"
+    )
+    add_test(NAME cavernlib_validation_test COMMAND cavernlib_validation_test)
 endif()
