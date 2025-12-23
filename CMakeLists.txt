@@ -183,6 +183,17 @@ set(SVX_MESSAGE_FILES
     PARENT_SCOPE
 )
 
+set(EN_US_MSG_FILE "${SURVEX_OUTPUT_DIR}/en_US.msg")
+set(EN_MSG_FILE "${SURVEX_OUTPUT_DIR}/en.msg")
+add_custom_command(
+    OUTPUT ${EN_MSG_FILE}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${EN_US_MSG_FILE}" "${EN_MSG_FILE}"
+    DEPENDS ${EN_US_MSG_FILE}
+    COMMENT "Generating en.msg from en_US.msg"
+)
+add_custom_target(en_msg DEPENDS ${EN_MSG_FILE})
+add_dependencies(messageFiles en_msg)
+
 add_custom_command(
     OUTPUT
     ${PROJECT_BINARY_DIR}/thgeomagdata.h
