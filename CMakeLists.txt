@@ -161,25 +161,25 @@ svx_add_messages(messageFiles
     )
 
 set(SVX_MESSAGE_FILES
-    ${PROJECT_BINARY_DIR}/bg.msg
-    ${PROJECT_BINARY_DIR}/de_CH.msg
-    ${PROJECT_BINARY_DIR}/el.msg
-    ${PROJECT_BINARY_DIR}/es.msg
-    ${PROJECT_BINARY_DIR}/hu.msg
-    ${PROJECT_BINARY_DIR}/it.msg
-    ${PROJECT_BINARY_DIR}/pt_BR.msg
-    ${PROJECT_BINARY_DIR}/ro.msg
-    ${PROJECT_BINARY_DIR}/sk.msg
-    ${PROJECT_BINARY_DIR}/ca.msg
-    ${PROJECT_BINARY_DIR}/de.msg
-    ${PROJECT_BINARY_DIR}/en_US.msg
-    ${PROJECT_BINARY_DIR}/en.msg
-    ${PROJECT_BINARY_DIR}/fr.msg
-    ${PROJECT_BINARY_DIR}/id.msg
-    ${PROJECT_BINARY_DIR}/pl.msg
-    ${PROJECT_BINARY_DIR}/pt.msg
-    ${PROJECT_BINARY_DIR}/ru.msg
-    ${PROJECT_BINARY_DIR}/zh_CN.msg
+    ${SURVEX_OUTPUT_DIR}/bg.msg
+    ${SURVEX_OUTPUT_DIR}/de_CH.msg
+    ${SURVEX_OUTPUT_DIR}/el.msg
+    ${SURVEX_OUTPUT_DIR}/es.msg
+    ${SURVEX_OUTPUT_DIR}/hu.msg
+    ${SURVEX_OUTPUT_DIR}/it.msg
+    ${SURVEX_OUTPUT_DIR}/pt_BR.msg
+    ${SURVEX_OUTPUT_DIR}/ro.msg
+    ${SURVEX_OUTPUT_DIR}/sk.msg
+    ${SURVEX_OUTPUT_DIR}/ca.msg
+    ${SURVEX_OUTPUT_DIR}/de.msg
+    ${SURVEX_OUTPUT_DIR}/en_US.msg
+    ${SURVEX_OUTPUT_DIR}/en.msg
+    ${SURVEX_OUTPUT_DIR}/fr.msg
+    ${SURVEX_OUTPUT_DIR}/id.msg
+    ${SURVEX_OUTPUT_DIR}/pl.msg
+    ${SURVEX_OUTPUT_DIR}/pt.msg
+    ${SURVEX_OUTPUT_DIR}/ru.msg
+    ${SURVEX_OUTPUT_DIR}/zh_CN.msg
     PARENT_SCOPE
 )
 
