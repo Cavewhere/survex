@@ -18,8 +18,35 @@ execute_process(
     COMMAND ${GIT_EXEC} describe --tags
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_TAG
+    RESULT_VARIABLE GIT_DESCRIBE_RESULT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
     )
-string(REGEX REPLACE "\n$" "" GIT_TAG "${GIT_TAG}")
+
+set(FALLBACK_VERSION "")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/configure.ac" CONFIGURE_AC)
+string(REGEX MATCH "AC_INIT\\(\\[[^]]+\\], \\[([0-9]+\\.[0-9]+\\.[0-9]+)\\]" _ "${CONFIGURE_AC}")
+if (CMAKE_MATCH_1)
+    set(FALLBACK_VERSION "${CMAKE_MATCH_1}")
+endif()
+
+if (NOT GIT_DESCRIBE_RESULT EQUAL 0 OR GIT_TAG STREQUAL "")
+    if (FALLBACK_VERSION STREQUAL "")
+        set(GIT_TAG "0.0.0")
+    else()
+        set(GIT_TAG "${FALLBACK_VERSION}")
+    endif()
+endif()
+
+string(REGEX MATCH "${VERSION_REGEX}" _ "${GIT_TAG}")
+if (NOT CMAKE_MATCH_0)
+    if (FALLBACK_VERSION STREQUAL "")
+        set(GIT_TAG "0.0.0")
+    else()
+        set(GIT_TAG "${FALLBACK_VERSION}")
+    endif()
+endif()
+
 string(REGEX REPLACE ${VERSION_REGEX} "\\1.\\2.\\3" PERIOD_VERSION "${GIT_TAG}")
 
 # set the project name
