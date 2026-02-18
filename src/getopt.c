@@ -67,7 +67,7 @@
 
 /* This needs to come after some library #include
    to get __GNU_LIBRARY__ defined.  */
-#if 0 /* Survex doesn't use getopt() so we don't declare it. */
+#if 1 /* Survex doesn't use getopt() so we don't declare it. */
 /* Don't include stdlib.h for non-GNU C libraries because some of them
    contain conflicting prototypes for getopt.  */
 # include <stdlib.h>
