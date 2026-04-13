@@ -18,8 +18,35 @@ execute_process(
     COMMAND ${GIT_EXEC} describe --tags
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_TAG
+    RESULT_VARIABLE GIT_DESCRIBE_RESULT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
     )
-string(REGEX REPLACE "\n$" "" GIT_TAG "${GIT_TAG}")
+
+set(FALLBACK_VERSION "")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/configure.ac" CONFIGURE_AC)
+string(REGEX MATCH "AC_INIT\\(\\[[^]]+\\], \\[([0-9]+\\.[0-9]+\\.[0-9]+)\\]" _ "${CONFIGURE_AC}")
+if (CMAKE_MATCH_1)
+    set(FALLBACK_VERSION "${CMAKE_MATCH_1}")
+endif()
+
+if (NOT GIT_DESCRIBE_RESULT EQUAL 0 OR GIT_TAG STREQUAL "")
+    if (FALLBACK_VERSION STREQUAL "")
+        set(GIT_TAG "0.0.0")
+    else()
+        set(GIT_TAG "${FALLBACK_VERSION}")
+    endif()
+endif()
+
+string(REGEX MATCH "${VERSION_REGEX}" _ "${GIT_TAG}")
+if (NOT CMAKE_MATCH_0)
+    if (FALLBACK_VERSION STREQUAL "")
+        set(GIT_TAG "0.0.0")
+    else()
+        set(GIT_TAG "${FALLBACK_VERSION}")
+    endif()
+endif()
+
 string(REGEX REPLACE ${VERSION_REGEX} "\\1.\\2.\\3" PERIOD_VERSION "${GIT_TAG}")
 
 # set the project name
@@ -163,27 +190,38 @@ svx_add_messages(messageFiles
     )
 
 set(SVX_MESSAGE_FILES
-    ${PROJECT_BINARY_DIR}/bg.msg
-    ${PROJECT_BINARY_DIR}/de_CH.msg
-    ${PROJECT_BINARY_DIR}/el.msg
-    ${PROJECT_BINARY_DIR}/es.msg
-    ${PROJECT_BINARY_DIR}/hu.msg
-    ${PROJECT_BINARY_DIR}/it.msg
-    ${PROJECT_BINARY_DIR}/pt_BR.msg
-    ${PROJECT_BINARY_DIR}/ro.msg
-    ${PROJECT_BINARY_DIR}/sk.msg
-    ${PROJECT_BINARY_DIR}/ca.msg
-    ${PROJECT_BINARY_DIR}/de.msg
-    ${PROJECT_BINARY_DIR}/en_US.msg
-    ${PROJECT_BINARY_DIR}/en.msg
-    ${PROJECT_BINARY_DIR}/fr.msg
-    ${PROJECT_BINARY_DIR}/id.msg
-    ${PROJECT_BINARY_DIR}/pl.msg
-    ${PROJECT_BINARY_DIR}/pt.msg
-    ${PROJECT_BINARY_DIR}/ru.msg
-    ${PROJECT_BINARY_DIR}/zh_CN.msg
+    ${SURVEX_OUTPUT_DIR}/bg.msg
+    ${SURVEX_OUTPUT_DIR}/de_CH.msg
+    ${SURVEX_OUTPUT_DIR}/el.msg
+    ${SURVEX_OUTPUT_DIR}/es.msg
+    ${SURVEX_OUTPUT_DIR}/hu.msg
+    ${SURVEX_OUTPUT_DIR}/it.msg
+    ${SURVEX_OUTPUT_DIR}/pt_BR.msg
+    ${SURVEX_OUTPUT_DIR}/ro.msg
+    ${SURVEX_OUTPUT_DIR}/sk.msg
+    ${SURVEX_OUTPUT_DIR}/ca.msg
+    ${SURVEX_OUTPUT_DIR}/de.msg
+    ${SURVEX_OUTPUT_DIR}/en_US.msg
+    ${SURVEX_OUTPUT_DIR}/en.msg
+    ${SURVEX_OUTPUT_DIR}/fr.msg
+    ${SURVEX_OUTPUT_DIR}/id.msg
+    ${SURVEX_OUTPUT_DIR}/pl.msg
+    ${SURVEX_OUTPUT_DIR}/pt.msg
+    ${SURVEX_OUTPUT_DIR}/ru.msg
+    ${SURVEX_OUTPUT_DIR}/zh_CN.msg
     PARENT_SCOPE
 )
+
+set(EN_US_MSG_FILE "${SURVEX_OUTPUT_DIR}/en_US.msg")
+set(EN_MSG_FILE "${SURVEX_OUTPUT_DIR}/en.msg")
+add_custom_command(
+    OUTPUT ${EN_MSG_FILE}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${EN_US_MSG_FILE}" "${EN_MSG_FILE}"
+    DEPENDS ${EN_US_MSG_FILE}
+    COMMENT "Generating en.msg from en_US.msg"
+)
+add_custom_target(en_msg DEPENDS ${EN_MSG_FILE})
+add_dependencies(messageFiles en_msg)
 
 add_custom_command(
     OUTPUT
