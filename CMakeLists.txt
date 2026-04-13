@@ -134,20 +134,23 @@ include_directories(${PROJECT_BINARY_DIR})
 
 find_package(Python3 COMPONENTS Interpreter)
 find_package(Perl)
-find_package(GLEW REQUIRED)
 find_package(PROJ REQUIRED)
-find_package(GDAL REQUIRED)
 
-find_package(wxWidgets REQUIRED COMPONENTS core base adv gl html)
+if(NOT MOBILE_BUILD)
+    find_package(GLEW REQUIRED)
+    find_package(GDAL REQUIRED)
+    find_package(wxWidgets REQUIRED COMPONENTS core base adv gl html)
 
-#message( FATAL_ERROR "proj dir:" ${proj_INCLUDE_DIRS_DEBUG} ${proj_INCLUDE_DIRS_RELEASE} )
-get_target_property(PROJ_INCLUDE_DIRS PROJ::proj INTERFACE_INCLUDE_DIRECTORIES)
+    #message( FATAL_ERROR "proj dir:" ${proj_INCLUDE_DIRS_DEBUG} ${proj_INCLUDE_DIRS_RELEASE} )
+    get_target_property(PROJ_INCLUDE_DIRS PROJ::proj INTERFACE_INCLUDE_DIRECTORIES)
 
-
-SET(CMAKE_REQUIRED_INCLUDES ${wxWidgets_INCLUDE_DIRS})
-SET(CMAKE_EXTRA_INCLUDE_FILES "wx/chartype.h")
-check_type_size("wxChar" SIZEOF_WXCHAR)
-SET(CMAKE_EXTRA_INCLUDE_FILES)
+    SET(CMAKE_REQUIRED_INCLUDES ${wxWidgets_INCLUDE_DIRS})
+    SET(CMAKE_EXTRA_INCLUDE_FILES "wx/chartype.h")
+    check_type_size("wxChar" SIZEOF_WXCHAR)
+    SET(CMAKE_EXTRA_INCLUDE_FILES)
+else()
+    set(SIZEOF_WXCHAR 0)
+endif()
 
 configure_file ("${PROJECT_SOURCE_DIR}/src/config.h.in"
     "${PROJECT_BINARY_DIR}/config.h" )
@@ -288,6 +291,8 @@ target_compile_definitions(cavernlib PUBLIC
     HAVE_CONFIG_H
     _CRT_SECURE_NO_WARNINGS
     )
+
+if(NOT MOBILE_BUILD)
 
 add_executable(cavern
     ${SRC_DIR}/cavern_main.c
@@ -453,12 +458,15 @@ target_compile_definitions(aven PUBLIC
     HAVE_GDAL
     )
 
+endif() # NOT MOBILE_BUILD
+
 add_library(surveximg STATIC
     ${SRC_DIR}/img.c
     ${SRC_DIR}/img.h
 )
 target_include_directories(surveximg PUBLIC ${PROJECT_SOURCE_DIR}/${SRC_DIR})
 
+if(NOT MOBILE_BUILD)
 add_executable(imgtest
     ${SRC_DIR}/imgtest.c
 )
@@ -466,6 +474,7 @@ add_executable(imgtest
 target_link_libraries(imgtest
     surveximg
 )
+endif() # NOT MOBILE_BUILD
 
 if(BUILD_TESTING)
     add_executable(cavernlib_state_test
