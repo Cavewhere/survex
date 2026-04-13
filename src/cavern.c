@@ -500,6 +500,7 @@ static void
 cavern_prepare_state(void)
 {
    msg_reset_counters();
+   optind = 0;
    fQuiet = false;
    fMute = false;
    fSuppress = false;
