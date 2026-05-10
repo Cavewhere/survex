@@ -116,6 +116,12 @@ static void cavern_free_model(void);
 static void cavern_restore_stdout(void);
 static int cavern_run_impl(int argc, char **argv);
 
+/* Defined in commands.c. Resets *cs / *fix tracking statics so that
+ * embedding cavern as a library (cavern_run called repeatedly in one
+ * process) doesn't leak "fixed before CS" diagnostics from a previous run
+ * into the next. */
+extern void cavern_reset_cs_state(void);
+
 typedef struct {
    jmp_buf buf;
    int code;
@@ -568,6 +574,7 @@ cavern_cleanup_state(void)
    pcs = NULL;
    cavern_free_nosurvey_links();
    cavern_free_model();
+   cavern_reset_cs_state();
    s_free(&survey_title);
    survey_title = (string)S_INIT;
    invalidate_pj_cached();

@@ -1138,6 +1138,20 @@ static const prefix * first_fix_name = NULL;
 static const char * first_fix_filename;
 static unsigned first_fix_line;
 
+/* Tracks whether the *cs command has been seen during this cavern run. Lifted
+ * out of cmd_cs's local static so cavern_reset_cs_state() can clear it
+ * between cavern_run invocations when cavern is embedded as a library. */
+static bool had_cs = false;
+
+void
+cavern_reset_cs_state(void)
+{
+    first_fix_name = NULL;
+    first_fix_filename = NULL;
+    first_fix_line = 0;
+    had_cs = false;
+}
+
 static void
 cmd_fix(void)
 {
@@ -2425,7 +2439,6 @@ cmd_cs(void)
    filepos fp;
    bool output = false;
    enum { YES, NO, MAYBE } ok_for_output = YES;
-   static bool had_cs = false;
 
    if (!had_cs) {
       had_cs = true;
