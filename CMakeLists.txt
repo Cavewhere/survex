@@ -292,6 +292,24 @@ target_compile_definitions(cavernlib PUBLIC
     _CRT_SECURE_NO_WARNINGS
     )
 
+# Rename cavernlib's global `parse file` so it doesn't clash with LASlib's
+# unrelated `FILE* file = 0;` in arithmeticencoder.cpp. Both are linked
+# into libcavewherelib.dylib; with the default -fcommon, cavernlib's
+# tentative 40-byte `_file` was silently replaced by LASlib's strong
+# 8-byte `_file`, and then cavernlib's accesses past byte 8 (notably the
+# `parent` field at offset 32) overlapped `_max[2]`. `max[d] = -HUGE_REAL`
+# therefore wrote -Infinity bits into `file.parent`, and the next
+# diagnostic dereferenced the bogus parent pointer in report_parent().
+#
+# Also force tentative definitions to be real BSS so any future global-
+# name collision surfaces at link time instead of silently overlapping
+# (Clang ≥ 11 already defaults to this; MSVC has no equivalent flag and
+# uses a different COFF tentative-definition model that doesn't exhibit
+# the bug).
+target_compile_options(cavernlib PRIVATE
+    $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-fno-common>)
+target_compile_definitions(cavernlib PRIVATE file=cavern_file)
+
 if(NOT MOBILE_BUILD)
 
 add_executable(cavern
