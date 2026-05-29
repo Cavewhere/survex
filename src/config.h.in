@@ -141,4 +141,24 @@ typedef __int32 int32_t;
 # define FREAD(P, S, N, F) fread(P, S, N, F)
 #endif
 
+#ifndef __cplusplus
+/* C23 added bool, false and true as keywords - let's emulate that and
+ * avoid every C file which uses these needing to include <stdbool.h>.
+ */
+# include <stdbool.h>
+
+/* C23 made static_assert() available by default - let's emulate that. */
+# if __STDC_VERSION__ >= 202311L
+// Available by default.
+# elif __STDC_VERSION__ >= 201112L
+#  include <assert.h>
+# elif defined __COUNTER__
+#  define STATICASSERTTYPEDEFNAME(N) staticassert_##N
+#  define static_assert(CONDITION, MESSAGE) \
+    typedef int STATICASSERTTYPEDEFNAME(__COUNTER__)[(CONDITION) ? 1 : -1]
+# else
+#  define static_assert(...)
+# endif
+#endif
+
 #endif

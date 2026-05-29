@@ -505,8 +505,7 @@ cavern_prepare_state(void)
 {
    msg_reset_counters();
    optind = 0;
-   fQuiet = false;
-   fMute = false;
+   quiet = 0;
    fSuppress = false;
    fLog = false;
    f_warnings_are_errors = false;
