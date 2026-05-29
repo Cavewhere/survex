@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #if 0
@@ -258,8 +258,8 @@ articulate(void)
 			    // Mark leg as an articulation, which is used while
 			    // building the matrix and when reporting
 			    // misclosures.
-			    to->leg[back]->l.reverse |= FLAG_ARTICULATION;
-			    stn->leg[j]->l.reverse |= FLAG_ARTICULATION;
+			    to->leg[back]->l.bits |= FLAG_ARTICULATION;
+			    stn->leg[j]->l.bits |= FLAG_ARTICULATION;
 
 			    /* start new articulation */
 			    articulation *art = osnew(articulation);
@@ -327,38 +327,49 @@ articulate(void)
 
     if (stnlist) {
 	/* Any stations still in stnlist are unreachable from fixed points
-	 * which means we have one or more hanging surveys.
-	 *
-	 * The cause of the problem is pretty likely to be a typo, so run the
-	 * checks which report errors and warnings about issues which such a
-	 * typo is likely to result in.
+	 * which means we have one or more hanging surveys.  Since Survex
+	 * 1.4.10 we warn about these and then ignore them.
 	 */
-	check_node_stats();
-
 	bool fNotAttached = false;
 	/* TRANSLATORS: At the end of processing (or if a *SOLVE command is used)
 	 * cavern will issue this warning if there are any sections of the survey
 	 * network which are hanging. */
 	warning(/*Survey not all connected to fixed stations*/45);
 	for (node *stn = stnlist; stn; stn = stn->next) {
+	    // If this is an anonymous station, find the neighbouring station
+	    // in the unreduced network and report that instead as a named
+	    // station will mean more to the user trying to understand where
+	    // the problem is.
+	    //
+	    // There should always be such a station, but if there isn't or we
+	    // fail to find it, we'll report the file and line number which is
+	    // still useful, e.g.
+	    //
+	    // foo.svx:16: info: anonymous station
 	    prefix *name = find_non_anon_stn(stn)->name;
 	    if (TSTBIT(name->sflags, SFLAGS_HANGING)) {
 		/* Already reported this name as hanging. */
 		continue;
 	    }
 	    name->sflags |= BIT(SFLAGS_HANGING);
-	    if (prefix_ident(name)) {
-		if (!fNotAttached) {
-		    fNotAttached = true;
-		    /* TRANSLATORS: Here "station" is a survey station, not a
-		     * train station. */
-		    puts(msg(/*The following survey stations are not attached to a fixed point:*/71));
-		}
-		printf("%s:%d: %s: ",
-		       name->filename, name->line, msg(/*info*/485));
-		print_prefix(name);
-		putnl();
+
+	    if (!name->filename) {
+		// Invented station (e.g. from delta-star transform) - there's
+		// no name and no location so these aren't useful to report.
+		// FIXME: Will there always be another station in the reduced
+		// network or should we try to find a named neighbour?
+		continue;
 	    }
+
+	    if (!fNotAttached) {
+		fNotAttached = true;
+		/* TRANSLATORS: Here "station" is a survey station, not a
+		 * train station. */
+		puts(msg(/*The following survey stations are not attached to a fixed point:*/71));
+	    }
+	    printf("%s:%d: %s: ", name->filename, name->line, msg(/*info*/485));
+	    print_prefix(name);
+	    putnl();
 	}
 
 	// We need to include hanging surveys in the count of connected
@@ -455,12 +466,12 @@ articulate(void)
 		if (f) {
 		    printf("awooga - gap in legs\n");
 		}
-		if (stn->leg[d]->l.reverse & FLAG_ARTICULATION) {
-		    if (!(reverse_leg(stn->leg[d])->l.reverse & FLAG_ARTICULATION)) {
+		if (stn->leg[d]->l.bits & FLAG_ARTICULATION) {
+		    if (!(reverse_leg(stn->leg[d])->l.bits & FLAG_ARTICULATION)) {
 			printf("awooga - bad articulation (one way art)\n");
 		    }
 		} else {
-		    if (reverse_leg(stn->leg[d])->l.reverse & FLAG_ARTICULATION) {
+		    if (reverse_leg(stn->leg[d])->l.bits & FLAG_ARTICULATION) {
 			printf("awooga - bad articulation (one way art)\n");
 		    }
 		}
@@ -485,7 +496,7 @@ articulate(void)
 			    printf("awooga - gap in legs\n");
 			}
 			if (stn2->colour) {
-			    if (!(stn->leg[d]->l.reverse & FLAG_ARTICULATION)) {
+			    if (!(stn->leg[d]->l.bits & FLAG_ARTICULATION)) {
 				if (stn->colour == 0) {
 				    stn->colour = stn2->colour;
 				    c++;
@@ -517,7 +528,7 @@ articulate(void)
 		    printf("awooga - gap in legs\n");
 		}
 #ifdef DEBUG_ARTIC
-		if (stn->leg[d]->l.reverse & FLAG_ARTICULATION) {
+		if (stn->leg[d]->l.bits & FLAG_ARTICULATION) {
 		    node *stn2 = stn->leg[d]->l.to;
 		    printf("art: %ld %ld [%p] ", stn->colour, stn2->colour, stn);
 		    print_prefix(stn->name);

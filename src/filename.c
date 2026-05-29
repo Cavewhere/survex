@@ -1,5 +1,5 @@
 /* OS dependent filename manipulation routines
- * Copyright (c) Olly Betts 1998-2003,2004,2005,2010,2011,2014,2025
+ * Copyright (c) Olly Betts 1998-2003,2004,2005,2010,2011,2014,2025,2026
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
@@ -27,6 +27,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdio.h>
+
+#ifdef _WIN32
+# include <io.h> // For _commit().
+#endif
 
 typedef struct filelist {
    char *fnm;
@@ -93,6 +97,10 @@ extern void
 safe_fclose(FILE *f)
 {
    SVX_ASSERT(f);
+#ifdef _WIN32
+   // Untested attempt to address https://trac.survex.com/ticket/147
+   _commit(fileno(f));
+#endif
    /* NB: use of | rather than || - we always want to call fclose() */
    if (FERROR(f) | (fclose(f) == EOF)) {
       filelist *p;

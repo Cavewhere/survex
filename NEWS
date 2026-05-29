@@ -1,9 +1,306 @@
+Changes in 1.4.21 (2026-05-20):
+
+* cavern:
+
+  + Fix missing reports of unconnected survey stations.  We aim to report at
+    least one station in every unconnected piece of survey.  1.4.10 added code
+    to handle when a piece had been simplified to only anonymous stations, but
+    this was buggy and was only checking the first entry in the removed
+    traverse list.  We now check the full list, and if we somehow fail to find
+    a neighbouring named station, we now report the anonymous station (we give
+    the filename and line number which is enough context by itself).  Reported
+    by Paweł Gogolak.
+
+  + `*entrance` now also suppresses unused fixed point warnings when it appears
+    before the `*fix` (previously this only worked for `*entrance` after
+    `*fix`).
+
+  + `*fix` with SDs now sets the "fixed" flag on the station in the .3d file.
+
+  + Pick better 3d file separator for Walls data (previously cavern would pick
+    `.` for the separator in a pure Walls dataset, even if it was used in
+    station names).  Walls uses `:` as a prefix separator, so now cavern takes
+    into account which characters are allowed in Walls station names when
+    picking the separator to use in the .3d file.  For a pure Walls dataset, it
+    will pick `:`, so Walls station names in the .3d file should match the
+    names as shown in Walls.  If a dataset mixes data in Walls format with
+    Survex and/or Compass data, then it's possible `:` is used in a Survex or
+    Compass station name - if so a different separator will be chosen.
+
+  + The Walls manual says to represent underwater data using the combination of
+    `TAPE=SS` with `ORDER=DA` or `ORDER=AD`, so we now map this to Survex's
+    diving style.  Issue highlighted by a dataset from Darek Lubomski.
+
+  + In Walls data, downgrade the "Unknown command" error to a warning for some
+    invalid directives which Walls quietly accepts.  Issue highlighted by a
+    dataset from Darek Lubomski.
+
+  + In Walls data, `#note` and `#flags` are meant to suppress unused fixed
+    point warnings, but only did if they came after the `#fix`.  Also `#flags`
+    without any flags didn't suppress the warning but now does.
+
+  + In Walls data, the word `fix` in `#flags` no longer sets the "fixed" flag
+    in the .3d file - we now only set it for stations used in `#fix`.  This
+    seems a more logical approach, since `#flags` is just free-form text which
+    Walls itself doesn't ascribe particular semantics to.  (The word `entrance`
+    in `#flags` still sets the "entrance" flag since Walls lacks a way to
+    explicitly mark entrances.)
+
+  + Check value after `TAPE=` in Walls data and give an error if it's not
+    valid.
+
+  + In Walls data, we now reject multi-component readings with a decimal point
+    in anything but the final component.  Some examples of invalid readings
+    which now give an error with cavern are `12.5i3`. `12.5:29`, `12.5:29:30`
+    and `12:29.5:30`.
+
+* aven/survexport:
+
+  + Allow exporting/not exporting anonymous stations.  The default is chosen as
+    most appropriate for each export format.
+
+  + Fix memory leak in PLT export.
+
+  + Fix memory leak and speed up SVG export.
+
+* (Microsoft Windows version): aven: Try to fix the extra blank window which
+  opens under aven's window in recent releases.  Reported by Juan Corrin.
+
+* (Microsoft Windows version): Try to ensure output files are fully written to
+  disk before we close them.  Should fix #147, reported by Philip Schuchardt.
+
+* Documentation:
+
+  + Clarify purpose of `*infer exports`.  Highlighted by Philip Sargent.
+
+  + Clarify `*infer plumbs` works for any angle units, not just degrees.
+
+  + Say "directive" instead of "command" in Walls docs since this is the
+    terminology Walls uses.
+
+  + Document Walls filename case mismatch issue.  Issue highlighted by a
+    dataset from Darek Lubomski.
+
+  + Document that the last official release of Walls uses an old IGRF version.
+
+  + Improve section on submitting documentation changes.
+
+  + Minor improvements to wording.
+
+  + HACKING.htm: autoconf 2.59 is the current minimum.
+
+* Test suite: Add test coverage for Walls compass/clino in mils.
+
+* Minor improvements to French translation.
+
+* Merge updates to Polish translation from Paweł Gogolak.
+
+* Merge updates to Russian translation from Vasily Vl. Suhachev.
+
+* (Linux version): survex.spec: We no longer provide this.  It doesn't work
+  with current Fedora because some dependencies have been renamed, which
+  suggests nobody is regularly using it, which isn't a surprise as there's
+  now a Fedora package of Survex.  Reported by Bill Gee.
+
+* Fix warnings about old-style parameter lists in the imported getopt code.
+
+* Require at least automake 1.14 to bootstrap the source tree from git.  This
+  was released in 2013 so should be available everywhere now.
+
+Changes in 1.4.20 (2026-03-04):
+
+* aven: The viewing volume now includes the vertical extent of terrain which
+  fixes problems with the terrain being clipped when there's an extreme
+  vertical difference between the terrain and the cave.  Hopefully fixes #148,
+  reported by Chris Curry.
+
+* aven: Improve handling of the scale when reloading an updated version of the
+  .3d file already being viewed.
+
+* aven: Add missing shortcuts to Orientation menu and "Reverse Direction" menu
+  item.  Reported by echarlie's friend.
+
+* aven: Where possible use L for "Elevation" menu accelerator, which matches
+  the shortcut key.
+
+* cavern: Improve handling of Walls percentage gradient.  Support explicit
+  percentage override ('p' suffix) and fix handling of overriding percentage
+  gradient to specify a plumb.  Reported by echarlie on #survex.
+
+* cavern: Support d:m:s for Walls bearings and gradients.  Reported by echarlie
+  on #survex.
+
+* cavern: Add `gps` as alias for `position` team role.  See:
+  https://github.com/therion/therion/issues/709
+
+* cavern: Warn for no blank after token in *cartesian (another case related to
+  #135).
+
+* manual: Document N, S, E and W shortcut keys for aven.
+
+* manual: Mark up codes and tokens in tables which avoids them getting
+  word-wrapped and hyphenated.  It also means they now get rendered in the
+  tables the same way they are referred to in the text.
+
+* manual: Separate each block of *instrument examples.
+
+* manual: Consistently document versions where features were deprecated.
+
+* Eliminate out-of-date postal address from licensing information.  Direct
+  people who somehow didn't receive the licence text to a copy on the FSF
+  website instead.
+
+Changes in 1.4.19 (2025-12-17):
+
+* aven/survexport: Rework PLT export to use 2 character escapes for spaces
+  and other characters which aren't valid in Compass station names.  We were
+  using 3 character escapes, but that's unhelpful since Compass has a 12
+  character station name limit.
+
+* cavern: The syntax of *instrument commands is now checked and a warning
+  issued for problems.  The information in the command is still not yet used.
+
+* cavern: Improve description of --quiet option.  Reported by Wookey.
+
+* (Microsoft Windows version): The installer now always updates DLLs it
+  installs rather than skipping DLLs which declare the same version number.
+  This avoids problems when DLLs change in an upwardly but not downwardly
+  compatible way but keep the same version number.  It also means downgrading
+  now gives an install more like installing the older version from scratch
+  would.  Our DLLs are all private and installed into our own install directory
+  so there are no concerns with breaking other installed software.  Fixes #145.
+  Reported by Footleg and Juan Corrin.
+
+* Fill in some missing Czech translations.
+
+* Update unofficial Inno Setup translations for the installer.
+
+* We now require at least FFmpeg >= 3.2 to build Survex.  This version was
+  released in 2016 so should be easily available everywhere now.
+
+* (Microsoft Windows version): Drop workaround for wx-config --rescomp not
+  working as this has now been fixed in the mingw package of wxWidgets.
+
+* Test suite:
+
+  + Add test coverage for `*data normal` without `clino`.
+
+Changes in 1.4.18 (2025-11-04):
+
+* aven: Fix "Enter" in search control to zoom to results.  This was broken
+  by the switch to wxSearchCtrl in 1.4.17.
+
+* aven: Fix "Find stations" search box width with wxWidgets >= 3.2.7.  Patch
+  https://github.com/ojwb/survex/pull/15 from Thomas Holder.
+
+* aven: (Microsoft Windows version): Fix sizing of indicators (scalebar,
+  compass, clino, colour key) on HiDPI monitors.  Fixes #144, reported by Juan
+  Corrin.
+
+* aven/survexport: Set UTM zone and datum in exported Compass PLT.
+
+* cavern: Avoid duplicate errors/warnings with unconnected data.  Since 1.4.10,
+  unconnected data is only a warning but that resulted in us running some
+  checks on the survey tree twice, which could result in duplicate
+  errors/warnings.
+
+* cavern: Fix parsing of hex digits in *set.  Hex digits a-f were incorrectly
+  being handled as 0-5, so 0x0a was byte 0 not byte 10.
+
+* cavern: We now track the column as well as file:line where a station or
+  survey name was used, so diagnostics which use these locations now report
+  a column number too.
+
+* cavern: Show context if proj can't convert coords.  We only do this for .svx
+  files currently as it is more complex for Compass and Walls data.
+
+* cavern: Fix reported column for error for `-` for Walls tape field.
+  In this context, Walls requires 2 or more `-` to indicate an omitted field.
+
+* cavern: Compass MAK file parsing improvements:
+
+  + Comments are now skipped.  Previously a commented-out MAK file command
+    would still be interpreted by cavern, which was incorrect.
+
+  + Whitespace handling has been adjusted to more closely match Compass.
+
+  + Unknown commands are now warned about.  Compass seems to quietly ignore
+    unknown commands, but it seems helpful for cavern to report them as it
+    will help identify any bugs in Survex's parsing of MAK files, and any
+    new or undocumented MAK file commands which we don't support.  It can also
+    help detect typos in data entry.
+
+  + We now skip to the closing `;` for unknown commands and commands we
+    ignore as not relevant to us, whereas previously we'd just skip the
+    initial character which gives the type of command and then look for
+    another command.  This doesn't seem to make any difference in practice as
+    none of these commands appear to be able to contain text which could be
+    interpreted as a different valid Compass MAK file command.
+
+* (Microsoft Windows version): The toolchain we use to build this version
+  seems to have changed in an unhelpful way.  We've got the build working
+  again, but when aven is launched a black window opens first, then the
+  aven window opens over the top.  The black window stays around until
+  aven is closed.  This extra window doesn't really get in the way of using
+  aven, but it's not supposed to be there.  It doesn't seem to be due to a
+  change in the Survex code as the 1.2.17 build doesn't do this, but a
+  rebuild of 1.2.17 with just the minimum of build system changes does.
+  If you have suitable skills help fixing this would be much appreciated.
+
+* (Microsoft Windows version): Use unlocked file I/O if available, like we
+  already do for Unix.  Unlocked file I/O can be much faster in some cases (we
+  don't need the locking as we don't do multithreaded file I/O).
+
+* (Microsoft Windows version): Fix compiler warning in wrapaven.c.
+
+* (Microsoft Windows version): Work around wx-config --rescomp no longer
+  working.  The mingw package of wxWidgets has started to return an empty
+  string here.  We don't support building with MSVC, so hardcoding `windres`
+  here isn't really a problem in practice.
+
+* Manual: Document that *set eol default includes x1A (Ctrl-Z) to provide
+  compatibility with old DOS text files (it always has done but was missing
+  from the documentation).
+
+* Merge updates to Russian translation.
+
+* Add the start of a Czech translation.
+
+* Update unofficial Inno Setup translations for the installer.
+
+* Drop support for wxWidgets < 3.2.  It is starting to become hard to keep
+  everything working with 3.0.0 and the time and effort seems better directed
+  to other things.  The last 3.0.x release was 3.0.5.1, released 2020-05-02.
+  3.2.0 was released 2022-07-06 and it seems everywhere with wxWidgets packages
+  upgraded to 3.2.x some time ago.
+
+* Test suite:
+
+  + cavern.tst: Test more mixed line ending cases.
+
+  + Turn off tests involving aven and survexport on mingw, as we can no longer
+    seem to run these programs during the build.  Rebuilding the last commit
+    that worked now fails, so this is not due to a change in the Survex code.
+    There is no error message, but bash shows exit code 127 which means it
+    failed to run the command.
+
+  + Improve handling of VERBOSE in tests.  Previously VERBOSE showed output
+    from all testcases, even ones which passed.  Now we only show output from
+    testcases which fail for VERBOSE=1.  Other non-empty values of VERBOSE
+    continue to show all output for cavern.tst and smoke.tst, but have the same
+    effect as VERBOSE=1 for other tests.
+
+  + compare.tst: Fix to actually work, support --help, and allow comparing
+    cavern runs which fail.  This script is not run as part of the automated
+    tests but assists manually comparing two versions of cavern on the same
+    data which can be helpful for debugging and during development.
+
 Changes in 1.4.17 (2025-03-20):
 
 * aven: Add support for exaggerating Z.  You can now set a Z scale factor
   from 0.1 to 10.0 via a new widget on the toolbar.  Fixes #49.
 
-* aven: The cavern log window now choses foreground and background colours
+* aven: The cavern log window now chooses foreground and background colours
   based on the desktop's light mode/dark mode setting.  Previously it
   used the default window background colour but always used black text, which
   made it hard to read with a dark desktop theme.  (The wxWidgets API to detect
@@ -675,7 +972,7 @@ Changes in 1.4.9 (2024-07-04):
     it can be read from the filing system and is geo-referenced vector data -
     see https://gdal.org/drivers/vector/index.html for a list.  Currently the
     dialog to select a file defaults to showing GPX, KML, GeoJSON and shape
-    files - set the filter to "All Files" to chose other formats.
+    files - set the filter to "All Files" to choose other formats.
 
   + Reimplement display of cavern output.  The old version turned the log into
     HTML and displayed it using wxHtmlWindow, but that adds a lot of overhead
@@ -3667,7 +3964,7 @@ Changes in 1.2.4 (2012-01-01):
     to abort on others.  This is now fixed, and there's a check in place to
     help avoid similar issues in future. (ticket#34)
 
-  + Always use metres or feet for the depth colour key, and chose a consistent
+  + Always use metres or feet for the depth colour key, and choose a consistent
     precision by looking at the depth range. (ticket#30)
 
   + Show the depth units below the colour bar rather than after every value.

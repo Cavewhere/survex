@@ -3,7 +3,7 @@
 //
 //  Class for writing movies from Aven.
 //
-//  Copyright (C) 2004-2024 Olly Betts
+//  Copyright (C) 2004-2026 Olly Betts
 //
 //  This program is free software; you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -16,8 +16,8 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 //
 
 /* Based on output-example.c:
@@ -54,6 +54,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef _WIN32
+# include <io.h> // For _commit().
+#endif
 
 #include "moviemaker.h"
 
@@ -400,6 +404,10 @@ MovieMaker::release()
     oc = NULL;
 
     if (fh_to_close) {
+#ifdef _WIN32
+	// Untested attempt to address https://trac.survex.com/ticket/147
+	_commit(fileno(fh_to_close));
+#endif
 	fclose(fh_to_close);
 	fh_to_close = NULL;
     }
@@ -452,6 +460,6 @@ MovieMaker::get_error_string() const
 
 #else
 
-#include "moviemaker-legacy.cc"
+#error Need libavcodec 57 or newer (FFmpeg >= 3.2)
 
 #endif

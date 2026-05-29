@@ -2,7 +2,7 @@ name: CI
 
 # Controls when the workflow will run
 on:
-  # Triggers the workflow on push, or for pull requests against master
+  # Triggers the workflow on push, or for pull requests against main
   push:
     branches:
       - '**'
@@ -12,7 +12,7 @@ on:
     paths-ignore:
       - NEWS
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
     paths-ignore:
       - NEWS
 
@@ -25,11 +25,11 @@ jobs:
     runs-on: 'ubuntu-24.04'
     steps:
     - name: Check out repository code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         show-progress: false
     - name: Install CCache
-      uses: hendrikmuhs/ccache-action@v1
+      uses: hendrikmuhs/ccache-action@v1.2.21
       with:
         key: ${{ github.job }}
     - name: Install package dependencies
@@ -43,7 +43,6 @@ jobs:
             libgdal-dev \
             libproj-dev \
             libswscale-dev \
-            ghostscript \
             inkscape \
             netpbm \
             liblocale-po-perl \
@@ -73,68 +72,33 @@ jobs:
     - name: Create distribution tarball
       run: |
         make dist
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         path: |
           survex-*.tar.gz
-        # Files are already compressed so don't try to compress again.
-        compression-level: 0
+        # Files are already compressed so don't use zip.
+        archive: false
         retention-days: 1
         if-no-files-found: error
 
-  wxwidgets3-0:
-    runs-on: 'ubuntu-22.04'
-    needs: makedist
-    steps:
-    - name: Install CCache
-      uses: hendrikmuhs/ccache-action@v1
-      with:
-        key: ${{ github.job }}
-    - name: Fetch distribution
-      uses: actions/download-artifact@v4
-    - name: Unpack distribution
-      run: |
-        mv artifact/* .
-        rmdir artifact
-        tar --strip-components=1 -xf survex-*.tar.gz
-    - name: Install package dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install \
-            libwxgtk3.0-gtk3-dev \
-            libavcodec-dev \
-            libavformat-dev \
-            libgdal-dev \
-            libproj-dev \
-            libswscale-dev
-    - name: configure
-      run: ./configure CC='ccache gcc' CXX='ccache g++'
-    - name: make
-      run: make -j2
-    - name: Run tests
-      run: |
-        make check MSGFMT=: VERBOSE=1
-
   valgrind:
-    runs-on: 'ubuntu-22.04'
+    runs-on: 'ubuntu-24.04'
     needs: makedist
     steps:
     - name: Install CCache
-      uses: hendrikmuhs/ccache-action@v1
+      uses: hendrikmuhs/ccache-action@v1.2.21
       with:
         key: ${{ github.job }}
     - name: Fetch distribution
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
     - name: Unpack distribution
       run: |
-        mv artifact/* .
-        rmdir artifact
         tar --strip-components=1 -xf survex-*.tar.gz
     - name: Install package dependencies
       run: |
         sudo apt-get update
         sudo apt-get install \
-            libwxgtk3.0-gtk3-dev \
+            libwxgtk3.2-dev \
             libavcodec-dev \
             libavformat-dev \
             libgdal-dev \
@@ -156,11 +120,9 @@ jobs:
     container: debian:stable
     steps:
     - name: Fetch distribution
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
     - name: Unpack distribution
       run: |
-        mv artifact/* .
-        rmdir artifact
         tar --strip-components=1 -xf survex-*.tar.gz
     - name: Install package dependencies
       run: |
@@ -177,44 +139,11 @@ jobs:
             libproj-dev \
             libswscale-dev
     - name: Install CCache
-      uses: hendrikmuhs/ccache-action@v1
+      uses: hendrikmuhs/ccache-action@v1.2.21
       with:
         key: ${{ github.job }}
     - name: configure
       run: ./configure --enable-werror CC='ccache gcc' CXX='ccache g++'
-    - name: make
-      run: make -j2
-    - name: Run tests
-      run: |
-        make check MSGFMT=: VERBOSE=1
-
-  linux-latest:
-    runs-on: 'ubuntu-24.04'
-    needs: makedist
-    steps:
-    - name: Install CCache
-      uses: hendrikmuhs/ccache-action@v1
-      with:
-        key: ${{ github.job }}
-    - name: Fetch distribution
-      uses: actions/download-artifact@v4
-    - name: Unpack distribution
-      run: |
-        mv artifact/* .
-        rmdir artifact
-        tar --strip-components=1 -xf survex-*.tar.gz
-    - name: Install package dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install \
-            libwxgtk3.2-dev \
-            libavcodec-dev \
-            libavformat-dev \
-            libgdal-dev \
-            libproj-dev \
-            libswscale-dev
-    - name: configure
-      run: ./configure CC='ccache gcc' CXX='ccache g++'
     - name: make
       run: make -j2
     - name: Run tests
@@ -226,21 +155,16 @@ jobs:
     needs: makedist
     steps:
     - name: Install CCache
-      uses: hendrikmuhs/ccache-action@v1
+      uses: hendrikmuhs/ccache-action@v1.2.21
       with:
         key: ${{ github.job }}
     - name: Fetch distribution
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
     - name: Unpack distribution
       run: |
-        mv artifact/* .
-        rmdir artifact
         tar --strip-components=1 -xf survex-*.tar.gz
     - name: Install package dependencies
       run: |
-        # Workaround apparent homebrew bug 2024-03-05
-        rm -f /usr/local/bin/2to3-3.* /usr/local/bin/idle3.* /usr/local/bin/pydoc3.* /usr/local/bin/python3.* /usr/local/bin/python3.*-config
-        rm -f /usr/local/bin/2to3 /usr/local/bin/idle3 /usr/local/bin/pydoc3 /usr/local/bin/python3 /usr/local/bin/python3-config
         brew update
         brew install \
             ffmpeg \
@@ -269,6 +193,7 @@ jobs:
         msystem: ucrt64
         install: base-devel
         pacboy: >-
+          binutils:p
           gcc:p
           ffmpeg:p
           proj:p
@@ -277,17 +202,16 @@ jobs:
           ntldd:p
           gdal:p
           pkgconf:p
+        update: true # To get wxwidgets3.2-msw --rescomp fix
     - name: Install CCache
-      uses: hendrikmuhs/ccache-action@v1
+      uses: hendrikmuhs/ccache-action@v1.2.21
       with:
         key: ${{ github.job }}
         variant: sccache
     - name: Fetch distribution
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
     - name: Unpack distribution
       run: |
-        mv artifact/* .
-        rmdir artifact
         tar --strip-components=1 -xf survex-*.tar.gz
     - name: configure
       run: |
@@ -306,12 +230,12 @@ jobs:
     - name: Run innosetup
       run: |
         make mingw_iss RUN_EXE= NTLDD=ntldd PROJ_PREFIX=/ucrt64
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: microsoft-windows-installer
         path: |
           survex-microsoft-windows-*.exe
-        # Files are already compressed so don't try to compress again.
-        compression-level: 0
+        # Files are already compressed so don't use zip.
+        archive: false
         retention-days: 1
         if-no-files-found: error

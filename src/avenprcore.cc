@@ -14,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
@@ -26,9 +26,7 @@
 #include "useful.h"
 #include "avenprcore.h"
 
-#if defined __WXMSW__ || defined __WXMAC__
-# include <wx/dcprint.h>
-#else
+#if !(defined __WXMSW__ || defined __WXMAC__)
 # include <wx/dcps.h>
 #endif
 #include <wx/print.h>
@@ -44,7 +42,7 @@ layout::layout(wxPageSetupDialogData* data)
 	//
 	// It may seem like data->GetPaperSize() would tell us this page size
 	// without having to construct a temporary DC, but that just returns
-	// (0, 0) for the size, at least with wxGTK 3.0.2.
+	// (0, 0) for the size (most recent version checked was wxGTK 3.2.6).
 #if defined __WXMSW__ || defined __WXMAC__
 	wxPrinterDC pdc(data->GetPrintData());
 #else

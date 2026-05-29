@@ -1,7 +1,7 @@
 /* img.c
  * Routines for reading and writing processed survey data files
  *
- * Copyright (C) 1993-2025 Olly Betts
+ * Copyright (C) 1993-2026 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -32,6 +32,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+#ifdef _WIN32
+# include <io.h> // For _commit().
+#endif
 
 #include "img.h"
 
@@ -115,6 +119,8 @@ my_strdup(const char *str)
 # ifndef FREAD
 #  ifdef HAVE_FREAD_UNLOCKED
 #   define FREAD(P, S, N, F) fread_unlocked(P, S, N, F)
+#  elif defined HAVE__FREAD_NOLOCK
+#   define FREAD(P, S, N, F) _fread_nolock(P, S, N, F)
 #  else
 #   define FREAD(P, S, N, F) fread(P, S, N, F)
 #  endif
@@ -123,6 +129,8 @@ my_strdup(const char *str)
 # ifndef FWRITE_
 #  ifdef HAVE_FWRITE_UNLOCKED
 #   define FWRITE_(P, S, N, F) fwrite_unlocked(P, S, N, F)
+#  elif defined HAVE__FWRITE_NOLOCK
+#   define FWRITE_(P, S, N, F) _fwrite_nolock(P, S, N, F)
 #  else
 #   define FWRITE_(P, S, N, F) fwrite(P, S, N, F)
 #  endif
@@ -131,6 +139,8 @@ my_strdup(const char *str)
 # ifndef GETC
 #  ifdef HAVE_GETC_UNLOCKED
 #   define GETC(F) getc_unlocked(F)
+#  elif defined HAVE__GETC_NOLOCK
+#   define GETC(F) _getc_nolock(F)
 #  else
 #   define GETC(F) getc(F)
 #  endif
@@ -139,6 +149,8 @@ my_strdup(const char *str)
 # ifndef PUTC
 #  ifdef HAVE_PUTC_UNLOCKED
 #   define PUTC(C, F) putc_unlocked(C, F)
+#  elif defined HAVE__PUTC_NOLOCK
+#   define PUTC(C, F) _putc_nolock(C, F)
 #  else
 #   define PUTC(C, F) putc(C, F)
 #  endif
@@ -678,6 +690,8 @@ initialise_survey_filter(img *pimg, const char* survey)
 static int
 compass_plt_open(img *pimg, const char *survey)
 {
+    // Format documentation:
+    // https://www.fountainware.com/compass/HTML_Help/Compass_Viewer/plotfileformat.htm
     int utm_zone = 0;
     int datum = img_DATUM_UNKNOWN;
     long fpos;
@@ -3670,8 +3684,14 @@ img_close(img *pimg)
 	    }
 	 }
 	 if (FERROR(pimg->fh)) result = 0;
-	 if (pimg->close_func && pimg->close_func(pimg->fh))
-	     result = 0;
+	 if (pimg->close_func) {
+#ifdef _WIN32
+	     // Untested attempt to address https://trac.survex.com/ticket/147
+	     if (result && !pimg->fRead) _commit(fileno(pimg->fh));
+#endif
+	     if (pimg->close_func(pimg->fh))
+		 result = 0;
+	 }
 	 if (!result) img_errno = pimg->fRead ? IMG_READERROR : IMG_WRITEERROR;
       }
       if (pimg->data) {

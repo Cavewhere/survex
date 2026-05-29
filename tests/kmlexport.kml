@@ -38,9 +38,7 @@
 <Placemark><Point><coordinates>174.77901985,-41.28014060,-3.90</coordinates></Point><name>6a</name></Placemark>
 <Placemark><Point><coordinates>174.77901954,-41.28014960,-3.99</coordinates></Point><name>6</name></Placemark>
 <Placemark><Point><coordinates>174.77904692,-41.27934257,3.85</coordinates></Point><name>5</name></Placemark>
-<Placemark><Point><coordinates>174.77664219,-41.28010369,-3.99</coordinates></Point><name></name></Placemark>
 <Placemark><Point><coordinates>174.77666960,-41.27929666,3.85</coordinates></Point><name>3</name></Placemark>
-<Placemark><Point><coordinates>174.77783087,-41.28012665,4.72</coordinates></Point><name></name></Placemark>
 <Placemark><Point><coordinates>174.77785826,-41.27931962,12.57</coordinates></Point><name>2</name></Placemark>
 <Placemark><Point><coordinates>174.77788868,-41.27842294,21.28</coordinates></Point><name>1</name></Placemark>
 <Placemark><Point><coordinates>174.77670004,-41.27839998,30.00</coordinates></Point><name>bh</name><styleUrl>#ent</styleUrl></Placemark>

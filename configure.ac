@@ -3,15 +3,15 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.4.17], [https://trac.survex.com/])
-AM_INIT_AUTOMAKE([1.5 gnu -Wall -Wportability -Werror])
+AC_INIT([survex], [1.4.21], [https://trac.survex.com/])
+AM_INIT_AUTOMAKE([1.14 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
 AC_SUBST(RELEASE)
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_SRCDIR([src/aven.cc])
 
-COPYRIGHT_MSG="Copyright (C) 1990-2025 Olly Betts"
+COPYRIGHT_MSG="Copyright (C) 1990-2026 Olly Betts"
 AVEN_COPYRIGHT_MSG="Copyright (C) 1999-2003,2005,2006 Mark R. Shinwell"
 
 AC_DEFINE_UNQUOTED(COPYRIGHT_MSG, ["$COPYRIGHT_MSG"], [Copyright Message])
@@ -71,8 +71,6 @@ AC_PROG_CXXCPP
 
 dnl Probe for any options needed to enable C++11 support.
 AX_CXX_COMPILE_STDCXX_11
-
-AM_PROG_CC_C_O
 
 AC_LANG([C])
 
@@ -157,10 +155,11 @@ else
     wxdef=__WXGTK__
   fi
   dnl See if wx-config exists and is for the correct version.
-  dnl Fedora install wx3's wx-config as wx-config-3.0, so look for that in
-  dnl preference.
+  dnl Fedora seem to install as wx-config-3.2 with a symlink from wx-config, so
+  dnl look for the versioned name in preference.
+  dnl
   dnl Arch Linux uses wx-config-gtk3.
-  AC_PATH_PROGS(WX_CONFIG, [wx-config-3.0 wx-config-gtk3 wx-config])
+  AC_PATH_PROGS(WX_CONFIG, [wx-config-3.2 wx-config-gtk3 wx-config])
   if test -n "$WX_CONFIG" ; then
     if (exec >&5 2>&5;$WX_CONFIG --cflags "$wx_libs"|grep -e -D"$wxdef";exit $?) then
       :
@@ -226,7 +225,7 @@ AC_CHECK_SIZEOF([wxChar], [], [
 CFLAGS=$save_CFLAGS
 
 dnl Check for FFmpeg libraries.
-PKG_CHECK_MODULES([FFMPEG], [libavcodec libavformat libswscale libavutil], [
+PKG_CHECK_MODULES([FFMPEG], [libavcodec >= 57 libavformat libswscale libavutil], [
   AC_DEFINE([WITH_FFMPEG], [1], [Use FFmpeg for movie export])
   save_CXXFLAGS=$CXXFLAGS
   save_LIBS=$LIBS
@@ -286,6 +285,8 @@ dnl byte-by-byte.  These are specified by POSIX:
 AC_CHECK_FUNCS([getc_unlocked putc_unlocked putchar_unlocked])
 dnl These are GNU extensions in glibc:
 AC_CHECK_FUNCS([feof_unlocked ferror_unlocked fread_unlocked fwrite_unlocked])
+dnl Microsoft extensions:
+AC_CHECK_FUNCS([_getc_nolock _putc_nolock _putchar_nolock _fread_nolock _fwrite_nolock])
 
 AC_CHECK_FUNCS([setenv unsetenv])
 
@@ -391,6 +392,8 @@ AH_BOTTOM(
 
 #ifdef HAVE_FREAD_UNLOCKED
 # define FREAD(P, S, N, F) fread_unlocked(P, S, N, F)
+#elif defined HAVE__FREAD_NOLOCK
+# define FREAD(P, S, N, F) _fread_nolock(P, S, N, F)
 #else
 # define FREAD(P, S, N, F) fread(P, S, N, F)
 #endif
@@ -402,24 +405,32 @@ AH_BOTTOM(
  */
 #ifdef HAVE_FWRITE_UNLOCKED
 # define FWRITE_(P, S, N, F) fwrite_unlocked(P, S, N, F)
+#elif defined HAVE__FWRITE_NOLOCK
+# define FWRITE_(P, S, N, F) _fwrite_nolock(P, S, N, F)
 #else
 # define FWRITE_(P, S, N, F) fwrite(P, S, N, F)
 #endif
 
 #ifdef HAVE_GETC_UNLOCKED
 # define GETC(F) getc_unlocked(F)
+#elif defined HAVE__GETC_NOLOCK
+# define GETC(F) _getc_nolock(F)
 #else
 # define GETC(F) getc(F)
 #endif
 
 #ifdef HAVE_PUTC_UNLOCKED
 # define PUTC(C, F) putc_unlocked(C, F)
+#elif defined HAVE__PUTC_NOLOCK
+# define PUTC(C, F) _putc_nolock(C, F)
 #else
 # define PUTC(C, F) putc(C, F)
 #endif
 
 #ifdef HAVE_PUTC_UNLOCKED
 # define PUTCHAR(C) putchar_unlocked(C)
+#elif defined HAVE__PUTCHAR_NOLOCK
+# define PUTCHAR(C) _putchar_nolock(C)
 #else
 # define PUTCHAR(C) putchar(C)
 #endif
@@ -429,6 +440,29 @@ AH_BOTTOM(
  * avoid every C file which uses these needing to include <stdbool.h>.
  */
 # include <stdbool.h>
+
+/* C23 made static_assert() available by default - let's emulate that. */
+# if __STDC_VERSION__ >= 202311L
+// Available by default.
+# elif __STDC_VERSION__ >= 201112L
+# include <assert.h>
+# elif defined __COUNTER__
+// As a fallback for < C11, use a typedef for an array type where the size
+// is negative if the assertion fails.  Prior to C11 redefining a typedef was
+// not allowed so we need to generate unique typedef names (within a single
+// compilation).  __COUNTER__ provides an way to do this - it is a non-standard
+// extension, but supported by at least GCC, clang and MSVC.
+//
+// Using the standardised __LINE__ instead of __COUNTER__ here would fail if
+// two headers (or a header and the source file) happen to use static_assert()
+// on the same line number.
+#  define STATICASSERTTYPEDEFNAME(N) staticassert_##N
+#  define static_assert(CONDITION, MESSAGE) \
+    typedef int STATICASSERTTYPEDEFNAME(__COUNTER__)[(CONDITION) ? 1 : -1]
+# else
+// We don't check static_assert for pre-C11 compilers without __COUNTER__.
+#  define static_assert(...)
+# endif
 #endif
 ])
 
@@ -436,6 +470,6 @@ AC_CONFIG_FILES([
  Makefile src/Makefile doc/Makefile lib/Makefile lib/icons/Makefile
  lib/images/Makefile
  tests/Makefile vim/Makefile survex.iss doc/index.htm
- survex.spec lib/Info.plist
+ lib/Info.plist
  ])
 AC_OUTPUT

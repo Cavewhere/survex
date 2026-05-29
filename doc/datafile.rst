@@ -11,8 +11,8 @@ each line is fully specifiable.  So you can enter your data much as it appears
 on the survey notes, which is important in reducing the opportunities for
 transcription errors.
 
-Also all the special characters are user-definable - for example, the
-separators can be spaces and tabs, or commas (e.g. when exporting from a
+Also all the special characters are user-definable - for example, data items
+can be separated by spaces and tabs, or commas (e.g. when exporting from a
 spreadsheet), etc; the decimal point can changed to be a comma (as used in
 continental Europe), or a slash (sometimes used for clarity in written survey
 notes), or anything else you care to choose.  This flexibility means that it
@@ -332,26 +332,26 @@ Description
 
    ``<quantity list>`` is one or more of:
 
-      ============ ===========
-      Quantity     Aliases
-      ============ ===========
-      LENGTH       TAPE
-      BEARING      COMPASS
-      GRADIENT     CLINO
-      BACKLENGTH   BACKTAPE
-      BACKBEARING  BACKCOMPASS
-      BACKGRADIENT BACKCLINO
-      COUNT        COUNTER
-      LEFT          
-      RIGHT         
-      UP           CEILING
-      DOWN         FLOOR
-      DEPTH         
-      EASTING      DX
-      NORTHING     DY
-      ALTITUDE     DZ
-      DECLINATION   
-      ============ ===========
+      ================ ===============
+      Quantity         Aliases
+      ================ ===============
+      ``LENGTH``       ``TAPE``
+      ``BEARING``      ``COMPASS``
+      ``GRADIENT``     ``CLINO``
+      ``BACKLENGTH``   ``BACKTAPE``
+      ``BACKBEARING``  ``BACKCOMPASS``
+      ``BACKGRADIENT`` ``BACKCLINO``
+      ``COUNT``        ``COUNTER``
+      ``LEFT``          
+      ``RIGHT``         
+      ``UP``           ``CEILING``
+      ``DOWN``         ``FLOOR``
+      ``DEPTH``         
+      ``EASTING``      ``DX``
+      ``NORTHING``     ``DY``
+      ``ALTITUDE``     ``DZ``
+      ``DECLINATION``   
+      ================ ===============
 
    The specified calibration is applied to each quantity in the list, which is
    handy if you use the same instrument to measure several things, for example::
@@ -1123,7 +1123,7 @@ Description
 
    This is "approximate" because it's only computed for the North-most,
    South-most, East-most and West-most stations and it's possible the actual
-   minimum or maximum not at one of these.  It's unlikely to be much outside
+   minimum or maximum is not at one of these.  It's unlikely to be much outside
    the reported range though.
 
    We don't (currently) attempt to report a similar range for declination
@@ -1144,8 +1144,8 @@ Syntax
 
 Description
    ``*default`` restores defaults for given settings.  This command is
-   deprecated - you should instead use: ``*calibrate default``, ``*data
-   default``, ``*units default``.
+   deprecated since Survex 0.92 - you should instead use: ``*calibrate
+   default``, ``*data default``, ``*units default``.
 
 See Also
    ``*calibrate``, ``*data``, ``*units``
@@ -1285,7 +1285,10 @@ Description
    By default cavern will warn about stations which have been ``*fix``-ed but
    are not used otherwise, as this might be due to a typo in the station name.
    Uses in survey data and (since 1.4.9) ``*entrance`` count for these
-   purposes.  This warning is unhelpful if you want to include a standard file
+   purposes.  (From 1.4.9 to 1.4.20, ``*entrance`` had to come after ``*fix``
+   to suppress the warning; since 1.4.21 it can come before or after.)
+
+   This warning is unhelpful if you want to include a standard file
    of benchmarks, some of which won't be used.  In this sort of situation,
    specify ``reference`` after the station name in the ``*fix`` command to
    suppress this warning for a particular station.  It's OK to use
@@ -1410,39 +1413,91 @@ Syntax
 
 Description
    ``*infer plumbs on`` tells cavern to interpret gradients of ±90 degrees
-   as UP/DOWN (so it will not apply the clino correction to them).  This is
-   useful when you have data which uses this convention for plumbed legs.
+   (or ±100 grads, etc) as UP/DOWN, so it will not apply the clino correction
+   to them.  This is useful when you have data which uses this convention for
+   plumbed legs.
 
    ``*infer equates on`` tells cavern to interpret a leg with a tape reading of
    zero as a ``*equate`` which this prevents tape corrections being applied to
    them.  This is useful when you have data which uses this convention for
    equating stations.
 
-   ``*infer exports on`` is necessary when you have a dataset which is partly
-   annotated with ``*export``.  It tells cavern not to complain about missing
-   ``*export`` commands in the parts of the dataset it is enabled for.  Also
-   stations which were used to join surveys are marked as exported in the 3d
-   file.
+   ``*infer exports on`` relaxes the requirement that a station must be
+   ``*export``-ed to be able to refer to it from outside the survey it is in.
+   When active, such stations are treated as if they were marked with ``*export``
+   (including being flagged as "exported" in the .3d file).  For compatibility
+   with datasets from before ``*export`` was added, a dataset which never uses
+   ``*export`` is processed as if it used ``*infer exports on``.  It can be
+   useful to be able to turn it on explicitly for part of a dataset, for
+   example it allows combining a dataset which doesn't used ``*export`` with
+   one which does, and it supports a phased conversion of a dataset to using
+   ``*export``.  You might also decide to use it if having to mark survey
+   stations as exported doesn't seem worth the benefit of catching mis-ties -
+   for example, if you're surveying a maze cave where a lot of stations are
+   junctions.
 
 INSTRUMENT
 ----------
 
 Syntax
-   ``*instrument <instrument> <identifier>``
+   ``*instrument <type>... <identifier>``
 
 Example
    ::
 
-       *instrument compass "CUCC 2"
-       *instrument clino "CUCC 2"
+       *instrument Compass #949847
+       *instrument Clino #240641
+       *instrument Tape CUCC#4
+
+    ::
+       *instrument compass clino "CUCC Suunto Set #2"
        *instrument tape "CUCC Fisco Ranger open reel"
+
+    ::
+       *instrument compass clino "Blue SAP #4"
+       *instrument tape "Bosch EDM"
+
+    ::
+       *instrument insts "DistoX2 #1234"
+       *instrument notes "TopoDroid v 3.1.4"
 
 Validity
    valid at the start of a ``*begin``/``*end`` block.
 
 Description
    ``*instrument`` specifies the particular instruments used to perform a
-   survey.
+   survey.  It is useful to record these in case you later discover an
+   instrument is miscalibrated or faulty so you know which surveys are
+   affected.  Then you can either apply a correction (via `*calibrate`) or if
+   necessary go and resurvey.
+
+   ``<identifier>`` should include enough information to uniquely identify a
+   particular instrument.  It's usually in double quotes, but the quotes can be
+   omitted if it's a single word (strictly speaking, if it does not contain any
+   of the characters set as ``BLANK`` which are space, tab and comma by
+   default).  In the unlikely event of it being a single word which is a
+   valid instrument type, you'll also need to put double quotes around it.
+
+   The syntax of ``*instrument`` commands has been defined for a very long
+   time, but prior to Survex 1.4.19 there weren't any checks of the syntax.
+   Essentially ``*instrument`` used to be treated like a named comment line.
+   Survex 1.4.19 implemented format checking, and also extended the documented
+   format to allow multiple instrument types (to match Therion's implementation).
+
+   You'll get a warning for an empty ``*instrument`` or if you open but fail to
+   close double quotes around the instrument identifier.
+
+   ``<type>`` is now checked against an allowed list (the same list as
+   ``<role>`` in ``*team`` so see the ``*team`` documentation for the list of
+   valid instrument types; some team roles such as ``assistant`` don't really
+   make sense as instrument types, but we've chosen to follow Therion's lead
+   here for the benefit of people using both).  You'll get a warning if a type
+   is not recognised.
+
+   These diagnostic messages were made warnings to avoid breaking processing
+   of existing datasets which might contain ``*instrument`` lines which don't
+   conform with the defined syntax, or with this newly adopted list of
+   instrument types.
 
 See Also
    ``*begin``, ``*date``, ``*team``
@@ -1462,7 +1517,8 @@ Description
    ``*prefix`` sets the current survey.
 
 Caveats
-   ``*prefix`` is deprecated - you should use ``*begin`` and ``*end`` instead.
+   ``*prefix`` is deprecated since Survex 0.92 - you should use ``*begin`` and
+   ``*end`` instead.
 
 See Also
    ``*begin``, ``*end``
@@ -1626,7 +1682,9 @@ Description
    since these characters are used for station names and for readings.
 
    In ``<character list>``, ``x`` followed by two hex digits means the
-   character with that hex value, e.g. ``x20`` is a space.
+   character with that hex value, e.g. ``x20`` is a space.  The handling of
+   hex digits ``a`` to ``f`` was buggy in older versions, but was fixed in
+   Survex 1.4.18.
 
    The complete list of items that can be set, the defaults (in brackets), and
    the meaning of the item, is:
@@ -1637,8 +1695,9 @@ Description
       The rest of the current line is a comment
    DECIMAL (``.``)
       Decimal point character
-   EOL (``x0Ax0D``)
-      End of line character
+   EOL (``x0Ax0Dx1A``)
+      End of line character (includes ``x1A`` to allow reading older DOS
+      text files which use Ctrl-Z as an end of file marker).
    KEYWORD (``*``)
       Introduces keywords
    MINUS (``-``)
@@ -1651,7 +1710,8 @@ Description
    PLUS (``+``)
       Indicates positive number
    ROOT (``\``)
-      Prefix in force at start of current file (use of ``ROOT`` is deprecated)
+      Prefix in force at start of current file (use of ``ROOT`` is deprecated
+      since Survex 0.97)
    SEPARATOR (``.``)
       Level separator in prefix hierarchy
 
@@ -1723,37 +1783,42 @@ Description
    alternative names for the same thing).  The intended meanings are noted
    to encourage consistent usage:
 
-      =========== ============ ============================================
-      Role        Alias        Intended meaning
-      =========== ============ ============================================
-      tape        length       Measured leg lengths
-      compass     bearing      Measured bearings
-      clino       gradient     Measured vertical angles
-      backtape    backlength   Like ``tape`` but for backsights
-      backcompass backbearing  Like ``compass`` but for backsights
-      backclino   backgradient Like ``clino`` but for backsights
-      instruments insts        All instruments: both compass and clino; use
-                               for all-in-one instruments such as Disto-X.
-      counter     count        Topofil length measurements
-      depth                    Measured differences in height between stations,
-                               e.g. underwater with a diver's depth gauge, or
-                               above water with a manometer
-      station                  Added markers at stations
-      position                 Recorded absolute positions of stations (e.g.
-                               fixed surface stations with a GPS)
-      notes       notebook     Recorded instrument readings
-      pictures    pics         Drew sketches
-      assistant   dog          General helper (e.g. held the end of the
-                               tape on stations)
-      altitude    dz           Recorded the altitudes of stations (e.g. with an
-                               altimeter)
-      dimensions               Measured all passage dimensions
-      left                     Measured ``left`` passage dimension
-      right                    Measured ``right`` passage dimension
-      up          ceiling      Measured ``up`` passage dimension
-      down        floor        Measured ``down`` passage dimension
-      explorer                 Explored the area of cave being surveyed
-      =========== ============ ============================================
+      =============== ================ ========================================
+      Role            Alias            Intended meaning
+      =============== ================ ========================================
+      ``tape``        ``length``       Measured leg lengths
+      ``compass``     ``bearing``      Measured bearings
+      ``clino``       ``gradient``     Measured vertical angles
+      ``backtape``    ``backlength``   Like ``tape`` but for backsights
+      ``backcompass`` ``backbearing``  Like ``compass`` but for backsights
+      ``backclino``   ``backgradient`` Like ``clino`` but for backsights
+      ``instruments`` ``insts``        All instruments: both compass and clino;
+                                       use for all-in-one instruments such as
+                                       Disto-X.
+      ``counter``     ``count``        Topofil length measurements
+      ``depth``                        Measured differences in height between
+                                       stations, e.g. underwater with a diver's
+                                       depth gauge, or above water with a
+                                       manometer
+      ``station``                      Added markers at stations
+      ``position``    ``gps`` [#]_     Recorded absolute positions of stations
+                                       (e.g.  fixed surface stations with a
+                                       GPS)
+      ``notes``       ``notebook``     Recorded instrument readings
+      ``pictures``    ``pics``         Drew sketches
+      ``assistant``   ``dog``          General helper (e.g. held the end of the
+                                       tape on stations)
+      ``altitude``    ``dz``           Recorded the altitudes of stations (e.g.
+                                       with an altimeter)
+      ``dimensions``                   Measured all passage dimensions
+      ``left``                         Measured ``left`` passage dimension
+      ``right``                        Measured ``right`` passage dimension
+      ``up``          ``ceiling``      Measured ``up`` passage dimension
+      ``down``        ``floor``        Measured ``down`` passage dimension
+      ``explorer``                     Explored the area of cave being surveyed
+      =============== ================ ========================================
+
+   .. [#] ``gps`` was added as an alias for ``position`` in Survex 1.4.20.
 
 See Also
    ``*begin``, ``*date``, ``*instrument``

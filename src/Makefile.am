@@ -11,9 +11,9 @@ noinst_HEADERS = cavern.h commands.h cmdline.h date.h datain.h debug.h\
  out.h readval.h str.h useful.h validate.h gdalexport.h\
  glbitmapfont.h gllogerror.h guicontrol.h gla.h gpx.h moviemaker.h\
  export3d.h exportfilter.h hpgl.h cavernlog.h aboutdlg.h aven.h avenpal.h\
- gfxcore.h json.h log.h mainfrm.h pos.h vector3.h wx.h\
+ gfxcore.h json.h log.h mainfrm.h pos.h vector3.h\
  aventreectrl.h export.h model.h printing.h avenprcore.h img2aven.h\
- thgeomag.h thgeomagdata.h moviemaker-legacy.cc
+ thgeomag.h thgeomagdata.h
 
 LDADD = $(LIBOBJS)
 
@@ -63,7 +63,8 @@ avenrc.o: $(srcdir)/aven.rc ../lib/icons/aven.ico
 bin_PROGRAMS += wrapaven wrapsurvexport
 
 wrapaven_SOURCES = wrapaven.c
-wrapaven_LDFLAGS = -mwindows -municode
+# Link in the resources so wrapper gets aven's icon.
+wrapaven_LDADD = avenrc.o
 
 wrapsurvexport_SOURCES = wrapsurvexport.c
 endif

@@ -40,9 +40,54 @@ features are likely to be handled while more obscure features may not be.
   don't want to fail processing because of them.
 
   If you want a way to suppress the "unused fixed point" warning, using the
-  station in a ``#NOTE`` or ``#FLAG`` command counts as a "use" so you
+  station in a ``#NOTE`` or ``#FLAG`` directive counts as a "use" so you
   can suppress these with e.g. ``#NOTE ABC123 /unused`` for each such
-  fixed point.
+  fixed point.  (This works fully since Survex 1.4.21 - before this it only
+  worked if the ``#FIX`` came first, and didn't work for ``#FLAG`` without
+  any flags.)
+
+- Walls only runs on Microsoft Windows, where filenames are case-insensitive
+  and you may find the case of filenames in the ``.PRJ`` file doesn't match
+  the actual case of the filename on disk.  If processing a Walls dataset on a
+  platform where filenames are case-sensitive this can cause problems.
+
+  This same issue can affect native Survex datasets too, and the same
+  workaround is used when opening ``.SRV`` files: if the file isn't found
+  cavern will try a few variations of the case.  First it will try all lower
+  case, then all lower case except with the first character of the leafname
+  in upper case, and finally all upper case.
+
+  If the filename on disk has mixed case (aside from the initial character)
+  and the ``.PRJ`` file doesn't specify it with this case then this workaround
+  won't help.
+
+  One specific trick the workaround enables which is worth noting is that you
+  can unpack a ZIP archive using ``unzip -L`` which will unpack all the
+  filenames in lower case and then ``cavern`` should successfully process it
+  thanks to the "try lowercase" part of the workaround.
+
+- Both Walls and Survex support calculating magnetic declinations based on
+  location and survey date.  However David's last Walls release was "Version
+  2, Build 2016-11-18" in 2016 which uses IGRF 12 (released in late 2015 and
+  the current model at the time).  This model is only intended to support dates
+  up to the end of 2019, and is only definitive up to the end of 2009 - for
+  dates in 2010-2019 it is predictive based on observations before this period.
+
+  A new version of the IGRF model is released every 5 years, and Survex has
+  been updated each time so is using a model multiple versions newer than
+  Walls.  For dates up to the end of 2009 any differences in calculated
+  declinations should be tiny, but for 2010-2019 Survex is using a definitive
+  model, while for dates after 2020 Survex is (at the time of writing in 2026)
+  using a predictive model while Walls is using a model outside of its interval
+  of validity.  For any dates after 2009 you'll likely see Walls and Survex
+  calculate different declinations - Survex's should be more reliable.
+
+  If you have survey data from 2010 or later you may need to take this into
+  account if you are comparing the processed output from Walls with that from
+  Survex to check that Survex is interpreting the data in the same way as
+  Walls.  Andy Edwards has made `a build of Walls updated to use IGRF14
+  <https://github.com/wallscavesurvey/walls/releases/tag/v2.2>`_ which may
+  be of interest if you are in this situation.
 
 - If an isolated LRUD (LRUD not on a leg, e.g. specified for the start or end
   station of a traverse) is missing its closing delimiter, Walls will parse
@@ -61,7 +106,7 @@ features are likely to be handled while more obscure features may not be.
   This warning will also be triggered if you have a "to" station which actually
   starts with ``*`` or ``<``, if the station name was not previously seen.
   This condition provides a simple way to suppress the warning - just add a
-  dummy ``#NOTE`` command before the line of data like so::
+  dummy ``#NOTE`` directive before the line of data like so::
 
     #note *8 ; Suppress Survex warning that this looks like broken LRUD
     P25     *8 5 16 3.58
@@ -111,9 +156,11 @@ features are likely to be handled while more obscure features may not be.
 
 - Walls ``FLAG`` values seem to be arbitrary text strings.  We try to
   infer appropriate Survex station flags by checking for certain key
-  words in that text (currently we map words ``ENTRANCE`` and ``FIX``
-  to the corresponding Survex station flags) and otherwise ignore ``FLAG``
-  values.
+  words in that text and otherwise ignore ``FLAG`` values.
+
+  Currently we map ``ENTRANCE`` to the corresponding Survex station flag;
+  Survex <= 1.4.20 also mapped ``FIX`` but we set that for a station used
+  in ``#FIX`` so inferring it based on ``FLAG`` values doesn't seem useful.
 
 - ``#NOTE`` is parsed and the station name is marked as "used" (which
   suppresses the unused fixed point warning) but the note text is
@@ -137,8 +184,21 @@ features are likely to be handled while more obscure features may not be.
 
 - LRUD data is currently ignored.
 
-- The ``TAPE=`` option is currently quietly skipped, and tape
-  measurements are assumed to be station to station.
+- Since Survex 1.4.21, the ``TAPE=`` option is checked for validity, and
+  the combination of ``TAPE=SS`` with ``ORDER=DA`` or ``ORDER=AD`` is mapped to
+  diving data, since the Walls manual says "In the SRV data format, underwater
+  vectors are defined by compass and tape (CT) data lines in which the taping
+  method is station-to-station (#UNITS Order=DA Tape=SS) and the
+  instrument/target "heights" are actually station depths (expressed as
+  positive values) below the water's surface.  In effect, both instrument and
+  target are treated as if they were at the surface, where the inclination can
+  be assumed zero.".  Other combinations of ``TAPE=`` and ``ORDER=`` are
+  currently not implemented and instrument heights are parsed but ignored;
+  instrument and target are assumed to be on their respective stations (or
+  offset from them by the same amount).
+
+  Survex < 1.4.21 just skipped over ``TAPE=`` entirely (so invalid values
+  were also quietly ignored).
 
 - In ``TYPEAB=`` and ``TYPEVB=``, the threshold is ignored, as is the ``X``
   meaning to only use foresights (but still check backsights).
@@ -185,7 +245,18 @@ features are likely to be handled while more obscure features may not be.
   colons, semicolons, commas, pound signs (#), or embedded tabs or spaces.` but
   it actually allows ``#`` in station names (though it can't be used as the
   first character of the from station name as that will be interpreted as a
-  command.  Since Survex 1.4.10.
+  directive.  Since Survex 1.4.10.
+
+- Walls uses ``:`` as a separator between prefixes and between any prefix and
+  the station name.  Since Survex 1.4.21, cavern takes into account which
+  characters are allowed in Walls station names when picking the separator to
+  use in the ``.3d`` file - for a pure Walls dataset, it will pick ``:``, so
+  Walls station names shown by ``aven`` and other tools should match the names
+  as shown in Walls.  If you have a dataset which mixes data in Walls format
+  with Survex and/or Compass data, then it's possible ``:`` is used in a Survex
+  or Compass station name - if so a different separator will be chosen.  Before
+  Survex 1.4.21, ``.`` would be used as the ``.3d`` file separator for a pure
+  Walls dataset, even though if it was used in station names.
 
 - Walls ignores junk after the numeric argument in ``TYPEAB=``, ``TYPEVB=``,
   ``UV=``, ``UVH=``, and ``UVV=``.  Survex warns and skips the junk.  Since
@@ -208,6 +279,34 @@ features are likely to be handled while more obscure features may not be.
   space in, so can't collide with a real Walls station name which can't contain
   a space) - so ``PEP:`` in Walls becomes ``PEP.empty name`` in Survex.
   Since Survex 1.4.10.
+
+- Explicit units on clino readings are supported since Survex 1.4.10.  Survex
+  1.4.20 improved support: ``P``/``p`` for percentage gradient is now
+  supported, and a bug fixed in the handling of explicit units when the default
+  has been set to percentage gradient.
+
+- Explicit ``degree:minute:second`` angle readings are supported since Survex
+  1.4.20.
+
+- Walls doesn't issue an error for some directive lines which seem like they
+  are invalid (at least there's no documented meaning), for example all of
+  these are quietly accepted:
+
+  ::
+
+    #
+    #<L,R,U,D>
+    #<,>
+    #*,>
+    #!,"
+    #THANK,YOU
+
+  Survex 1.4.21 and later downgrades the "Unknown command" error to a warning
+  for these.  The complete pattern for what is accepted by Walls is hard to
+  reliably discern (it seems to be either empty directives or those with a
+  comma somewhere on the line after the invalid directive with no intervening
+  whitespace) so it's possible there are cases which are still errors should
+  also be warnings - please report any you come across.
 
 If you find some Walls data which Survex doesn't handle or handles
 incorrectly, and it is not already noted above, please let us know.

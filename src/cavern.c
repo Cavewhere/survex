@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
@@ -81,8 +81,7 @@ PJ * pj_cached = NULL;
 
 FILE *fhErrStat = NULL;
 img *pimg = NULL;
-bool fQuiet = false; /* just show brief summary + errors */
-bool fMute = false; /* just show errors */
+int quiet = 0; // 1 to turn off progress messages; >=2 turns off summary too.
 bool fSuppress = false; /* only output 3d file */
 static bool fLog = false; /* stdout to .log file */
 static bool f_warnings_are_errors = false; /* turn warnings into errors */
@@ -157,7 +156,7 @@ static struct help_msg help[] = {
    /* TRANSLATORS: --help output for cavern --output option */
    {HLP_ENCODELONG(2),	      /*set location for output files*/162, 0, 0},
    /* TRANSLATORS: --help output for cavern --quiet option */
-   {HLP_ENCODELONG(3),	      /*only show brief summary (-qq for errors only)*/163, 0, 0},
+   {HLP_ENCODELONG(3),	      /*fewer messages (-qq for even fewer)*/163, 0, 0},
    /* TRANSLATORS: --help output for cavern --no-auxiliary-files option */
    {HLP_ENCODELONG(4),	      /*do not create .err file*/164, 0, 0},
    /* TRANSLATORS: --help output for cavern --warnings-are-errors option */
@@ -309,8 +308,7 @@ cavern_run_impl(int argc, char **argv)
 	 break;
        }
        case 'q':
-	 if (fQuiet) fMute = 1;
-	 fQuiet = 1;
+	 ++quiet;
 	 break;
        case 's':
 	 fSuppress = 1;
@@ -377,7 +375,7 @@ cavern_run_impl(int argc, char **argv)
       free(fnm);
    }
 
-   if (!fMute) {
+   if (quiet < 2) {
       const char *p = COPYRIGHT_MSG;
       puts(PRETTYPACKAGE" "VERSION);
       while (1) {
@@ -436,8 +434,8 @@ cavern_run_impl(int argc, char **argv)
    }
 
    out_current_action(msg(/*Calculating statistics*/120));
-   if (!fMute) do_stats();
-   if (!fQuiet) {
+   if (quiet < 2) do_stats();
+   if (!quiet) {
       /* clock() typically wraps after 72 minutes, but there doesn't seem
        * to be a better way.  Still 72 minutes means some cave!
        * We detect if clock() could have wrapped and suppress CPU time

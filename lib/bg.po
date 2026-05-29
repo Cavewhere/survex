@@ -233,7 +233,16 @@ msgstr ""
 msgid "End of line not blank"
 msgstr ""
 
-#: ../src/commands.c:369
+#. TRANSLATORS: Warning if there's no "blank" character (space, tab
+#. and comma by default) after a token, e.g. it would be issued
+#. after the token "fix" here:
+#.
+#. *fix1 0 0 0
+#.
+#. This is a warning rather than an error because it was quietly
+#. accepted for a long time.  That wasn't intentional, but we don't
+#. want to suddenly break processing existing datasets.
+#: ../src/commands.c:403
 #: n:74
 msgid "No blank after token"
 msgstr ""
@@ -401,7 +410,20 @@ msgstr ""
 msgid "Unknown team role “%s”"
 msgstr ""
 
-#: ../src/commands.c:553
+#: ../src/commands.c:2195
+#: n:536
+#, c-format
+msgid "Unknown instrument type “%s”"
+msgstr ""
+
+#. TRANSLATORS: Survex has long misdefined "mils" as an alias for
+#. "grads", of which there are 400 in a circle.  There are several
+#. definitions of "mils" with a circle containing 2000π SI milliradians,
+#. 6400 NATO mils, 6000 Warsaw Pact mils, and 6300 Swedish streck, and
+#. they aren't in common use by cave surveyors, so we now just warn if
+#. mils are used.  Here “grads” should not be translated as it shows
+#. what cavern is assuming should be written in the .svx file instead.
+#: ../src/commands.c:580
 #: n:479
 #, c-format
 msgid "Units “%s” are deprecated, assuming “grads” - see manual for details"
@@ -1331,8 +1353,10 @@ msgstr "ОПЦИЯ"
 msgid "Scale"
 msgstr "Мащаб"
 
-#. TRANSLATORS: These example input values should not be translated.
-#: ../src/survexport.cc:134
+#. TRANSLATORS: Used in survexport --help output.  The --scale option
+#. accepts any of these ways of specifying the scale.  These example
+#. input values should not be translated.
+#: ../src/survexport.cc:139
 #: n:217
 msgid "scale (50, 0.02, 1:50 and 2:100 all mean 1:50)"
 msgstr ""
@@ -1575,10 +1599,13 @@ msgstr ""
 msgid "Expecting “%s”, “%s”, “%s”, or “%s”"
 msgstr ""
 
-#: ../src/readval.c:692
-#: ../src/readval.c:700
-#: ../src/readval.c:708
-#: ../src/readval.c:716
+#. TRANSLATORS: Quadrant bearings have the format e.g. S34E or N65.5W.
+#. They're enabled by `*units bearing quadrants` and supported in
+#. Walls format data.
+#: ../src/readval.c:712
+#: ../src/readval.c:720
+#: ../src/readval.c:728
+#: ../src/readval.c:736
 #: n:483
 #, c-format
 msgid "Expecting quadrant bearing, found “%s”"
@@ -1682,7 +1709,7 @@ msgstr ""
 #. TRANSLATORS: --help output for cavern --quiet option
 #: ../src/cavern.c:117
 #: n:163
-msgid "only show brief summary (-qq for errors only)"
+msgid "fewer messages (-qq for even fewer)"
 msgstr ""
 
 #. TRANSLATORS: --help output for cavern --no-auxiliary-files option
@@ -1715,8 +1742,13 @@ msgstr ""
 msgid ".espec file to control extending"
 msgstr ""
 
-#. TRANSLATORS: --help output for extend --show-breaks option
-#: ../src/extend.c:490
+#. TRANSLATORS: --help output for extend --show-breaks option.  When
+#. generating an extended elevation, the survey gets broken (disconnected)
+#. when there's a loop, and the station we break at appears twice in the
+#. output.  This option adds a leg between copies of a station, flagged as
+#. "surface" (so they can be toggled on off, and appear as dotted lines in
+#. aven).
+#: ../src/extend.c:496
 #: n:91
 msgid "show breaks with surface survey legs in output"
 msgstr ""
@@ -2106,53 +2138,53 @@ msgstr "&Включи ротация\tSpace"
 
 #: ../src/mainfrm.cc:793
 #: n:234
-msgid "&Reverse Direction"
-msgstr "&Обръщане на посока"
+msgid "&Reverse Direction\tR"
+msgstr "&Обръщане на посока\tR"
 
 #. TRANSLATORS: View *looking* North
 #: ../src/gfxcore.cc:4393
 #: ../src/mainfrm.cc:796
 #: n:240
-msgid "View &North"
+msgid "View &North\tN"
 msgstr ""
 
 #. TRANSLATORS: View *looking* East
 #: ../src/gfxcore.cc:4395
 #: ../src/mainfrm.cc:797
 #: n:241
-msgid "View &East"
+msgid "View &East\tE"
 msgstr ""
 
 #. TRANSLATORS: View *looking* South
 #: ../src/gfxcore.cc:4397
 #: ../src/mainfrm.cc:798
 #: n:242
-msgid "View &South"
+msgid "View &South\tS"
 msgstr ""
 
 #. TRANSLATORS: View *looking* West
 #: ../src/gfxcore.cc:4399
 #: ../src/mainfrm.cc:799
 #: n:243
-msgid "View &West"
+msgid "View &West\tW"
 msgstr ""
 
 #: ../src/gfxcore.cc:4419
 #: ../src/mainfrm.cc:801
 #: n:248
-msgid "&Plan View"
-msgstr "&План"
+msgid "&Plan View\tP"
+msgstr "&План\tP"
 
 #: ../src/gfxcore.cc:4420
 #: ../src/mainfrm.cc:802
 #: n:249
-msgid "Ele&vation"
-msgstr "Про&фил"
+msgid "E&levation\tL"
+msgstr "Про&фил\tL"
 
 #: ../src/mainfrm.cc:804
 #: n:254
-msgid "Restore De&fault View"
-msgstr "&Стандартен изглед"
+msgid "Restore De&fault View\tDelete"
+msgstr "&Стандартен изглед\tDelete"
 
 #. TRANSLATORS: Used as a label for the surrounding box for the "Bearing"
 #. and "Tilt angle" fields, and the "Plan view" and "Elevation" buttons in
@@ -2197,8 +2229,11 @@ msgstr "Една страница"
 msgid "Bearing"
 msgstr "Азимут"
 
-#. TRANSLATORS: These example input values should not be translated.
-#: ../src/survexport.cc:136
+#. TRANSLATORS: Used in survexport --help output.  The --bearing option
+#. accepts any of these ways of specifying how much to rotate the
+#. survey about a vertical axis.  These example input values should not
+#. be translated.
+#: ../src/survexport.cc:145
 #: n:460
 msgid "bearing (90, 90d, 100g all mean 90°)"
 msgstr ""
@@ -2211,6 +2246,18 @@ msgstr ""
 #: ../src/printing.cc:496
 #: n:260
 msgid "Station Names"
+msgstr ""
+
+#. TRANSLATORS: Label for a checkbox in the print/export dialog.
+#: ../src/printing.cc:500
+#: n:537
+msgid "Anonymous stations"
+msgstr ""
+
+#. TRANSLATORS: Option description in `survexport --help` output.
+#: ../src/survexport.cc:149
+#: n:538
+msgid "anonymous stations"
 msgstr ""
 
 #: ../src/survexport.cc:147
@@ -2311,8 +2358,11 @@ msgstr ""
 msgid "Tilt angle"
 msgstr "Наклон"
 
-#. TRANSLATORS: These example input values should not be translated.
-#: ../src/survexport.cc:138
+#. TRANSLATORS: Used in survexport --help output.  The --tilt option
+#. accepts any of these ways of specifying how much to rotate the
+#. survey about a horizontol axis.  These example input values should
+#. not be translated.
+#: ../src/survexport.cc:151
 #: n:461
 msgid "tilt (45, 45d, 50g, 100% all mean 45°)"
 msgstr ""
@@ -2525,8 +2575,10 @@ msgstr ""
 msgid "Colour by &Survey"
 msgstr ""
 
-#: ../src/gfxcore.cc:4471
-#: ../src/mainfrm.cc:871
+#. TRANSLATORS: Menu item in Aven.  Selects colouring survey legs by
+#. the survey style ("normal", diving, "nosurvey", etc).
+#: ../src/gfxcore.cc:4474
+#: ../src/mainfrm.cc:883
 #: n:482
 msgid "Colour by St&yle"
 msgstr ""
@@ -2759,7 +2811,9 @@ msgstr ""
 msgid "Station name search (substring or wildcard)"
 msgstr ""
 
-#: ../src/mainfrm.cc:1050
+#. TRANSLATORS: Tooltip for Z exaggeration control.  Vertical distances
+#. in aven are scaled by this factor.
+#: ../src/mainfrm.cc:1064
 #: n:535
 msgid "Z exaggeration factor"
 msgstr ""
@@ -3063,6 +3117,10 @@ msgstr "Покажи всички"
 msgid "Hide others"
 msgstr "Скриване на останалите"
 
+#. TRANSLATORS: Menu item for Aven's survey tree.  Bring up the menu
+#. on a survey in the tree and select this and all the other surveys
+#. at the same level will be hidden, leaving only the chosen survey
+#. showing.
 #: ../src/aventreectrl.cc:389
 #: n:388
 msgid "Hide si&blings"
@@ -3099,6 +3157,8 @@ msgstr "&Отвори...\tCtrl+O"
 msgid "Open &Terrain..."
 msgstr ""
 
+#. TRANSLATORS: This is a menu item which allows displaying a GPX, KML,
+#. shapefile, etc over the survey in Aven.
 #: ../src/mainfrm.cc:757
 #: n:494
 msgid "Overlay &Geodata..."
@@ -3237,7 +3297,10 @@ msgstr ""
 msgid "Can't have a leg between two anonymous stations"
 msgstr ""
 
-#: ../src/mainfrm.cc:850
+#. TRANSLATORS: A sub-menu in aven which allows selecting how to display
+#. survey legs with the "splay" flag set (options in the sub-menu
+#. are "Hide"/"Dashed"/"Fade"/"Show").
+#: ../src/mainfrm.cc:866
 #: ../src/printing.cc:488
 #: n:406
 msgid "Spla&y Legs"
@@ -3248,7 +3311,10 @@ msgstr ""
 msgid "splay legs"
 msgstr ""
 
-#: ../src/mainfrm.cc:857
+#. TRANSLATORS: A sub-menu in aven which allows selecting how to display
+#. survey legs with the "duplicate" flag set (options in the sub-menu
+#. are "Hide"/"Dashed"/"Fade"/"Show").
+#: ../src/mainfrm.cc:877
 #: n:251
 msgid "&Duplicate Legs"
 msgstr ""
@@ -3497,6 +3563,17 @@ msgstr ""
 msgid "Originally entered here"
 msgstr ""
 
+#. TRANSLATORS: Used when a BEGIN command has a survey name, but the
+#. END command omits it, e.g.:
+#.
+#. *begin entrance
+#. 1 2 10.00 178 -01
+#. *end
+#.
+#. gives:
+#.
+#. eg.svx:3: warning: Survey name omitted from END
+#. eg.svx:1: info: Corresponding BEGIN was here
 #: ../src/commands.c:1123
 #: n:22
 #, c-format
@@ -3504,7 +3581,7 @@ msgid "Corresponding %s was here"
 msgstr ""
 
 #. TRANSLATORS: Use of the ROOT character (which is "\" by default) is
-#. deprecated, so this error would be generated by:
+#. deprecated, so this warning would be generated by:
 #.
 #. *equate \foo.7 1
 #.

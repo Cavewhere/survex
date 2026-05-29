@@ -2,7 +2,7 @@
  * Export to GIS formats, CAD formats, and other formats.
  */
 
-/* Copyright (C) 1994-2025 Olly Betts
+/* Copyright (C) 1994-2026 Olly Betts
  * Copyright (C) 2004 John Pybus (SVG Output code)
  *
  * This program is free software; you can redistribute it and/or modify
@@ -16,21 +16,22 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
 
 #include "export.h"
 
-#include "wx.h"
-#include <wx/utils.h>
+#include <wx/wx.h>
+
 #include "export3d.h"
 #include "exportfilter.h"
 #include "gdalexport.h"
 #include "gpx.h"
 #include "hpgl.h"
+#include "img.h"
 #include "json.h"
 #include "kml.h"
 #include "mainfrm.h"
@@ -62,52 +63,52 @@
 
 const format_info export_format_info[] = {
     { ".3d", /*Survex 3d files*/207,
-      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS, /* FIXME: expand... */
-      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS },
+      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS|ANON_STNS, /* FIXME: expand... */
+      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS|ANON_STNS },
     { ".csv", /*CSV files*/101,
-      LABELS|ENTS|FIXES|EXPORTS,
+      LABELS|ENTS|FIXES|EXPORTS|ANON_STNS,
       LABELS },
     { ".dxf", /*DXF files*/411,
-      LABELS|LEGS|SURF|SPLAYS|STNS|PASG|XSECT|WALLS|MARKER_SIZE|TEXT_HEIGHT|GRID|FULL_COORDS|ORIENTABLE,
+      LABELS|LEGS|SURF|SPLAYS|STNS|ANON_STNS|PASG|XSECT|WALLS|MARKER_SIZE|TEXT_HEIGHT|GRID|FULL_COORDS|ORIENTABLE,
       LABELS|LEGS|STNS },
     { ".eps", /*EPS files*/412,
-      LABELS|LEGS|SURF|SPLAYS|STNS|PASG|XSECT|WALLS|ORIENTABLE,
+      LABELS|LEGS|SURF|SPLAYS|STNS|ANON_STNS|PASG|XSECT|WALLS|ORIENTABLE,
       LABELS|LEGS|STNS },
     { ".gpx", /*GPX files*/413,
-      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS|PROJ,
+      LABELS|LEGS|SURF|SPLAYS|ENTS|FIXES|EXPORTS|ANON_STNS|PROJ,
       LABELS },
     /* TRANSLATORS: Here "plotter" refers to a machine which draws a printout
      * on a (usually large) sheet of paper using a pen mounted in a motorised
      * mechanism. */
     { ".hpgl", /*HPGL for plotters*/414,
-      LABELS|LEGS|SURF|SPLAYS|STNS|CENTRED|SCALE|ORIENTABLE,
+      LABELS|LEGS|SURF|SPLAYS|STNS|ANON_STNS|CENTRED|SCALE|ORIENTABLE,
       LABELS|LEGS|STNS },
     { ".json", /*JSON files*/445,
       LEGS|SURF|SPLAYS|CENTRED,
       LEGS },
     { ".kml", /*KML files*/444,
-      LABELS|LEGS|SURF|SPLAYS|PASG|XSECT|WALLS|ENTS|FIXES|EXPORTS|PROJ|CLAMP_TO_GROUND,
+      LABELS|LEGS|SURF|SPLAYS|PASG|XSECT|WALLS|ENTS|FIXES|EXPORTS|ANON_STNS|PROJ|CLAMP_TO_GROUND,
       LABELS|LEGS },
     /* TRANSLATORS: "Compass" and "Carto" are the names of software packages,
      * so should not be translated:
      * https://www.fountainware.com/compass/ */
     { ".plt", /*Compass PLT for use with Carto*/415,
-      LABELS|LEGS|SURF|SPLAYS|ORIENTABLE,
-      LABELS|LEGS },
+      LABELS|ANON_STNS|LEGS|SURF|SPLAYS|ORIENTABLE,
+      LABELS|ANON_STNS|LEGS },
     /* TRANSLATORS: Survex is the name of the software, and "pos" refers to a
      * file extension, so neither should be translated. */
     { ".pos", /*Survex pos files*/166,
-      LABELS|ENTS|FIXES|EXPORTS,
+      LABELS|ENTS|FIXES|EXPORTS|ANON_STNS,
       LABELS },
     { ".svg", /*SVG files*/417,
-      LABELS|LEGS|SURF|SPLAYS|STNS|PASG|XSECT|WALLS|MARKER_SIZE|TEXT_HEIGHT|SCALE|ORIENTABLE,
+      LABELS|LEGS|SURF|SPLAYS|STNS|ANON_STNS|PASG|XSECT|WALLS|MARKER_SIZE|TEXT_HEIGHT|SCALE|ORIENTABLE,
       LABELS|LEGS|STNS },
     { ".shp", /*Shapefiles (lines)*/523,
       LEGS|SURF|SPLAYS,
       LEGS },
     { ".shp", /*Shapefiles (points)*/524,
-      LABELS|ENTS|FIXES|EXPORTS|STNS,
-      LABELS|STNS },
+      LABELS|ENTS|FIXES|EXPORTS|STNS|ANON_STNS,
+      LABELS|STNS|ANON_STNS },
 };
 
 static_assert(sizeof(export_format_info) == FMT_MAX_PLUS_ONE_ * sizeof(export_format_info[0]),
@@ -143,6 +144,8 @@ static const char *layer_name(int mask) {
 	    return "Surface";
 	case STNS:
 	    return "Stations";
+	case ANON_STNS:
+	    return "Anonymous Stations";
 	case LABELS:
 	    return "Labels";
 	case XSECT:
@@ -161,7 +164,7 @@ static double grid; /* grid spacing (or 0 for no grid) */
 const int *
 ExportFilter::passes() const
 {
-    static const int default_passes[] = { LEGS|SURF|STNS|LABELS, 0 };
+    static const int default_passes[] = { LEGS|SURF|STNS|ANON_STNS|LABELS, 0 };
     return default_passes;
 }
 
@@ -193,7 +196,7 @@ const int *
 DXF::passes() const
 {
     static const int dxf_passes[] = {
-	PASG, XSECT, WALL1, WALL2, LEGS|SURF|STNS|LABELS, 0
+	PASG, XSECT, WALL1, WALL2, LEGS|SURF|STNS|LABELS, ANON_STNS, 0
     };
     return dxf_passes;
 }
@@ -468,7 +471,7 @@ DXF::footer()
 
 typedef struct point {
    img_point p;
-   const char *label;
+   char *label;
    struct point *next;
 } point;
 
@@ -524,7 +527,7 @@ find_name(const img_point *p)
       if (pt->p.x == p->x && pt->p.y == p->y && pt->p.z == p->z)
 	 return pt->label;
    }
-   return "?";
+   return NULL;
 }
 
 class SVG : public ExportFilter {
@@ -560,7 +563,7 @@ const int *
 SVG::passes() const
 {
     static const int svg_passes[] = {
-	PASG, LEGS|SURF, XSECT, WALL1, WALL2, LABELS, STNS, 0
+	PASG, LEGS|SURF, XSECT, WALL1, WALL2, LABELS, STNS, ANON_STNS, 0
     };
     return svg_passes;
 }
@@ -572,8 +575,6 @@ SVG::header(const char * title, time_t,
 {
    const char *unit = "mm";
    const double SVG_MARGIN = 5.0; // In units of "unit".
-   htab = (point **)osmalloc(HTAB_SIZE * sizeof(point *));
-   for (size_t i = 0; i < HTAB_SIZE; ++i) htab[i] = NULL;
    fprintf(fh, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
    double width = (max_x - min_x) * factor + SVG_MARGIN * 2;
    double height = (max_y - min_y) * factor + SVG_MARGIN * 2;
@@ -648,7 +649,6 @@ SVG::label(const img_point *p, const wxString& str, int sflags, int)
 	   p->x * factor, p->y * -factor);
    html_escape(fh, s);
    fputs("</text>\n", fh);
-   set_name(p, s);
 }
 
 void
@@ -739,8 +739,12 @@ class PLT : public ExportFilter {
 
     unsigned anon_counter = 0;
 
+    img_datum datum = img_DATUM_UNKNOWN;
+
+    int utm_zone = 0;
+
   public:
-    PLT() { }
+    PLT(const char * input_datum);
     const int * passes() const override;
     void header(const char *, time_t,
 		double min_x, double min_y, double min_z,
@@ -750,9 +754,151 @@ class PLT : public ExportFilter {
     void footer() override;
 };
 
+PLT::PLT(const char * input_datum) 
+{
+    if (!input_datum || input_datum[0] == '\0') return;
+
+    // If the coordinate system is an EPSG code, we check if it is UTM in a
+    // datum which Compass supports and if so write out `G` and `O` commands in
+    // the generated PLT file.
+    if (strncmp(input_datum, "EPSG:", 5) != 0) return;
+
+    /* First check the three which seem to be commonly used in Compass data. */
+    int epsg_code = atoi(input_datum + 5);
+    if (epsg_code > 32600 && epsg_code <= 32660) {
+	datum = img_DATUM_WGS84;
+	utm_zone = epsg_code - 32600;
+	return;
+    }
+    if (epsg_code > 32700 && epsg_code <= 32760) {
+	datum = img_DATUM_WGS84;
+	utm_zone = 32700 - epsg_code;
+	return;
+    }
+    if (epsg_code > 26700 && epsg_code <= 26723) {
+	datum = img_DATUM_NAD27;
+	utm_zone = epsg_code - 26700;
+	return;
+    }
+    if (epsg_code >= 3311 + 59 && epsg_code <= 3311 + 60) {
+	datum = img_DATUM_NAD27;
+	utm_zone = epsg_code - 3311;
+	return;
+    }
+    if (epsg_code > 26900 && epsg_code <= 26923) {
+	datum = img_DATUM_NAD83;
+	utm_zone = epsg_code - 26900;
+	return;
+    }
+    if (epsg_code == 9712) {
+	datum = img_DATUM_NAD83;
+	utm_zone = 24;
+	return;
+    }
+
+    if (epsg_code >= 3313 + 59 && epsg_code <= 3313 + 60) {
+	datum = img_DATUM_NAD83;
+	utm_zone = epsg_code - 3313;
+	return;
+    }
+    if (epsg_code >= 20135 && epsg_code <= 20138) {
+	datum = img_DATUM_ADINDAN;
+	utm_zone = epsg_code - 20100;
+	return;
+    }
+    if (epsg_code >= 20934 && epsg_code <= 20936) {
+	datum = img_DATUM_ARC1950;
+	utm_zone = 20900 - epsg_code;
+	return;
+    }
+    if (epsg_code >= 21035 && epsg_code <= 21037) {
+	datum = img_DATUM_ARC1960;
+	utm_zone = 21000 - epsg_code;
+	return;
+    }
+    if (epsg_code >= 22234 && epsg_code <= 22236) {
+	datum = img_DATUM_CAPE;
+	utm_zone = 22200 - epsg_code;
+	return;
+    }
+    if (epsg_code >= 23028 && epsg_code <= 23038) {
+	datum = img_DATUM_EUROPEAN1950;
+	utm_zone = epsg_code - 23000;
+	return;
+    }
+    if (epsg_code >= 27258 && epsg_code <= 27260) {
+	datum = img_DATUM_NZGD49;
+	utm_zone = epsg_code - 27200;
+	return;
+    }
+    if (epsg_code == 3829) {
+	datum = img_DATUM_HUTZUSHAN1950;
+	utm_zone = 51;
+	return;
+    }
+    if (epsg_code >= 3148 && epsg_code <= 3149) {
+	datum = img_DATUM_INDIAN1960;
+	utm_zone = epsg_code - 3100;
+	return;
+    }
+    if (epsg_code >= 3041 + 51 && epsg_code <= 3041 + 55) {
+	datum = img_DATUM_TOKYO;
+	utm_zone = epsg_code - 3041;
+	return;
+    }
+    if (epsg_code > 32200 && epsg_code <= 32260) {
+	datum = img_DATUM_WGS72;
+	utm_zone = epsg_code - 32200;
+	return;
+    }
+    if (epsg_code > 32300 && epsg_code <= 32360) {
+	datum = img_DATUM_WGS72;
+	utm_zone = 32300 - epsg_code;
+	return;
+    }
+
+    // img_compass_utm_proj_str() also returns PROJ4 strings for NAD27 and
+    // NAD83 zones which don't have an EPSG code, so handle these too here:
+    //
+    // "+proj=utm +zone=%d +datum=NAD27 +units=m +no_defs +type=crs"
+    // "+proj=utm +zone=%d +datum=NAD83 +units=m +no_defs +type=crs"
+    // "+proj=utm +zone=%d +south +datum=NAD27 +units=m +no_defs +type=crs"
+    // "+proj=utm +zone=%d +south +datum=NAD83 +units=m +no_defs +type=crs"
+    if (strncmp(input_datum, "+proj=utm +zone=", 16) == 0) {
+	const char * p = input_datum + 16;
+	int zone = 0;
+	while (isdigit((unsigned char)*p)) {
+	    zone = zone * 10 + (*p - '0');
+	    ++p;
+	}
+	if (zone >= 1 && zone <= 60) {
+	    if (strncmp(p, " +south", 7) == 0) {
+		p += 7;
+		zone = -zone;
+	    }
+	    if (strncmp(p, " +datum=NAD", 11) == 0 &&
+		strcmp(p + 13, " +units=m +no_defs +type=crs") == 0) {
+		p += 11;
+		if (memcmp(p, "27", 2) == 0) {
+		    datum = img_DATUM_NAD27;
+		    utm_zone = zone;
+		    return;
+		}
+		if (memcmp(p, "83", 2) == 0) {
+		    datum = img_DATUM_NAD83;
+		    utm_zone = zone;
+		    return;
+		}
+	    }
+	}
+    }
+}
+
 const int *
 PLT::passes() const
 {
+    // We assume any leg end whose position doesn't match a label is an
+    // anonymous station, so we don't need ANON_STNS here.
     static const int plt_passes[] = { LABELS, LEGS|SURF, 0 };
     return plt_passes;
 }
@@ -775,6 +921,28 @@ PLT::header(const char *title, time_t,
    max_A = max_z / METRES_PER_FOOT;
    fprintf(fh, "Z %.3f %.3f %.3f %.3f %.3f %.3f\r\n",
 	   min_N, max_N, min_E, max_E, min_A, max_A);
+   if (utm_zone) {
+       // The file format doesn't seem to specify the ordering of `O` and `G`, but
+       // Compass always seems to write `G` before `O` so follow this lead to
+       // try to maximise compatibility with other programs parsing this format.
+       static const char * compass_datum_names[] = {
+	   "",
+	   "Adindan",
+	   "Arc 1950",
+	   "Arc 1960",
+	   "Cape",
+	   "European 1950",
+	   "Geodetic 1949",
+	   "Hu Tzu Shan",
+	   "Indian",
+	   "North American 1927",
+	   "North American 1983",
+	   "Tokyo",
+	   "WGS 1972",
+	   "WGS 1984",
+       };
+       fprintf(fh, "G%d\r\nO%s\r\n", utm_zone, compass_datum_names[datum]);
+   }
    fprintf(fh, "N%s D 1 1 1 C%s\r\n", survey ? survey : "X",
 	   (title && title[0]) ? title : "X");
 }
@@ -808,27 +976,41 @@ PLT::find_name_plt(const img_point *p)
 {
     const char * s = find_name(p);
     escaped.resize(0);
-    if (*s == '\0') {
+    if (!s) {
 	// Anonymous station - number sequentially using a counter.  We start
-	// the name with "%:" since we escape any % in a real station name
-	// below, but only insert % followed by two hex digits.
+	// the name with "^" which gives a unique name since we escape any ^ in
+	// a real station name below, but only insert ^ followed by one of
+	// @, A-Z, a-e, ^, _.
 	char buf[32];
-	snprintf(buf, sizeof(buf), "%%:%u", ++anon_counter);
+	snprintf(buf, sizeof(buf), "^%u", ++anon_counter);
 	escaped = buf;
 	return escaped.c_str();
     }
 
     // PLT format can't handle spaces or control characters, so escape them
-    // like in URLs (an arbitrary choice of escaping, but at least a familiar
-    // one and % isn't likely to occur in station names).
+    // as `^` followed by another character (which is a bit arbitrary, but `^`
+    // is not likely to occur in station names, the encoding is compact, and
+    // it is somewhat mnemonic since e.g byte 8 (Ctrl-H) -> `^H`, space ->
+    // `^_`, `^` -> `^^`
     const char * q;
     for (q = s; *q; ++q) {
 	unsigned char ch = *q;
-	if (ch <= ' ' || ch == '%') {
+	if (ch <= 32) {
 	    escaped.append(s, q - s);
-	    escaped += '%';
-	    escaped += "0123456789abcdef"[ch >> 4];
-	    escaped += "0123456789abcdef"[ch & 0x0f];
+	    if (ch == 32) {
+		escaped.append("^_");
+	    } else {
+		escaped += '^';
+		if (ch <= 26) {
+		    escaped += (ch + 0x40);
+		} else {
+		    escaped += (ch + 0x60 - 26);
+		}
+	    }
+	    s = q + 1;
+	} else if (ch == '^') {
+	    escaped.append(s, q - s);
+	    escaped.append("^^");
 	    s = q + 1;
 	}
     }
@@ -842,6 +1024,7 @@ PLT::find_name_plt(const img_point *p)
 void
 PLT::label(const img_point *p, const wxString& str, int sflags, int)
 {
+   // Named station.
    const char* s = str.utf8_str();
    (void)sflags; /* unused */
    set_name(p, s);
@@ -883,7 +1066,7 @@ const int *
 EPS::passes() const
 {
     static const int eps_passes[] = {
-	PASG, XSECT, WALL1, WALL2, LEGS|SURF|STNS|LABELS, 0
+	PASG, XSECT, WALL1, WALL2, LEGS|SURF|STNS|ANON_STNS|LABELS, 0
     };
     return eps_passes;
 }
@@ -1320,7 +1503,7 @@ Export(const wxString &fnm_out, const wxString &title,
 	   break;
        }
        case FMT_PLT:
-	   filt = new PLT;
+	   filt = new PLT(model.GetCSProj().c_str());
 	   show_mask |= FULL_COORDS;
 	   break;
        case FMT_POS:
@@ -1451,6 +1634,13 @@ Export(const wxString &fnm_out, const wxString &title,
 
    for (pass = filt->passes(); *pass; ++pass) {
       int pass_mask = show_mask & *pass;
+      if (pass_mask & (ANON_STNS)) {
+	  if (filter && !filter->CheckVisible(wxString())) {
+	      // Turn off ANON_STNS up front if there's a filter which doesn't
+	      // allow it.
+	      pass_mask &= ~ANON_STNS;
+	  }
+      }
       if (!pass_mask)
 	  continue;
       filt->start_pass(*pass);
@@ -1495,6 +1685,12 @@ Export(const wxString &fnm_out, const wxString &title,
 	  list<LabelInfo*>::const_iterator pos = model.GetLabels();
 	  list<LabelInfo*>::const_iterator end = model.GetLabelsEnd();
 	  for ( ; pos != end; ++pos) {
+	      int sflags = (*pos)->get_flags();
+	      if ((sflags & img_SFLAG_ANON)) {
+		  // Anonymous station.
+		  continue;
+	      }
+
 	      if (filter && !filter->CheckVisible((*pos)->GetText()))
 		  continue;
 
@@ -1513,13 +1709,30 @@ Export(const wxString &fnm_out, const wxString &title,
 	      } else if (pass_mask & LABELS) {
 		  type = LABELS;
 	      }
-	      int sflags = (*pos)->get_flags();
 	      if (type) {
 		  filt->label(&p, (*pos)->GetText(), sflags, type);
 	      }
 	      if (pass_mask & STNS) {
 		  filt->cross(&p, (*pos)->GetText(), sflags);
 	      }
+	  }
+      }
+      if (pass_mask & (ANON_STNS)) {
+	  list<LabelInfo*>::const_iterator pos = model.GetLabels();
+	  list<LabelInfo*>::const_iterator end = model.GetLabelsEnd();
+	  for ( ; pos != end; ++pos) {
+	      int sflags = (*pos)->get_flags();
+	      if (!(sflags & img_SFLAG_ANON)) {
+		  // Not an anonymous station.
+		  continue;
+	      }
+
+	      transform_point(**pos, pre_offset, COS, SIN, COST, SINT, &p);
+	      p.x += x_offset;
+	      p.y += y_offset;
+	      p.z += z_offset;
+
+	      filt->cross(&p, wxEmptyString, sflags);
 	  }
       }
       if (pass_mask & (XSECT|WALLS|PASG)) {
@@ -1583,7 +1796,20 @@ Export(const wxString &fnm_out, const wxString &title,
    }
    filt->footer();
    delete filt;
-   free(htab);
-   htab = NULL;
+
+   if (htab) {
+       // Free hash table entries.
+       for (size_t i = 0; i < HTAB_SIZE; ++i) {
+	   point* h = htab[i];
+	   while (h) {
+	       point* old_h = h;
+	       h = h->next;
+	       free(old_h->label);
+	       free(old_h);
+	   }
+       }
+       free(htab);
+       htab = NULL;
+   }
    return true;
 }

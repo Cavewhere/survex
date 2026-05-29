@@ -1,0 +1,4 @@
+; pos=fail warn=0 dummycrprotection=
+A B -- 4 5
+A C - 4 5
+A D bad 4 5

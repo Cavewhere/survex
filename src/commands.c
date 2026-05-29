@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
@@ -59,11 +59,10 @@ move_to_fixedlist(node *stn, int ignore_dirn)
     }
 }
 
-int fix_station(prefix *fix_name, const double* coords) {
+int fix_station(prefix *fix_name, const double* coords, long offset) {
     bool new_stn = (fix_name->stn == NULL &&
 		    !TSTBIT(fix_name->sflags, SFLAGS_SOLVED));
     fix_name->sflags |= BIT(SFLAGS_FIXED);
-    if (new_stn) fix_name->sflags |= BIT(SFLAGS_UNUSED_FIXED_POINT);
     node *stn = StnFromPfx(fix_name);
     if (fixed(stn)) {
 	if (coords[0] != POS(stn, 0) ||
@@ -88,6 +87,7 @@ int fix_station(prefix *fix_name, const double* coords) {
     // Make the station's file:line location reflect where it was fixed.
     fix_name->filename = file.filename;
     fix_name->line = file.line;
+    fix_name->column = offset >= 0 ? offset - file.lpos : 0;
     return 0;
 }
 
@@ -98,10 +98,7 @@ void fix_station_with_variance(prefix *fix_name, const double* coords,
 #endif
 			      )
 {
-    bool new_stn = (fix_name->stn == NULL &&
-		    !TSTBIT(fix_name->sflags, SFLAGS_SOLVED));
-    if (new_stn) fix_name->sflags |= BIT(SFLAGS_UNUSED_FIXED_POINT);
-
+    fix_name->sflags |= BIT(SFLAGS_FIXED);
     node *stn = StnFromPfx(fix_name);
     if (!fixed(stn)) {
 	node *fixpt = osnew(node);
@@ -232,15 +229,43 @@ default_translate(settings *s)
 static short separator_map[256];
 
 void
-scan_compass_station_name(prefix *stn)
+update_separator_map_for_foreign_name(const char* p)
 {
-    /* We only need to scan the leaf station name - any survey hierarchy above
+    /* Used for Compass, where we scan every station name used to see what
+     * characters are actually used (since Compass allows pretty much every
+     * character except space.
+     *
+     * We only need to scan the leaf station name - any survey hierarchy above
      * that must have been set up in .svx files for which we update
      * separator_map via cmd_set() plus adding the defaults in
      * find_output_separator().
+     *
+     * Also used for Walls SRV to mark space as used if we use the special
+     * name "empty name".
      */
-    for (const char *p = prefix_ident(stn); *p; ++p) {
+    while (*p) {
 	separator_map[(unsigned char)*p] |= SPECIAL_NAMES;
+	++p;
+    }
+}
+
+// Update the separator_map to reflect what can be SPECIAL_NAMES in the passed
+// translation table.
+//
+// Used for Walls currently.  Compass DAT allows everything >= ASCII 33 except
+// 127 in station names so there we scan each station name to see what's actually
+// used (see update_separator_map_for_foreign_name()).
+//
+// In a pure Walls dataset this will lead to `:` being picked as the separator
+// for the .3d file, which makes sense as it matches Walls native separator.
+// (If you process Walls data with Survex and/or Compass data, potentially `:`
+// could be in SPECIAL_NAMES for Survex or used in a Compass station name in
+// which case another separator character may be chosen).
+void
+update_separator_map_for_foreign_format(const short *t)
+{
+    for (int i = 0; i <= 0xff; i++) {
+	separator_map[i] |= t[i];
     }
 }
 
@@ -366,6 +391,15 @@ do_legacy_token_warning(void)
 {
     if (!s_empty(&token)) {
 	if (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
+	    // TRANSLATORS: Warning if there's no "blank" character (space, tab
+	    // and comma by default) after a token, e.g. it would be issued
+	    // after the token "fix" here:
+	    //
+	    // *fix1 0 0 0
+	    //
+	    // This is a warning rather than an error because it was quietly
+	    // accepted for a long time.  That wasn't intentional, but we don't
+	    // want to suddenly break processing existing datasets.
 	    compile_diagnostic(DIAG_WARN|DIAG_COL, /*No blank after token*/74);
 	}
     }
@@ -542,13 +576,15 @@ get_units(unsigned long qmask, bool percent_ok)
 			 s_str(&token));
       return UNITS_NULL;
    }
-   /* Survex has long misdefined "mils" as an alias for "grads", of which
-    * there are 400 in a circle.  There are several definitions of "mils"
-    * with a circle containing 2000π SI milliradians, 6400 NATO mils, 6000
-    * Warsaw Pact mils, and 6300 Swedish streck, and they aren't in common
-    * use by cave surveyors, so we now just warn if mils are used.
-    */
    if (units == UNITS_DEPRECATED_ALIAS_FOR_GRADS) {
+       /* TRANSLATORS: Survex has long misdefined "mils" as an alias for
+	* "grads", of which there are 400 in a circle.  There are several
+	* definitions of "mils" with a circle containing 2000π SI milliradians,
+	* 6400 NATO mils, 6000 Warsaw Pact mils, and 6300 Swedish streck, and
+	* they aren't in common use by cave surveyors, so we now just warn if
+	* mils are used.  Here “grads” should not be translated as it shows
+	* what cavern is assuming should be written in the .svx file instead.
+	*/
       compile_diagnostic(DIAG_WARN|DIAG_TOKEN|DIAG_SKIP,
 			 /*Units “%s” are deprecated, assuming “grads” - see manual for details*/479,
 			 s_str(&token));
@@ -656,7 +692,7 @@ cmd_set(void)
 /*FIXME	{"CLOSE",     SPECIAL_CLOSE }, */
 	{"COMMENT",   SPECIAL_COMMENT },
 	{"DECIMAL",   SPECIAL_DECIMAL },
-	{"EOL",       SPECIAL_EOL }, /* EOL won't work well */
+	{"EOL",       SPECIAL_EOL },
 	{"KEYWORD",   SPECIAL_KEYWORD },
 	{"MINUS",     SPECIAL_MINUS },
 	{"NAMES",     SPECIAL_NAMES },
@@ -684,7 +720,7 @@ cmd_set(void)
    if (mask == SPECIAL_ROOT) {
       if (root_depr_count < 5) {
 	 /* TRANSLATORS: Use of the ROOT character (which is "\" by default) is
-	  * deprecated, so this error would be generated by:
+	  * deprecated, so this warning would be generated by:
 	  *
 	  * *equate \foo.7 1
 	  *
@@ -728,13 +764,13 @@ cmd_set(void)
 	    set_pos(&fp);
 	    break;
 	 }
-	 hex = isdigit(ch) ? ch - '0' : tolower(ch) - 'a';
+	 hex = isdigit(ch) ? ch - '0' : tolower(ch) - 'a' + 10;
 	 nextch();
 	 if (!isxdigit(ch)) {
 	    set_pos(&fp);
 	    break;
 	 }
-	 hex = hex << 4 | (isdigit(ch) ? ch - '0' : tolower(ch) - 'a');
+	 hex = hex << 4 | (isdigit(ch) ? ch - '0' : tolower(ch) - 'a' + 10);
 	 char_to_set = hex;
       } else {
 	 break;
@@ -816,6 +852,7 @@ check_reentry(prefix *survey, const filepos* fpos_ptr)
       survey->sflags |= BIT(SFLAGS_PREFIX_ENTERED);
       survey->filename = file.filename;
       survey->line = file.line;
+      survey->column = fpos_ptr->offset - file.lpos;
    }
 }
 
@@ -823,21 +860,9 @@ check_reentry(prefix *survey, const filepos* fpos_ptr)
 static void
 cmd_prefix(void)
 {
-   static int prefix_depr_count = 0;
-   prefix *survey;
    filepos fp;
-   /* Issue warning first, so "*prefix \" warns first that *prefix is
-    * deprecated and then that ROOT is...
-    */
-   if (prefix_depr_count < 5) {
-      /* TRANSLATORS: If you're unsure what "deprecated" means, see:
-       * https://en.wikipedia.org/wiki/Deprecation */
-      compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /**prefix is deprecated - use *begin and *end instead*/109);
-      if (++prefix_depr_count == 5)
-	 compile_diagnostic(DIAG_INFO, /*Further uses of this deprecated feature will not be reported*/95);
-   }
    get_pos(&fp);
-   survey = read_prefix(PFX_SURVEY|PFX_ALLOW_ROOT);
+   prefix *survey = read_prefix(PFX_SURVEY|PFX_ALLOW_ROOT);
    pcs->Prefix = survey;
    check_reentry(survey, &fp);
 }
@@ -879,7 +904,6 @@ cmd_begin(void)
    pcsNew->next = pcs;
    pcs = pcsNew;
 
-   skipblanks();
    pcs->begin_survey = NULL;
    pcs->begin_col = 0;
    if (!isEol(ch) && !isComm(ch)) {
@@ -946,64 +970,6 @@ report_declination(settings *p)
 	p->min_declination = HUGE_VAL;
 	p->max_declination = -HUGE_VAL;
     }
-}
-
-void
-set_declination_location(real x, real y, real z, const char *proj_str)
-{
-    /* Convert to WGS84 lat long. */
-    PJ *transform = proj_create_crs_to_crs(PJ_DEFAULT_CTX,
-					   proj_str,
-					   WGS84_DATUM_STRING,
-					   NULL);
-    if (transform) {
-	/* Normalise the output order so x is longitude and y latitude - by
-	 * default new PROJ has them switched for EPSG:4326 which just seems
-	 * confusing.
-	 */
-	PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX,
-						       transform);
-	proj_destroy(transform);
-	transform = pj_norm;
-    }
-
-    if (proj_angular_input(transform, PJ_FWD)) {
-	/* Input coordinate system expects radians. */
-	x = rad(x);
-	y = rad(y);
-    }
-
-    PJ_COORD coord = {{x, y, z, HUGE_VAL}};
-    coord = proj_trans(transform, PJ_FWD, coord);
-    x = coord.xyzt.x;
-    y = coord.xyzt.y;
-    z = coord.xyzt.z;
-
-    if (x == HUGE_VAL || y == HUGE_VAL || z == HUGE_VAL) {
-       compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
-			  proj_context_errno_string(PJ_DEFAULT_CTX,
-						    proj_errno(transform)));
-       /* Set dummy values which are finite. */
-       x = y = z = 0;
-    }
-    proj_destroy(transform);
-
-    report_declination(pcs);
-
-    double lon = rad(x);
-    double lat = rad(y);
-    pcs->z[Q_DECLINATION] = HUGE_REAL;
-    pcs->dec_lat = lat;
-    pcs->dec_lon = lon;
-    pcs->dec_alt = z;
-    pcs->dec_filename = file.filename;
-    pcs->dec_line = file.line;
-    pcs->dec_context = grab_line();
-    /* Invalidate cached declination. */
-    pcs->declination = HUGE_REAL;
-    /* Invalidate cached grid convergence values. */
-    pcs->convergence = HUGE_REAL;
-    pcs->input_convergence = HUGE_REAL;
 }
 
 void
@@ -1078,7 +1044,6 @@ cmd_end(void)
 
    /* note need to read using root *before* BEGIN */
    prefix *survey = NULL;
-   skipblanks();
    if (!isEol(ch) && !isComm(ch)) {
       get_pos(&fp);
       survey = read_prefix(PFX_SURVEY|PFX_ALLOW_ROOT);
@@ -1120,6 +1085,18 @@ cmd_end(void)
 	  fseek(file.fh, begin_lpos + begin_col - 1, SEEK_SET);
 	  nextch();
       }
+     /* TRANSLATORS: Used when a BEGIN command has a survey name, but the
+      * END command omits it, e.g.:
+      *
+      * *begin entrance
+      * 1 2 10.00 178 -01
+      * *end
+      *
+      * gives:
+      *
+      * eg.svx:3: warning: Survey name omitted from END
+      * eg.svx:1: info: Corresponding BEGIN was here
+      */
       compile_diagnostic(DIAG_INFO|word_flag, /*Corresponding %s was here*/22, "BEGIN");
       file = file_save;
       set_pos(&fp_save);
@@ -1130,8 +1107,7 @@ static void
 cmd_entrance(void)
 {
    prefix *pfx = read_prefix(PFX_STATION);
-   pfx->sflags |= BIT(SFLAGS_ENTRANCE);
-   pfx->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+   pfx->sflags |= BIT(SFLAGS_ENTRANCE)|BIT(SFLAGS_USED);
 }
 
 static const prefix * first_fix_name = NULL;
@@ -1172,6 +1148,9 @@ cmd_fix(void)
    } else {
       if (!s_empty(&uctoken)) set_pos(&fp);
    }
+
+   skipblanks();
+   get_pos(&fp);
 
    // If `REFERENCE` is specified the coordinates can't be omitted.
    coord.v[0] = read_numeric(!reference);
@@ -1247,7 +1226,8 @@ cmd_fix(void)
 	 if (coord.v[0] == HUGE_VAL ||
 	     coord.v[1] == HUGE_VAL ||
 	     coord.v[2] == HUGE_VAL) {
-	    compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
+	    compile_diagnostic(DIAG_ERR|DIAG_FROM(fp),
+			       /*Failed to convert coordinates: %s*/436,
 			       proj_context_errno_string(PJ_DEFAULT_CTX,
 							 proj_errno(transform)));
 	    /* Set dummy values which are finite. */
@@ -1311,7 +1291,7 @@ cmd_fix(void)
 
 	 if (reference) {
 	     // `*fix reference` so suppress "unused fixed point" warning.
-	     fix_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+	     fix_name->sflags |= BIT(SFLAGS_USED);
 	 }
 	 if (!first_fix_name) {
 	    /* We track if we've fixed a station yet, and if so what the name
@@ -1335,10 +1315,10 @@ cmd_fix(void)
       first_fix_line = file.line;
    }
 
-   int fix_result = fix_station(fix_name, coord.v);
+   int fix_result = fix_station(fix_name, coord.v, fp_stn.offset);
    if (reference) {
        // `*fix reference` so suppress "unused fixed point" warning.
-       fix_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+       fix_name->sflags |= BIT(SFLAGS_USED);
    }
    if (fix_result == 0) {
       return;
@@ -1417,6 +1397,7 @@ cmd_equate(void)
 	  // reflect this *equate.
 	  name->filename = file.filename;
 	  name->line = file.line;
+	  name->column = fp.offset - file.lpos;
       }
       skipblanks();
       if (isEol(ch) || isComm(ch)) {
@@ -2074,6 +2055,8 @@ cmd_cartesian(void)
     pcs->cartesian_north = north;
     pcs->cartesian_rotation = 0.0;
 
+    do_legacy_token_warning();
+
     skipblanks();
     if (!isEol(ch) && !isComm(ch)) {
 	real rotation = read_numeric(false);
@@ -2107,10 +2090,12 @@ cmd_declination(void)
 	}
 
 	/* *declination auto X Y Z */
+	filepos fp;
+	get_pos(&fp);
 	real x = read_numeric(false);
 	real y = read_numeric(false);
 	real z = read_numeric(false);
-	set_declination_location(x, y, z, pcs->proj_str);
+	set_declination_location(x, y, z, pcs->proj_str, &fp);
     } else {
 	/* *declination D UNITS */
 	int units = get_units(BIT(Q_DECLINATION), false);
@@ -2132,15 +2117,6 @@ cmd_default(void)
       { "UNITS",     CMD_UNITS },
       { NULL,	     CMD_NULL }
    };
-   static int default_depr_count = 0;
-
-   if (default_depr_count < 5) {
-      /* TRANSLATORS: If you're unsure what "deprecated" means, see:
-       * https://en.wikipedia.org/wiki/Deprecation */
-      compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /**DEFAULT is deprecated - use *CALIBRATE/DATA/SD/UNITS with argument DEFAULT instead*/20);
-      if (++default_depr_count == 5)
-	 compile_diagnostic(DIAG_INFO, /*Further uses of this deprecated feature will not be reported*/95);
-   }
 
    get_token();
    switch (match_tok(defaulttab, TABSIZE(defaulttab))) {
@@ -2197,35 +2173,6 @@ cmd_include(void)
    free(pth);
 }
 
-static void
-cmd_sd(void)
-{
-   real sd, variance;
-   int units;
-   unsigned long qmask, m;
-   int quantity;
-   qmask = get_qlist(BIT(Q_DECLINATION));
-   if (!qmask) return; /* no quantities found - error already reported */
-
-   if (qmask == BIT(Q_DEFAULT)) {
-      default_grade(pcs);
-      return;
-   }
-   sd = read_numeric(false);
-   if (sd <= (real)0.0) {
-      compile_diagnostic(DIAG_ERR|DIAG_SKIP|DIAG_COL, /*Standard deviation must be positive*/48);
-      return;
-   }
-   units = get_units(qmask, false);
-   if (units == UNITS_NULL) return;
-
-   sd *= factor_tab[units];
-   variance = sqrd(sd);
-
-   for (quantity = 0, m = BIT(quantity); m <= qmask; quantity++, m <<= 1)
-      if (qmask & m) pcs->Var[quantity] = variance;
-}
-
 enum {
     ROLE_BACKTAPE,
     ROLE_BACKCOMPASS,
@@ -2272,6 +2219,7 @@ static const sztok role_tab[] = {
     {"DZ",		ROLE_ALTITUDE},
     {"EXPLORER",	ROLE_EXPLORER},
     {"FLOOR",		ROLE_DOWN},
+    {"GPS",		ROLE_POSITION},
     {"GRADIENT",	ROLE_CLINO},
     {"INSTRUMENTS",	ROLE_INSTRUMENTS},
     {"INSTS",		ROLE_INSTRUMENTS},
@@ -2288,6 +2236,72 @@ static const sztok role_tab[] = {
     {"UP",		ROLE_UP},
     {NULL,		-1}
 };
+
+static void
+cmd_instrument(void)
+{
+    int n_roles = 0;
+    while (true) {
+	filepos fp;
+	get_pos(&fp);
+	get_token();
+	int role = match_tok(role_tab, TABSIZE(role_tab));
+	if (role < 0) {
+	    if (n_roles > 0) {
+		set_pos(&fp);
+		break;
+	    }
+	    // Skip after warning to avoid triggering multiple warnings for one
+	    // *instrument command in existing data from before this check was
+	    // implemented.
+	    compile_diagnostic(DIAG_WARN|DIAG_TOKEN|DIAG_SKIP, /*Unknown instrument type “%s”*/536,
+			       s_str(&token));
+	    return;
+	}
+	++n_roles;
+    }
+
+    skipblanks();
+    string name = S_INIT;
+    if (!read_string_warning(&name)) {
+	skipline();
+	return;
+    }
+    s_free(&name);
+
+    skipblanks();
+    if (!isComm(ch) && !isEol(ch))
+	compile_diagnostic(DIAG_WARN|DIAG_TAIL, /*End of line not blank*/15);
+}
+
+static void
+cmd_sd(void)
+{
+   real sd, variance;
+   int units;
+   unsigned long qmask, m;
+   int quantity;
+   qmask = get_qlist(BIT(Q_DECLINATION));
+   if (!qmask) return; /* no quantities found - error already reported */
+
+   if (qmask == BIT(Q_DEFAULT)) {
+      default_grade(pcs);
+      return;
+   }
+   sd = read_numeric(false);
+   if (sd <= (real)0.0) {
+      compile_diagnostic(DIAG_ERR|DIAG_SKIP|DIAG_COL, /*Standard deviation must be positive*/48);
+      return;
+   }
+   units = get_units(qmask, false);
+   if (units == UNITS_NULL) return;
+
+   sd *= factor_tab[units];
+   variance = sqrd(sd);
+
+   for (quantity = 0, m = BIT(quantity); m <= qmask; quantity++, m <<= 1)
+      if (qmask & m) pcs->Var[quantity] = variance;
+}
 
 static void
 cmd_team(void)
@@ -2354,7 +2368,6 @@ cmd_case(void)
 static void
 cmd_copyright(void)
 {
-    skipblanks();
     filepos fp;
     get_pos(&fp);
     unsigned y1 = read_uint_raw(DIAG_WARN|DIAG_UINT, /*Invalid year*/534, NULL);
@@ -2811,7 +2824,6 @@ cmd_require(void)
     // Add extra 0 so `*require 1.4.10.1` fails with cavern version 1.4.10.
     const unsigned version[] = {COMMAVERSION, 0};
 
-    skipblanks();
     filepos fp;
     get_pos(&fp);
 
@@ -3135,7 +3147,7 @@ static const cmd_fn cmd_funcs[] = {
    cmd_flags,
    cmd_include,
    cmd_infer,
-   skipline, /*cmd_instrument,*/
+   cmd_instrument,
 #ifndef NO_DEPRECATED
    cmd_prefix,
 #endif
@@ -3187,7 +3199,6 @@ handle_command(void)
     case CMD_DATA:
     case CMD_DATE:
     case CMD_DECLINATION:
-    case CMD_DEFAULT:
     case CMD_FLAGS:
     case CMD_INFER:
     case CMD_INSTRUMENT:
@@ -3199,13 +3210,41 @@ handle_command(void)
     case CMD_TITLE:
     case CMD_TRUNCATE:
     case CMD_UNITS:
-      /* These can occur between *begin and *export */
+      /* These can all occur between *begin and *export */
       break;
+    case CMD_DEFAULT: {
+      // Issue warning here before we skipblanks().
+      static int default_depr_count = 0;
+      if (default_depr_count < 5) {
+	  /* TRANSLATORS: If you're unsure what "deprecated" means, see:
+	   * https://en.wikipedia.org/wiki/Deprecation */
+	  compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /**DEFAULT is deprecated - use *CALIBRATE/DATA/SD/UNITS with argument DEFAULT instead*/20);
+	  if (++default_depr_count == 5)
+	      compile_diagnostic(DIAG_INFO, /*Further uses of this deprecated feature will not be reported*/95);
+      }
+      /* Can occur between *begin and *export */
+      break;
+    }
+    case CMD_PREFIX: {
+      // Issue warning here before we skipblanks().
+      static int prefix_depr_count = 0;
+      if (prefix_depr_count < 5) {
+	  /* TRANSLATORS: If you're unsure what "deprecated" means, see:
+	   * https://en.wikipedia.org/wiki/Deprecation */
+	  compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /**prefix is deprecated - use *begin and *end instead*/109);
+	  if (++prefix_depr_count == 5)
+	      compile_diagnostic(DIAG_INFO, /*Further uses of this deprecated feature will not be reported*/95);
+      }
+      f_export_ok = false;
+      break;
+    }
     default:
       /* NB: additional handling for "*begin <survey>" in cmd_begin */
       f_export_ok = false;
       break;
    }
+
+   skipblanks();
 
    cmd_funcs[cmdtok]();
 }

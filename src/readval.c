@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
@@ -47,6 +47,7 @@ new_anon_station(void)
     name->down = NULL;
     name->filename = file.filename;
     name->line = file.line;
+    name->column = 0;
     name->min_export = name->max_export = 0;
     name->sflags = BIT(SFLAGS_ANON);
     /* Keep linked list of anon stations for node stats. */
@@ -227,6 +228,7 @@ anon_wall_station:
 	 ptr->up = back_ptr;
 	 ptr->filename = file.filename;
 	 ptr->line = file.line;
+	 ptr->column = here.offset - file.lpos;
 	 ptr->min_export = ptr->max_export = 0;
 	 if (fSuspectTypo && !fImplicitPrefix)
 	    ptr->sflags |= BIT(SFLAGS_SUSPECTTYPO);
@@ -269,6 +271,7 @@ anon_wall_station:
 	    newptr->up = back_ptr;
 	    newptr->filename = file.filename;
 	    newptr->line = file.line;
+	    newptr->column = here.offset - file.lpos;
 	    newptr->min_export = newptr->max_export = 0;
 	    if (fSuspectTypo && !fImplicitPrefix)
 	       newptr->sflags |= BIT(SFLAGS_SUSPECTTYPO);
@@ -466,6 +469,12 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 	    // Use a name with a space in so it can't collide with a real
 	    // Walls station name.
 	    s_append(&component, "empty name");
+	    static bool marked_space_as_used = false;
+	    if (!marked_space_as_used) {
+		marked_space_as_used = true;
+		update_separator_map_for_foreign_name(" ");
+		update_output_separator();
+	    }
 	}
 	int len = s_len(&component);
 	char *p = s_steal(&component);
@@ -535,8 +544,11 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		ptr->pos = NULL;
 		ptr->stn = NULL;
 		ptr->up = back_ptr;
-		ptr->filename = file.filename; // FIXME: Or location of #Prefix, etc for it?
-		ptr->line = file.line; // FIXME: Or location of #Prefix, etc for it?
+		// FIXME: Or location of #Prefix, etc for it?
+		ptr->filename = file.filename;
+		ptr->line = file.line;
+		ptr->column = fp.offset - file.lpos;
+
 		ptr->min_export = ptr->max_export = 0;
 		back_ptr->down = ptr;
 	    } else {
@@ -575,8 +587,11 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		    newptr->pos = NULL;
 		    newptr->stn = NULL;
 		    newptr->up = back_ptr;
-		    newptr->filename = file.filename; // FIXME
+		    // FIXME: Or location of #Prefix, etc for it?
+		    newptr->filename = file.filename;
 		    newptr->line = file.line;
+		    newptr->column = fp.offset - file.lpos;
+
 		    newptr->min_export = newptr->max_export = 0;
 		    ptr = newptr;
 		} else {
@@ -606,8 +621,9 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 
 /* if numeric expr is omitted: if f_optional return HUGE_REAL, else longjmp */
 real
-read_number(bool f_optional, bool f_unsigned)
+read_number_or_int(bool f_optional, bool f_unsigned, bool* pf_decimal_point)
 {
+   if (pf_decimal_point) *pf_decimal_point = false;
    bool fPositive = true, fDigits = false;
    real n = (real)0.0;
    filepos fp;
@@ -627,6 +643,7 @@ read_number(bool f_optional, bool f_unsigned)
    }
 
    if (isDecimal(ch)) {
+      if (pf_decimal_point) *pf_decimal_point = true;
       real mult = (real)1.0;
       nextch();
       while (isdigit(ch)) {
@@ -689,6 +706,9 @@ read_quadrant(bool f_optional)
       if (isOmit(ch)) {
 	 compile_diagnostic(DIAG_ERR|DIAG_COL, /*Field may not be omitted*/114);
       }
+      // TRANSLATORS: Quadrant bearings have the format e.g. S34E or N65.5W.
+      // They're enabled by `*units bearing quadrants` and supported in
+      // Walls format data.
       compile_diagnostic_token_show(DIAG_ERR, /*Expecting quadrant bearing, found “%s”*/483);
       longjmp(jbSkipLine, 1);
    }

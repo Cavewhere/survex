@@ -4,7 +4,7 @@
 //  Core drawing code for Aven.
 //
 //  Copyright (C) 2000-2001,2002,2005 Mark R. Shinwell.
-//  Copyright (C) 2001-2025 Olly Betts
+//  Copyright (C) 2001-2026 Olly Betts
 //  Copyright (C) 2005 Martin Green
 //
 //  This program is free software; you can redistribute it and/or modify
@@ -18,8 +18,8 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 //
 
 #ifndef gfxcore_h
@@ -36,7 +36,7 @@
 #include "guicontrol.h"
 #include "labelinfo.h"
 #include "vector3.h"
-#include "wx.h"
+#include <wx/wx.h>
 #include "gla.h"
 
 #include <list>
@@ -276,6 +276,7 @@ private:
     bool bigendian;
     long last_time = 0;
     size_t n_tris = 0;
+    double terrain_diameter = 0.0;
 
     void PlaceVertexWithColour(const Vector3 &v, double factor = 1.0);
     void PlaceVertexWithColour(const Vector3 & v,
@@ -313,6 +314,7 @@ private:
     void DrawIndicators();
 
     void TryToFreeArrays();
+    double UpdateVolumeDiameter();
     void FirstShow();
 
     void DrawScaleBar();

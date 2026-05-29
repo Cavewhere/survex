@@ -14,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #ifndef DATAIN_H
@@ -31,6 +31,7 @@
 typedef struct parse {
    FILE *fh;
    const char *filename;
+   // ftell() at start of the current line.
    long lpos;
    unsigned int line;
    bool reported_where : 1;
@@ -52,6 +53,9 @@ typedef struct {
 
 void get_pos(filepos *fp);
 void set_pos(const filepos *fp);
+
+void set_declination_location(real x, real y, real z, const char *proj_str,
+			      filepos *fp);
 
 void skipblanks(void);
 
@@ -79,7 +83,7 @@ char* grab_line(void);
 // Context type values:
 
 #define DIAG_CONTEXT_MASK	0x78
-// Report column number based of the current file position.
+// Report column number based on the current file position.
 #define DIAG_COL		0x08
 // Set caret_width to s_len(&token):
 #define DIAG_TOKEN		0x10

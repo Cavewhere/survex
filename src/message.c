@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 /*#define DEBUG 1*/
@@ -989,6 +989,9 @@ macos_got_msg:
 	       break;
 	     case LANG_CHINESE:
 	       msg_lang = "zh_CN";
+	       break;
+	     case LANG_CZECH:
+	       msg_lang = "cs";
 	       break;
 	     case LANG_ENGLISH:
 	       if (SUBLANGID(langid) == SUBLANG_ENGLISH_US)

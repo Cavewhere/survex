@@ -18,8 +18,8 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 //
 
 #include <config.h>
@@ -386,6 +386,10 @@ void AvenTreeCtrl::OnMenu(wxTreeEvent& e)
 	menu.AppendSeparator();
 	//menu.Append(menu_SURVEY_HIDE, wmsg(/*&Hide*/407));
 	menu.Append(menu_SURVEY_SHOW, wmsg(/*&Show*/409));
+        // TRANSLATORS: Menu item for Aven's survey tree.  Bring up the menu
+        // on a survey in the tree and select this and all the other surveys
+        // at the same level will be hidden, leaving only the chosen survey
+        // showing.
 	//menu.Append(menu_SURVEY_HIDE_SIBLINGS, wmsg(/*Hide si&blings*/388));
 	switch (GetItemState(menu_item)) {
 	    case STATE_ON: // Currently shown.

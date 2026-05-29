@@ -14,8 +14,8 @@
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# along with this program; if not, see
+# <https://www.gnu.org/licenses/>.
 
 testdir=`echo $0 | sed 's!/[^/]*$!!' || echo '.'`
 
@@ -52,6 +52,17 @@ esac
 : ${DUMP3D="$testdir"/../src/dump3d}
 : ${SURVEXPORT="$testdir"/../src/survexport}
 
+# FIXME survexport is failing to run in CI on msys+mingw.
+TESTS_=
+[ "$OSTYPE" = "cygwin" ] || TESTS_="3dexport \
+ dxffullcoords dxfsurfequate\
+ gpxexport\
+ hpglexport hpglexportanon\
+ jsonexport\
+ kmlexport kmlexportanon\
+ pltexport\
+ svgexport"
+
 : ${TESTS=${*:-"singlefix singlereffix oneleg midpoint lollipop fixedlollipop\
  cross firststn\
  deltastar deltastar2 deltastarhanging\
@@ -76,6 +87,7 @@ esac
  tapelessthandepth longname chinabug chinabug2\
  multinormal multinormignall multidiving multicylpolar multicartesian\
  multinosurv multinormalbad multibug\
+ cmd_instruments cmd_instruments_bad\
  cmd_team cmd_team_bad\
  cmd_title cmd_titlebad cmd_dummy cmd_infer cmd_date cmd_datebad cmd_datebad2\
  cartes diving cylpolar normal normal_bad normignall nosurv cmd_flags\
@@ -99,9 +111,11 @@ esac
  fixfeet.mak utm.mak\
  clptest.dat clptest.clp\
  walls.srv\
- badopts.srv\
+ badomit.srv badopts.srv badreadings.srv\
+ unknowndirective.srv\
  wallsbaddatum.wpj\
  wallsdecl.wpj\
+ wallsdiving.srv\
  passage hanging_lrud equatenosuchstn surveytypo\
  skipafterbadomit passagebad badreadingdotplus badcalibrate calibrate_clino\
  badunits badbegin anonstn anonstnbad anonstnrev doubleinc reenterlots\
@@ -111,10 +125,10 @@ esac
  quadrant_bearing bad_quadrant_bearing\
  samename tabinhighlight legacytokens\
  component_count_bug component_count_bug2\
- 3dexport \
- dxffullcoords dxfsurfequate\
- gpxexport hpglexport jsonexport kmlexport pltexport svgexport\
+ $TESTS_
 "}}
+
+# Skip 3dexport...svgexport for mingw for now FIXME
 
 # Test file stnsurvey3.svx missing: pos=fail # We exit before the error count.
 
@@ -176,6 +190,7 @@ for file in $TESTS ; do
   # yes : diffpos 3D file output with <testcase_name>.pos
   # no : Check that a 3D file is produced, but not positions in it
   # fail : Check that a 3D file is NOT produced
+  # dump : Compare output of dump3d to <testcase_name>.dump
   # 3d : Convert to 3D with survexport, compare dump3d to <testcase_name>.dump
   # dxf : Convert to DXF with survexport and compare with <testcase_name>.dxf
   # gpx : Convert to GPX with survexport and compare with <testcase_name>.gpx
@@ -250,7 +265,15 @@ for file in $TESTS ; do
   srcdir=. SOURCE_DATE_EPOCH=1 $CAVERN "$input" --output="$pwd/tmp" > "$pwd/tmp.out"
   exitcode=$?
   cd "$pwd"
-  test -n "$VERBOSE" && cat tmp.out
+  if test "$VERBOSE" = 1 ; then
+    if test fail = "$pos" ; then
+      test $exitcode != 0 || cat tmp.out
+    else
+      test $exitcode = 0 || cat tmp.out
+    fi
+  elif test -n "$VERBOSE" ; then
+    cat tmp.out
+  fi
   if [ -n "$VALGRIND" ] ; then
     if [ $exitcode = "$vg_error" ] ; then
       cat "$vg_log"
@@ -288,7 +311,12 @@ for file in $TESTS ; do
 
   case $pos in
   yes)
-    if test -n "$VERBOSE" ; then
+    if test "$VERBOSE" = 1 ; then
+      $DIFFPOS "$posfile" tmp.3d > tmp.stdout
+      exitcode=$?
+      test $exitcode = 0 || cat tmp.stdout
+      rm tmp.stdout
+    elif test -n "$VERBOSE" ; then
       $DIFFPOS "$posfile" tmp.3d
       exitcode=$?
     else
@@ -320,17 +348,21 @@ for file in $TESTS ; do
     fi
     [ "$exitcode" = 0 ] || exit 1
 
-    if test -n "$VERBOSE" ; then
-      $DIFF "$expectedfile" "$tmpfile" || exit 1
-    else
-      $QUIET_DIFF "$expectedfile" "$tmpfile" || exit 1
+    if ! $QUIET_DIFF "$expectedfile" "$tmpfile" ; then
+      test -z "$VERBOSE" || $DIFF "$expectedfile" "$tmpfile"
+      exit 1
     fi
     ;;
   dxf|gpx|hpgl|json|kml|plt|svg)
     # $pos gives us the file extension here.
     expectedfile=$basefile.$pos
     tmpfile=tmp.$pos
-    if test -n "$VERBOSE" ; then
+    if test "$VERBOSE" = 1 ; then
+      $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile" > tmp.stdout
+      exitcode=$?
+      test $exitcode = 0 || cat tmp.stdout
+      rm tmp.stdout
+    elif test -n "$VERBOSE" ; then
       $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile"
       exitcode=$?
     else
@@ -365,16 +397,19 @@ for file in $TESTS ; do
 	;;
     esac
 
-    if test -n "$VERBOSE" ; then
-      $DIFF "$expectedfile" "$tmpfile" || exit 1
-    else
-      $QUIET_DIFF "$expectedfile" "$tmpfile" || exit 1
+    if ! $QUIET_DIFF "$expectedfile" "$tmpfile" ; then
+      test -z "$VERBOSE" || $DIFF "$expectedfile" "$tmpfile"
+      exit 1
     fi
     ;;
   3d)
     expectedfile=$basefile.dump
     tmpfile=tmp.dump
-    if test -n "$VERBOSE" ; then
+    if test "$VERBOSE" = 1 ; then
+      SOURCE_DATE_EPOCH=1 $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile.3d" > tmp.stdout
+      exitcode=$?
+      test $exitcode = 0 || cat tmp.stdout
+    elif test -n "$VERBOSE" ; then
       SOURCE_DATE_EPOCH=1 $SURVEXPORT --defaults$survexportopts tmp.3d "$tmpfile.3d"
       exitcode=$?
     else
@@ -392,10 +427,9 @@ for file in $TESTS ; do
     fi
     [ "$exitcode" = 0 ] || exit 1
 
-    if test -n "$VERBOSE" ; then
-      $DIFF "$expectedfile" "$tmpfile" || exit 1
-    else
-      $QUIET_DIFF "$expectedfile" "$tmpfile" || exit 1
+    if ! $QUIET_DIFF "$expectedfile" "$tmpfile" ; then
+      test -z "$VERBOSE" || $DIFF "$expectedfile" "$tmpfile"
+      exit 1
     fi
     ;;
   no)

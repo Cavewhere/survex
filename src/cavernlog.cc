@@ -1,7 +1,7 @@
 /* cavernlog.cc
  * Run cavern inside an Aven window
  *
- * Copyright (C) 2005-2024 Olly Betts
+ * Copyright (C) 2005-2026 Olly Betts
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
@@ -42,6 +42,10 @@
 //#include <unistd.h>
 
 #include <wx/process.h>
+
+#ifdef _WIN32
+# include <io.h> // For _commit().
+#endif
 
 #define GVIM_COMMAND "gvim +'call cursor($l,$c)' $f"
 #define VIM_COMMAND "x-terminal-emulator -e vim +'call cursor($l,$c)' $f"
@@ -285,13 +289,11 @@ CavernLogWindow::CavernLogWindow(MainFrm * mainfrm_, const wxString & survey_, w
       survey(survey_),
       timer(this)
 {
-#if wxCHECK_VERSION(3,2,0)
     if (wxSystemSettings::GetAppearance().IsDark()) {
 	SetOwnBackgroundColour(*wxBLACK);
 	dark_mode = true;
 	return;
     }
-#endif
 
     SetOwnBackgroundColour(*wxWHITE);
 }
@@ -670,6 +672,10 @@ CavernLogWindow::OnSave(wxCommandEvent &)
 	return;
     }
     FWRITE_(log_txt.data(), log_txt.size(), 1, fh_log);
+#ifdef _WIN32
+    // Untested attempt to address https://trac.survex.com/ticket/147
+    _commit(fileno(fh_log));
+#endif
     fclose(fh_log);
 }
 

@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 /*#define SOR 1*/
@@ -113,12 +113,10 @@ solve_matrix(node *list)
    real *M = osmalloc((((n * FACTOR * (n * FACTOR + 1)) >> 1)) * sizeof(real));
    real *B = osmalloc(n * FACTOR * sizeof(real));
 
-   if (!fQuiet) {
-      if (n == 1)
-	 out_current_action(msg(/*Solving one equation*/78));
-      else
-	 out_current_action1(msg(/*Solving %d simultaneous equations*/75), (int)n);
-   }
+   if (n == 1)
+      out_current_action(msg(/*Solving one equation*/78));
+   else
+      out_current_action1(msg(/*Solving %d simultaneous equations*/75), (int)n);
 
 #ifdef NO_COVARIANCES
    int dim = 2;
@@ -171,8 +169,9 @@ solve_matrix(node *list)
 		stn->colour);
 
 	 for (int dirn = 0; dirn <= 2 && stn->leg[dirn]; dirn++) {
-	    printf("Leg %d, vx=%f, reverse=%d, to ", dirn,
-		   stn->leg[dirn]->v[0], stn->leg[dirn]->l.reverse);
+	    printf("Leg %d, vx=%f, reverse=%d, bits = 0x%02x, to ", dirn,
+		   stn->leg[dirn]->v[0], stn->leg[dirn]->l.reverse,
+		   stn->leg[dirn]->l.bits);
 	    print_prefix(stn->leg[dirn]->l.to->name);
 	    putnl();
 	 }
@@ -220,7 +219,7 @@ solve_matrix(node *list)
 		  }
 #endif
 	       } else if (data_here(leg) &&
-			  (leg->l.reverse & FLAG_ARTICULATION) == 0) {
+			  (leg->l.bits & FLAG_ARTICULATION) == 0) {
 		  /* forward leg, unfixed -> unfixed */
 		  int t = to->colour;
 		  SVX_ASSERT(t >= 0);

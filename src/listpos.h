@@ -13,14 +13,14 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 /* Check but don't print, for getting the checks we do during the scan. */
 void check_node_stats(void);
 
-/* Scan the prefix tree and issue warnings for any SFLAGS_UNUSED_FIXED_POINT
- * still set.
+/* Scan the prefix tree and issue warnings for any stations with SFLAGS_FIXED
+ * set but SFLAGS_USED not.
  */
 void check_for_unused_fixed_points(void);

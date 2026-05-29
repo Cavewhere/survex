@@ -13,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include <config.h>
@@ -293,7 +293,9 @@ addleg_(node *fr, node *to,
    leg->v[2] = vz;
 #endif
    leg2->l.reverse = i;
-   leg->l.reverse = j | FLAG_DATAHERE | leg_flags;
+   leg2->l.bits = 0;
+   leg->l.reverse = j;
+   leg->l.bits = FLAG_DATAHERE | leg_flags;
 
    leg->l.flags = pcs->flags | (pcs->recorded_style << FLAGS_STYLE_BIT0);
    leg->meta = pcs->meta;
@@ -363,8 +365,8 @@ addlegbyname(prefix *fr_name, prefix *to_name, bool fToFirst,
    cLegs++;
 
    /* Suppress "unused fixed point" warnings for these stations. */
-   fr_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
-   to_name->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+   fr_name->sflags |= BIT(SFLAGS_USED);
+   to_name->sflags |= BIT(SFLAGS_USED);
 
    last_leg.to_name = to_name;
    last_leg.fr_name = fr_name;
@@ -470,8 +472,8 @@ process_equate(prefix *name1, prefix *name2)
       }
 
       /* Suppress "unused fixed point" warnings for these stations. */
-      name1->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
-      name2->sflags &= ~BIT(SFLAGS_UNUSED_FIXED_POINT);
+      name1->sflags |= BIT(SFLAGS_USED);
+      name2->sflags |= BIT(SFLAGS_USED);
 
       /* count equates as legs for now... */
       cLegs++;
@@ -535,11 +537,13 @@ freeleg(node **stnptr)
 #else
    leg->v[0] = leg->v[1] = leg->v[2] = (real)0.0;
 #endif
-   leg->l.reverse = 1 | FLAG_DATAHERE | FLAG_FAKE;
+   leg->l.reverse = 1;
+   leg->l.bits = FLAG_DATAHERE | FLAG_FAKE;
    leg->l.flags = pcs->flags | (pcs->recorded_style << FLAGS_STYLE_BIT0);
 
    leg2->l.to = stn;
    leg2->l.reverse = 0;
+   leg2->l.bits = 0;
 
    // NB this preserves pos->stn->leg[0] pointing to the "real" fixed point
    // for stations fixed with error estimates.

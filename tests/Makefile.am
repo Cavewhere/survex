@@ -40,7 +40,7 @@ badinc4.out badinc4.svx\
 badinc5.mak badinc5.out\
 export.svx export2.svx\
 singlefix.svx singlefix.out singlefix.pos singlereffix.svx singlereffix.pos\
-singlefixerr.svx singlefixerr.pos singlereffixerr.svx singlereffixerr.pos\
+singlefixerr.svx singlefixerr.out singlefixerr.pos singlereffixerr.svx singlereffixerr.pos\
 includecomment.svx\
 reenterwarn.svx reenterwarn.out\
 angleunits.svx angleunits.pos\
@@ -73,6 +73,8 @@ multicylpolar.svx multicylpolar.pos\
 multicartesian.svx multicartesian.pos multicartesian.out\
 multinosurv.svx multinosurv.dump multinosurv.out\
 multinormalbad.svx multibug.svx\
+cmd_instruments.svx\
+cmd_instruments_bad.svx cmd_instruments_bad.out\
 cmd_team.svx\
 cmd_team_bad.svx cmd_team_bad.out\
 cmd_title.svx cmd_titlebad.svx\
@@ -94,7 +96,7 @@ cmd_export_bad.svx cmd_export_bad.out\
 cmd_fix_bad.svx cmd_fix_bad.out\
 cmd_fix_bad2.svx cmd_fix_bad2.out\
 cmd_sd.svx cmd_sd_bad.svx cmd_sd_bad.out\
-cmd_set.svx cmd_set.pos\
+cmd_set.svx cmd_set.out cmd_set.pos\
 cmd_set_bad.svx cmd_set_bad.out\
 cmd_set_dot_in_name.svx cmd_set_dot_in_name.dump\
 unusedstation.svx exportnakedbegin.svx\
@@ -132,7 +134,11 @@ utm.mak utm.out utm.dump\
 walls.srv walls.out walls.dump\
 wallsbaddatum.out wallsbaddatum.wpj\
 wallsdecl.wpj wallsdecl.srv wallsdecl.out wallsdecl.dump\
+wallsdiving.srv wallsdiving.dump wallsdiving.out\
+badomit.srv badomit.out\
 badopts.srv badopts.out\
+badreadings.srv badreadings.out\
+unknowndirective.srv unknowndirective.out\
 dot17.svx dot17.pos 3dcorner.svx 3dcorner.pos\
 nosurveyhanging.svx nosurveyhanging.out\
 nosurveyhanging2.svx nosurveyhanging2.dump nosurveyhanging2.out\
@@ -188,8 +194,10 @@ dxffullcoords.dxf dxffullcoords.svx\
 dxfsurfequate.svx dxfsurfequate.dxf\
 gpxexport.gpx gpxexport.svx\
 hpglexport.hpgl hpglexport.svx\
+hpglexportanon.hpgl hpglexportanon.svx\
 jsonexport.json jsonexport.svx\
 kmlexport.kml kmlexport.svx\
+kmlexportanon.kml kmlexportanon.svx\
 pltexport.plt pltexport.svx\
 svgexport.svg svgexport.svx
 

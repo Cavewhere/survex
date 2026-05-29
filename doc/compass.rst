@@ -4,9 +4,11 @@ Larry Fish's Compass
 
 Survex can read Compass survey data - it supports survey data files
 and project files (``.DAT`` and ``.MAK files``), closed data files (``.CLP``),
-and processed survey data (``.PLT`` and ``.PLF`` files).  Survex 1.4.6 made
-significant improvements to this support so we recommend using this
-version or newer if you're working with Compass data.
+and processed survey data (``.PLT`` and ``.PLF`` files).  Survex 1.0.19 was
+the first to support this but we currently recommend using 1.4.6 or newer if
+you're working with Compass data as this version made significant improvements
+to this support.  If you're using Compass ``.MAK`` files, then Survex 1.4.18
+further improved parsing these.
 
 --------------------
 Compass .MAK support
@@ -20,24 +22,31 @@ or aven as if it were a ``.svx`` file.
 Survex understands most MAK file features.  Known current
 limitations and assumptions:
 
-- Survex handles the UTM zone and datum provided the combination
-  can be expressed as an EPSG code (lack of any EPSG codes for a
-  datum suggests it's obsolete; lack of a code for a particular
-  datum+zone combination suggests the zone is outside of the
-  defined area of use of the datum). Example Compass files we've
-  seen use "North American 1927" outside of where it's defined
-  for use, presumably because some users fail to change the datum
-  from Compass' default. To enable reading such files we return a
-  PROJ4 string of the form "+proj=utm ..." for "North American
-  1927" and "North American 1983" for UTM zones which don't have
-  an EPSG code. Please let us know if support for additional
-  cases which aren't currently supported would be useful to you.
+- Survex handles any UTM zone and datum specified in the MAK file so
+  long as the combination can be expressed as an EPSG code.  If there
+  aren't any EPSG codes for a datum that suggests it's obsolete; lack of
+  a code for a particular datum+zone combination suggests the zone is
+  outside of the defined area of use of the datum.
+
+  Some additional cases are also supported.  Example Compass files we've
+  seen use "North American 1927" outside of its defined area of use,
+  presumably because some users fail to change the datum from Compass'
+  default.  To enable reading such files, if the datum is "North
+  American 1927" or "North American 1983" and there isn't an EPSG code
+  for the specified UTM zone in that datum, we generate a PROJ4 string
+  of the form "+proj=utm ...".  Please let us know if support for
+  additional cases which aren't currently supported would be useful to
+  you.
 
 - The ``@`` command which specifies a base location to calculate
   magnetic declinations at is handled, provided the datum and UTM
   zone are supported (see previous bullet point). The UTM
   convergence angle specified as part of this command is ignored
-  as Survex knows how to calculate it.
+  as Survex knows how to calculate grid convergence.
+
+- The ``%`` and ``*`` commands specify the UTM convergence angle
+  (file-level and non-file-level respectively) and are ignored
+  as Survex knows how to calculate grid convergence.
 
 - Link stations are ignored. These have two uses in Compass. They
   were a way to allow processing large surveys on computers from
@@ -77,16 +86,27 @@ limitations and assumptions:
 
   Note that the ``.svx`` version is able to more precisely represent
   what's actually required here - in the MAK version "you must
-  carry ``A16`` into ``FILE2`` even though ``FILE2`` doesn't need it for its
-  own processing". If you want the exact analog of the MAK
-  version you can change the ``A16`` equate to:
+  carry ``A16`` into ``FILE2`` so you can then carry it into ``FILE3``
+  even though ``FILE2`` doesn't need it for its own processing". If you want
+  the exact analog of the MAK version you can change the ``A16`` equate to:
   ::
 
      *equate file1.A16 file2.A16 file3.A16
 
-- The following commands (and any other unknown commands) are
-  currently ignored: ``%`` (Convergence angle (file-level)), ``*``
-  (Convergence angle (non file-level)), ``!`` (Project parameters)
+- The ``!`` command specifies project parameters, which are currently
+  ignored.
+
+- Compass seems to quietly ignore unknown commands, but Survex will issue a
+  warning (since Survex 1.4.18 - older versions quietly ignored them).
+  This warning will help identify any bugs in Survex's parsing of MAK files,
+  and any new or undocumented MAK file commands which we don't support.
+  It can also help detect typos in data entry.
+
+- ``.MAK`` files can contain comments, which last from a ``/`` to the
+  next ``/`` or end of the line.  Survex 1.4.18 added support for these
+  (older Survex versions quietly ignored the ``/`` characters as unknown, but
+  that meant they would still interpret any commented out ``.MAK`` file
+  commands).
 
 --------------------
 Compass .DAT support
@@ -164,7 +184,7 @@ assumptions:
   surface data, and shots flagged ``P`` "[do] not support passage
   modeling". Even if it's actually being used for a different
   purpose, Survex programs don't show surface legs by default so
-  the end effect is at least to not plot as intended.
+  the end effect is at least to not plot, which is what's intended.
 - Shot flag ``S`` is mapped to Survex's "splay" leg flag.
 - Surveys which indicate a depth gauge was used for azimuth
   readings are marked as ``STYLE_DIVING`` in the ``.3d`` file.
@@ -242,9 +262,9 @@ limitations and assumptions:
   is for surface data, and shots flagged ``P`` "[do] not support
   passage modeling". Even if it's actually being used for a
   different purpose, Survex programs don't show surface legs by
-  default so the end effect is at least to not plot as intended.
-  Stations are flagged as surface and/or underground based on
-  whether they are at the ends of legs flagged surface or
+  default so the end effect is at least to not plot, which is what's
+  intended.  Stations are flagged as surface and/or underground based
+  on whether they are at the ends of legs flagged surface or
   non-surface (a station at the boundary can be flagged as both).
 
 - Shot flag ``S`` is mapped to Survex's "splay" leg flag. A station
@@ -282,29 +302,55 @@ from the command line via ``survexport --plt``.
 This export was originally added to allow importing data from Survex into
 Carto.  The principal author of Carto has sadly died and it seems Carto is no
 longer actively developed, but we've left this support in place in case it is
-useful - the generated files can be used with Compass itself for example,
-though they are currently rather crudely structured.  Here are some notes on
-this support:
+useful - the generated files can be used with Compass itself for example.
+Here are some notes on this support:
 
-- The whole Survex survey tree is exported as a single survey.
+- The whole Survex survey tree is currently exported as a single survey in
+  the PLT file.
 
 - Compass station names can't contain spaces, so any spaces (and also ASCII
-  control characters) are in station names are replaced by ``%`` follow by two
-  lowercase hex digits giving the byte value (like the escaping used in URLs).
-  ``%`` itself is also escaped as ``%25``.
+  control characters) in Survex station names are replaced.
 
-- The full Survex station name include survey prefixes is used - no attempt is
-  currently made to shorten station names to fit within the 12 character limit
-  documented for the Compass PLT format.  If you export a single survey the
-  names should be short enough, but exporting the whole of a complex survey
+  Since Survex 1.4.19, the replacements are ``^`` followed by another
+  character.  Byte value 0 becomes ``^@``, byte values 1 to 26 become ``^A`` to
+  ``^Z``, byte values 27 to 31 become ``^a`` to ``^e``, space becomes ``^_``
+  and ``^`` becomes ``^^`` (to ensure the mapping is reversible).  In real
+  world use, only space and ``^`` are at all likely to occur.
+
+  From Survex 1.2.1 to 1.4.18, a different system of replacements was used,
+  based on that used in URLs: each replacement was ``%`` follow by two lowercase
+  hex digits, e.g. space became ``%20``.  Additionally, ``%`` became ``%25``.
+  The drawback of this encoding was that it needed 3 characters to represent
+  each escaped one, which wass unhelpful as PLT format documents a 12 character
+  limit on station names.
+
+  Survex 1.2.0 and earlier didn't do any escaping.
+
+- Survex supports anonymous survey stations.  However we can't write these
+  as empty station names in Compass PLT (they aren't explicitly disallowed in
+  the format documentation, but Compass' viewer gives an error if you ask it to
+  read a PLT file with an empty station name).
+
+  Since Survex 1.4.19, each anonymous station gets given a unique name of
+  ``^`` followed by a number starting from one and incrementing for each
+  anonymous station.  (Note that these invented names can't collide with actual
+  station names because ``^`` is escaped to ``^^`` as documented above.)
+
+  From Survex 1.4.10 to 1.4.18, the unique names were instead ``%:`` followed
+  by the counter.
+
+  Survex 1.4.6 first implemented support for exporting anonymous stations to
+  PLT, but with names which typically exceeded the documented 12 character
+  limit of the format.
+
+  Survex 1.4.5 and earlier generated PLT files with empty station names, but
+  as noted above, at least Compass' viewer wouldn't read these.
+
+- The full Survex station name including survey prefixes is used - no attempt
+  is currently made to shorten station names to fit within the 12 character
+  limit documented for the Compass PLT format.  If you export a single survey
+  the names should be short enough, but exporting the whole of a complex survey
   project will likely give names longer than 12 characters.
-
-- Anonymous stations are given a name ``%:`` followed by a number starting from
-  one and incrementing for each anonymous station (Compass doesn't allow empty
-  station names, and these invented names can't collide with actual station
-  names).  Since Survex 1.4.10 (1.4.6 implemented support for exporting
-  anonymous stations to PLT, but with names which typically exceeded the
-  documented 12 character limit of the format).
 
 - Passage data is not included in the export (each exported leg has dummy LRUD
   readings of all ``-9`` which is needed to avoid a bug in some versions of
@@ -321,5 +367,9 @@ this support:
 - Survex's "duplicate" leg flag is mapped to Compass shot flag ``L``.  Since
   Survex 1.4.10.
 
-- The Datum and UTM zone information is not currently set in exported PLT
-  files.
+- The Datum and UTM zone information is set if the Survex data has a coordinate
+  system set which is expressed as an ``EPSG:nnnn`` code which corresponds to
+  a UTM zone in a datum supported by Compass, or a PROJ4 string which matches
+  those which Survex generates when processing Compass and Walls data which
+  specifies a NAD27 or NAD83 UTM zone which doesn't have an EPSG code.  Since
+  Survex 1.4.18.

@@ -4,7 +4,7 @@
 //  Main frame handling for Aven.
 //
 //  Copyright (C) 2000-2002,2005,2006 Mark R. Shinwell
-//  Copyright (C) 2001-2025 Olly Betts
+//  Copyright (C) 2001-2026 Olly Betts
 //  Copyright (C) 2005 Martin Green
 //
 //  This program is free software; you can redistribute it and/or modify
@@ -18,8 +18,8 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 //
 
 #include <config.h>
@@ -36,9 +36,9 @@
 #include "useful.h"
 
 #include <wx/confbase.h>
+#include <wx/dnd.h>
 //#include <wx/filefn.h>
 #include <wx/filename.h>
-#include <wx/image.h>
 #include <wx/imaglist.h>
 #include <wx/process.h>
 #include <wx/regex.h>
@@ -53,6 +53,10 @@
 #include <float.h>
 #include <functional>
 #include <vector>
+
+#ifdef _WIN32
+# include <io.h> // For _commit().
+#endif
 
 // XPM files declare the array as static, but we also want it to be const too.
 // This avoids a compiler warning, and also means the data can go in a
@@ -391,6 +395,10 @@ class AvenPresList : public wxListCtrl {
 		}
 		PUTC('\n', fh_pres);
 	    }
+#ifdef _WIN32
+	    // Untested attempt to address https://trac.survex.com/ticket/147
+	    _commit(fileno(fh_pres));
+#endif
 	    fclose(fh_pres);
 	    filename = fnm;
 	    modified = false;
@@ -492,7 +500,8 @@ END_EVENT_TABLE()
 
 BEGIN_EVENT_TABLE(MainFrm, wxFrame)
     EVT_TEXT(textctrl_FIND, MainFrm::OnFind)
-    EVT_TEXT_ENTER(textctrl_FIND, MainFrm::OnGotoFound)
+    EVT_SEARCH(textctrl_FIND, MainFrm::OnGotoFound)
+
     EVT_SPINCTRLDOUBLE(spinctrl_Z_STRETCH, MainFrm::OnZStretch)
     EVT_IDLE(MainFrm::OnIdle)
 
@@ -705,7 +714,7 @@ MainFrm::MainFrm(const wxString& title, const wxPoint& pos, const wxSize& size) 
     SetIcon(wxICON(aven));
 #endif
 
-#if defined(__WXMAC__) && wxCHECK_VERSION(3,1,0)
+#ifdef __WXMAC__
     // Add a full screen button to the right upper corner of title bar under OS
     // X 10.7 and later.
     using_macos_full_screen_view = EnableFullScreenView();
@@ -754,6 +763,9 @@ void MainFrm::CreateMenuBar()
     /* TRANSLATORS: Open a "Terrain file" - i.e. a digital model of the
      * terrain. */
     filemenu->Append(menu_FILE_OPEN_TERRAIN, wmsg(/*Open &Terrain...*/453));
+    /* TRANSLATORS: This is a menu item which allows displaying a GPX, KML,
+     * shapefile, etc over the survey in Aven.
+     */
     filemenu->Append(menu_FILE_OVERLAY_GEODATA, wmsg(/*Overlay &Geodata...*/494));
     filemenu->AppendCheckItem(menu_FILE_LOG, wmsg(/*Show &Log*/144));
     filemenu->AppendSeparator();
@@ -790,18 +802,18 @@ void MainFrm::CreateMenuBar()
      */
     rotmenu->AppendCheckItem(menu_ROTATION_TOGGLE, wmsg(/*Au&to-Rotate\tSpace*/231));
     rotmenu->AppendSeparator();
-    rotmenu->Append(menu_ROTATION_REVERSE, wmsg(/*&Reverse Direction*/234));
+    rotmenu->Append(menu_ROTATION_REVERSE, wmsg(/*&Reverse Direction\tR*/234));
 
     wxMenu* orientmenu = new wxMenu;
-    orientmenu->Append(menu_ORIENT_MOVE_NORTH, wmsg(/*View &North*/240));
-    orientmenu->Append(menu_ORIENT_MOVE_EAST, wmsg(/*View &East*/241));
-    orientmenu->Append(menu_ORIENT_MOVE_SOUTH, wmsg(/*View &South*/242));
-    orientmenu->Append(menu_ORIENT_MOVE_WEST, wmsg(/*View &West*/243));
+    orientmenu->Append(menu_ORIENT_MOVE_NORTH, wmsg(/*View &North\tN*/240));
+    orientmenu->Append(menu_ORIENT_MOVE_EAST, wmsg(/*View &East\tE*/241));
+    orientmenu->Append(menu_ORIENT_MOVE_SOUTH, wmsg(/*View &South\tS*/242));
+    orientmenu->Append(menu_ORIENT_MOVE_WEST, wmsg(/*View &West\tW*/243));
     orientmenu->AppendSeparator();
-    orientmenu->Append(menu_ORIENT_PLAN, wmsg(/*&Plan View*/248));
-    orientmenu->Append(menu_ORIENT_ELEVATION, wmsg(/*Ele&vation*/249));
+    orientmenu->Append(menu_ORIENT_PLAN, wmsg(/*&Plan View\tP*/248));
+    orientmenu->Append(menu_ORIENT_ELEVATION, wmsg(/*E&levation\tL*/249));
     orientmenu->AppendSeparator();
-    orientmenu->Append(menu_ORIENT_DEFAULTS, wmsg(/*Restore De&fault View*/254));
+    orientmenu->Append(menu_ORIENT_DEFAULTS, wmsg(/*Restore De&fault View\tDelete*/254));
 
     wxMenu* presmenu = new wxMenu;
     presmenu->Append(menu_PRES_NEW, wmsg(/*&New Presentation*/311));
@@ -847,6 +859,10 @@ void MainFrm::CreateMenuBar()
     /* TRANSLATORS: Item in the "Splay Legs" and "Duplicate Legs" submenus - if
      * this is selected, such legs are shown the same as other legs. */
     splaymenu->AppendCheckItem(menu_SPLAYS_SHOW_NORMAL, wmsg(/*&Show*/409));
+    /* TRANSLATORS: A sub-menu in aven which allows selecting how to display
+     * survey legs with the "splay" flag set (options in the sub-menu
+     * are "Hide"/"Dashed"/"Fade"/"Show").
+     */
     viewmenu->Append(menu_VIEW_SPLAYS, wmsg(/*Spla&y Legs*/406), splaymenu);
 
     wxMenu* dupemenu = new wxMenu;
@@ -854,6 +870,10 @@ void MainFrm::CreateMenuBar()
     dupemenu->AppendCheckItem(menu_DUPES_SHOW_DASHED, wmsg(/*&Dashed*/250));
     dupemenu->AppendCheckItem(menu_DUPES_SHOW_FADED, wmsg(/*&Fade*/408));
     dupemenu->AppendCheckItem(menu_DUPES_SHOW_NORMAL, wmsg(/*&Show*/409));
+    /* TRANSLATORS: A sub-menu in aven which allows selecting how to display
+     * survey legs with the "duplicate" flag set (options in the sub-menu
+     * are "Hide"/"Dashed"/"Fade"/"Show").
+     */
     viewmenu->Append(menu_VIEW_DUPES, wmsg(/*&Duplicate Legs*/251), dupemenu);
 
     viewmenu->AppendSeparator();
@@ -1029,6 +1049,7 @@ void MainFrm::MakeToolBar()
     toolbar->AddSeparator();
     m_FindBox = new wxSearchCtrl(toolbar, textctrl_FIND);
     m_FindBox->SetSize(160, -1);
+    m_FindBox->SetMinSize(wxSize(160, wxDefaultCoord));
     // TRANSLATORS: Placeholder text in aven's station search control.
     m_FindBox->SetDescriptiveText(wmsg(/*Find stations*/333));
     toolbar->AddControl(m_FindBox);
@@ -1045,7 +1066,8 @@ void MainFrm::MakeToolBar()
     z_stretch->SetIncrement(0.1);
     toolbar->AddSeparator();
     toolbar->AddControl(z_stretch);
-    // TRANSLATORS: Tooltip for Z exaggeration control.
+    // TRANSLATORS: Tooltip for Z exaggeration control.  Vertical distances
+    // in aven are scaled by this factor.
     GetToolBar()->SetToolShortHelp(spinctrl_Z_STRETCH,
 				   wmsg(/*Z exaggeration factor*/535));
 

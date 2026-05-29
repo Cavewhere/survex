@@ -17,9 +17,8 @@
    Lesser General Public License for more details.
 
    You should have received a copy of the GNU Lesser General Public
-   License along with the GNU C Library; if not, write to the Free
-   Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-   02110-1301 USA.  */
+   License along with the GNU C Library; if not, see
+   <https://www.gnu.org/licenses/>.  */
 
 #if 0 /* Survex doesn't use getopt() so we don't declare it. */
 /* This tells Alpha OSF/1 not to define a getopt prototype in <stdio.h>.
@@ -231,9 +230,7 @@ extern char *getenv ();
 #endif
 
 static char *
-my_index (str, chr)
-     const char *str;
-     int chr;
+my_index (const char *str, int chr)
 {
   while (*str)
     {
@@ -309,13 +306,8 @@ static int nonoption_flags_len;
    `first_nonopt' and `last_nonopt' are relocated so that they describe
    the new indices of the non-options in ARGV after they are moved.  */
 
-#if defined __STDC__ && __STDC__
-static void exchange (char **);
-#endif
-
 static void
-exchange (argv)
-     char **argv;
+exchange (char **argv)
 {
   int bottom = first_nonopt;
   int middle = last_nonopt;
@@ -395,14 +387,8 @@ exchange (argv)
 
 /* Initialize the internal data when the first call is made.  */
 
-#if defined __STDC__ && __STDC__
-static const char *_getopt_initialize (int, char *const *, const char *);
-#endif
 static const char *
-_getopt_initialize (argc, argv, optstring)
-     int argc;
-     char *const *argv;
-     const char *optstring;
+_getopt_initialize (int argc, char *const *argv, const char *optstring)
 {
   /* Start processing options with ARGV-element 1 (since ARGV-element 0
      is the program name); the sequence of previously skipped
@@ -521,13 +507,7 @@ _getopt_initialize (argc, argv, optstring)
    long-named options.  */
 
 int
-_getopt_internal (argc, argv, optstring, longopts, longind, long_only)
-     int argc;
-     char *const *argv;
-     const char *optstring;
-     const struct option *longopts;
-     int *longind;
-     int long_only;
+_getopt_internal (int argc, char *const *argv, const char *optstring, const struct option *longopts, int *longind, int long_only)
 {
   int print_errors = svx_opterr;
   if (optstring[0] == ':')
@@ -1207,10 +1187,7 @@ _getopt_internal (argc, argv, optstring, longopts, longind, long_only)
 
 #if 0 /* Survex doesn't use getopt() so we don't declare it. */
 int
-svx_getopt (argc, argv, optstring)
-     int argc;
-     char *const *argv;
-     const char *optstring;
+svx_getopt (int argc, char *const *argv, const char *optstring)
 {
   return _getopt_internal (argc, argv, optstring,
 			   (const struct option *) 0,
@@ -1227,9 +1204,7 @@ svx_getopt (argc, argv, optstring)
    the above definition of `getopt'.  */
 
 int
-main (argc, argv)
-     int argc;
-     char **argv;
+main (int argc, char **argv)
 {
   int c;
   int digit_optind = 0;

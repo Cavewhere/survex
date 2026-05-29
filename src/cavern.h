@@ -14,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #ifndef CAVERN_H
@@ -85,8 +85,8 @@ typedef enum {
    INFER_EXPORTS,
    INFER_PLUMBS,
    INFER_SUBSURVEYS,
-   /* In Compass DAT files a dummy zero-length leg from a station to itself is
-    * used to provide a place to specify LRUD for the start or end of a
+   /* In Compass DAT files, a dummy zero-length leg from a station to itself
+    * is used to provide a place to specify LRUD for the start or end of a
     * traverse (depending if dimensions are measured at the from or to
     * station), so we shouldn't warn about equating a station to itself.
     * This should be set *as well as* INFER_EQUATES.
@@ -132,15 +132,15 @@ typedef enum {
 } flags;
 
 /* flags are currently stored in an unsigned char */
-typedef int compiletimeassert_flags0[FLAGS_STYLE_BIT2 <= 7 ? 1 : -1];
+static_assert(FLAGS_STYLE_BIT2 <= 7, "FLAGS_* don't fit in a byte");
 
 /* Mask to AND with to get bits to pass to img library. */
 #define FLAGS_MASK \
     (BIT(FLAGS_SURFACE) | BIT(FLAGS_DUPLICATE) | BIT(FLAGS_SPLAY))
 
-typedef int compiletimeassert_flags1[BIT(FLAGS_SURFACE) == img_FLAG_SURFACE ? 1 : -1];
-typedef int compiletimeassert_flags2[BIT(FLAGS_DUPLICATE) == img_FLAG_DUPLICATE ? 1 : -1];
-typedef int compiletimeassert_flags3[BIT(FLAGS_SPLAY) == img_FLAG_SPLAY ? 1 : -1];
+static_assert(BIT(FLAGS_SURFACE) == img_FLAG_SURFACE, "*_SURFACE differ");
+static_assert(BIT(FLAGS_DUPLICATE) == img_FLAG_DUPLICATE, "*_DUPLICATE differ");
+static_assert(BIT(FLAGS_SPLAY) == img_FLAG_SPLAY, "*_SPLAY differ");
 
 typedef enum {
    /* Don't reorder these values!  They need to match with img.h too. */
@@ -148,7 +148,7 @@ typedef enum {
    SFLAGS_FIXED, SFLAGS_ANON, SFLAGS_WALL,
    /* These values don't need to match img.h, but mustn't clash. */
    SFLAGS_HANGING = 9,
-   SFLAGS_UNUSED_FIXED_POINT = 10,
+   SFLAGS_USED = 10, // Warn unused fixed point if unset but SFLAGS_FIXED set.
    SFLAGS_SOLVED = 11,
    SFLAGS_SUSPECTTYPO = 12,
    SFLAGS_SURVEY = 13,
@@ -162,13 +162,13 @@ typedef enum {
 	BIT(SFLAGS_ENTRANCE) | BIT(SFLAGS_EXPORTED) | BIT(SFLAGS_FIXED) |\
 	BIT(SFLAGS_ANON) | BIT(SFLAGS_WALL))
 
-typedef int compiletimeassert_sflags1[BIT(SFLAGS_SURFACE) == img_SFLAG_SURFACE ? 1 : -1];
-typedef int compiletimeassert_sflags2[BIT(SFLAGS_UNDERGROUND) == img_SFLAG_UNDERGROUND ? 1 : -1];
-typedef int compiletimeassert_sflags3[BIT(SFLAGS_ENTRANCE) == img_SFLAG_ENTRANCE ? 1 : -1];
-typedef int compiletimeassert_sflags4[BIT(SFLAGS_EXPORTED) == img_SFLAG_EXPORTED ? 1 : -1];
-typedef int compiletimeassert_sflags5[BIT(SFLAGS_FIXED) == img_SFLAG_FIXED ? 1 : -1];
-typedef int compiletimeassert_sflags6[BIT(SFLAGS_ANON) == img_SFLAG_ANON ? 1 : -1];
-typedef int compiletimeassert_sflags7[BIT(SFLAGS_WALL) == img_SFLAG_WALL ? 1 : -1];
+static_assert(BIT(SFLAGS_SURFACE) == img_SFLAG_SURFACE, "*_SURFACE differ");
+static_assert(BIT(SFLAGS_UNDERGROUND) == img_SFLAG_UNDERGROUND, "*_UNDERGROUND differ");
+static_assert(BIT(SFLAGS_ENTRANCE) == img_SFLAG_ENTRANCE, "*_ENTRANCE differ");
+static_assert(BIT(SFLAGS_EXPORTED) == img_SFLAG_EXPORTED, "*_EXPORTED differ");
+static_assert(BIT(SFLAGS_FIXED) == img_SFLAG_FIXED, "*_FIXED differ");
+static_assert(BIT(SFLAGS_ANON) == img_SFLAG_ANON, "*_ANON differ");
+static_assert(BIT(SFLAGS_WALL) == img_SFLAG_WALL, "*_WALL differ");
 
 /* enumeration of field types */
 typedef enum {
@@ -197,14 +197,14 @@ typedef enum {
    CompassDATFlags,
 
    WallsSRVFr, WallsSRVTo, WallsSRVTape, WallsSRVComp, WallsSRVClino,
+   WallsSRVFrDepth, WallsSRVToDepth,
    // Optional pair of readings giving heights above stations on CT surveys.
    WallsSRVHeights,
    // Optional delimited LRUD and variance overrides.
    WallsSRVExtras
 } reading;
 
-/* if IgnoreAll is >= 32, the compiler will choke on this */
-typedef char compiletimeassert_reading[IgnoreAll < 32 ? 1 : -1];
+static_assert(IgnoreAll < 32, "IgnoreAll doesn't fit in 32-bit mask");
 
 /* position or length vector */
 typedef real delta[3];
@@ -227,12 +227,17 @@ typedef struct Prefix {
        const char *p;
        char i[sizeof(const char*)];
    } ident;
-   // A filename:line where this name was used.  If it's a station used in *fix
-   // then this will be the location of such a *fix, otherwise if it's a
-   // station used in *equate then it's the location of such a *equate.
-   // Otherwise it's the first place it was used.
+   // A filename:line:column where this name was used.  If it's a station used
+   // in *fix then this will be the location of such a *fix, otherwise if it's
+   // a station used in *equate then it's the location of such a *equate.
+   // Otherwise it's the first place it was used.  (For a station invented to
+   // do a delta-star transform, this will be NULL.)
    const char *filename;
    unsigned int line;
+   unsigned short column;
+   /* stn flags - e.g. surface, underground, entrance
+    * also suspecttypo and survey */
+   unsigned short sflags;
    /* If (min_export == 0) then max_export is max # levels above is this
     * prefix is used (and so needs to be exported) (0 == parent only).
     * If (min_export > 0) then max_export is max # levels above this
@@ -244,9 +249,6 @@ typedef struct Prefix {
     * the end of the run, we also mark stations with min_export == USHRT_MAX
     * and max_export > 0 as exported. */
    unsigned short max_export, min_export;
-   /* stn flags - e.g. surface, underground, entrance
-    * also suspecttypo and survey */
-   unsigned short sflags;
 } prefix;
 
 static inline const char *prefix_ident(const prefix *p) {
@@ -263,11 +265,15 @@ typedef struct Meta_data {
 /* stuff stored for both forward & reverse legs */
 typedef struct {
    struct Node *to;
-   /* bits 0..1 = reverse leg number; bit7 is fFullLeg */
-   /* bit6 = fReplacementLeg (by reduction rules) */
-   /* bit5 = articulation leg (i.e. carries no error) */
+   // Reverse leg number (0, 1 or 2)
    unsigned char reverse;
-   /* flags - e.g. surface, duplicate survey
+   // These are "internal" flag bits:
+   // bit 4: FLAG_FAKE (an equate or leg inside an sdfix
+   // bit 5: FLAG_ARTICULATION (i.e. carries no error)
+   // bit 6: FLAG_REPLACEMENTLEG (by reduction rules)
+   // bit 7: FLAG_DATAHERE (i.e. this is a forward leg)
+   unsigned char bits;
+   /* flags - e.g. FLAGS_SURFACE, FLAGS_DUPLICATE.
     * only used if (FLAG_DATAHERE & !(FLAG_REPLACEMENTLEG|FLAG_FAKE))
     * This could be only in linkfor, but this is actually more space
     * efficient.
@@ -326,11 +332,12 @@ typedef struct Inst {
 #define STYLE_PASSAGE    5
 #define STYLE_IGNORE     6
 
-typedef int compiletimeassert_style1[STYLE_NORMAL == img_STYLE_NORMAL ? 1 : -1];
-typedef int compiletimeassert_style2[STYLE_DIVING == img_STYLE_DIVING ? 1 : -1];
-typedef int compiletimeassert_style3[STYLE_CARTESIAN == img_STYLE_CARTESIAN ? 1 : -1];
-typedef int compiletimeassert_style4[STYLE_CYLPOLAR == img_STYLE_CYLPOLAR ? 1 : -1];
-typedef int compiletimeassert_style5[STYLE_NOSURVEY == img_STYLE_NOSURVEY ? 1 : -1];
+static_assert(STYLE_NORMAL == img_STYLE_NORMAL, "*_NORMAL differ");
+static_assert(STYLE_DIVING == img_STYLE_DIVING, "*_DIVING differ");
+static_assert(STYLE_CARTESIAN == img_STYLE_CARTESIAN, "*_CARTESIAN differ");
+static_assert(STYLE_CYLPOLAR == img_STYLE_CYLPOLAR, "*_CYLPOLAR differ");
+static_assert(STYLE_NOSURVEY == img_STYLE_NOSURVEY, "*_NOSURVEY differ");
+static_assert(STYLE_NORMAL == img_STYLE_NORMAL, "*_NORMAL differ");
 
 /* various settings preserved by *BEGIN and *END */
 typedef struct Settings {
@@ -411,8 +418,7 @@ extern img *pimg;
 extern real totadj, total, totplan, totvert;
 extern real min[9], max[9];
 extern prefix *pfxHi[9], *pfxLo[9];
-extern bool fQuiet; /* just show brief summary + errors */
-extern bool fMute; /* just show errors */
+extern int quiet; // 1 to turn off progress messages; >=2 turns off summary too.
 extern bool fSuppress; /* only output 3d file */
 
 /* macros */
@@ -420,8 +426,8 @@ extern bool fSuppress; /* only output 3d file */
 #define POS(S, D) ((S)->name->pos->p[(D)])
 #define POSD(S) ((S)->name->pos->p)
 
-#define data_here(L) ((L)->l.reverse & FLAG_DATAHERE)
-#define reverse_leg_dirn(L) ((L)->l.reverse & MASK_REVERSEDIRN)
+#define data_here(L) ((L)->l.bits & FLAG_DATAHERE)
+#define reverse_leg_dirn(L) ((L)->l.reverse)
 #define reverse_leg(L) ((L)->l.to->leg[reverse_leg_dirn(L)])
 
 /* if p[0]==UNFIXED_VAL, station is unfixed */

@@ -4,7 +4,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: olly@survex.com\n"
 "POT-Creation-Date: 1999-08-26 12:23:58 +0000\n"
 "PO-Revision-Date: 2016-08-20 00:43:08 +0000\n"
-"Last-Translator: Mateusz Golicz <mateusz.golicz@pza.org.pl>\n"
+"Last-Translator: Paweł Gogolak <Unknown>\n"
 "Language-Team: \n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
@@ -177,7 +177,7 @@ msgstr "Spodziewałem się liczby, znalazłem “%s”"
 #: n:489
 #, c-format
 msgid "Expecting integer in range %d to %d"
-msgstr ""
+msgstr "Oczekiwana liczba z przedziału od %d do %d"
 
 #: ../src/commands.c:2336
 #: n:10
@@ -233,7 +233,16 @@ msgstr "Nie można pominąć długości"
 msgid "End of line not blank"
 msgstr "Niespodziewana treść na końcu linii"
 
-#: ../src/commands.c:369
+#. TRANSLATORS: Warning if there's no "blank" character (space, tab
+#. and comma by default) after a token, e.g. it would be issued
+#. after the token "fix" here:
+#.
+#. *fix1 0 0 0
+#.
+#. This is a warning rather than an error because it was quietly
+#. accepted for a long time.  That wasn't intentional, but we don't
+#. want to suddenly break processing existing datasets.
+#: ../src/commands.c:403
 #: n:74
 msgid "No blank after token"
 msgstr ""
@@ -399,13 +408,26 @@ msgstr "Nieznana jednostka “%s”"
 #: n:532
 #, c-format
 msgid "Unknown team role “%s”"
-msgstr ""
+msgstr "Nieznana rola w zespole “%s”"
 
-#: ../src/commands.c:553
+#: ../src/commands.c:2195
+#: n:536
+#, c-format
+msgid "Unknown instrument type “%s”"
+msgstr "Nieznany typ przyrządu: “%s”"
+
+#. TRANSLATORS: Survex has long misdefined "mils" as an alias for
+#. "grads", of which there are 400 in a circle.  There are several
+#. definitions of "mils" with a circle containing 2000π SI milliradians,
+#. 6400 NATO mils, 6000 Warsaw Pact mils, and 6300 Swedish streck, and
+#. they aren't in common use by cave surveyors, so we now just warn if
+#. mils are used.  Here “grads” should not be translated as it shows
+#. what cavern is assuming should be written in the .svx file instead.
+#: ../src/commands.c:580
 #: n:479
 #, c-format
 msgid "Units “%s” are deprecated, assuming “grads” - see manual for details"
-msgstr ""
+msgstr "Jednostka “%s” jest przestarzała, zakładam “grads” - sprawdź instrukcję aby poznać szczegóły"
 
 #: ../src/commands.c:2559
 #: ../src/commands.c:2638
@@ -463,13 +485,13 @@ msgstr "Należy wskazać wejściowy układ współrzędnych dla “%s”"
 #: ../src/datain.c:3785
 #: n:488
 msgid "Output coordinate system not set"
-msgstr ""
+msgstr "Nie ustawiono wyjściowego systemu koordynatów"
 
 #: ../src/datain.c:3287
 #: n:503
 #, c-format
 msgid "Datum “%s” not supported"
-msgstr ""
+msgstr "Układ “%s” nie jest wspierany"
 
 #: ../src/commands.c:2082
 #: n:309
@@ -491,7 +513,7 @@ msgstr "Brak danych o dacie pomiaru - przyjmuję 0 jako deklinację magnetyczną
 #: n:484
 #, c-format
 msgid "Declination: %s, grid convergence: %.1f%s"
-msgstr ""
+msgstr "Deklinacja: %s, konwergencja siatki: %.1f%s"
 
 #. TRANSLATORS: Cavern computes the grid convergence at the
 #. representative location(s) specified by the
@@ -509,7 +531,7 @@ msgstr ""
 #: n:531
 #, c-format
 msgid "Approximate full range of grid convergence: %.1f%s at %s to %.1f%s at %s\n"
-msgstr ""
+msgstr "Przybliżony pełny zakres konwergencji siatki: %.1f%s w %s do %.1f%s w %s\n"
 
 #. TRANSLATORS: Used when a BEGIN command has no survey, but the
 #. END command does, e.g.:
@@ -594,7 +616,7 @@ msgstr "Punkt już został ustalony lub zrównany z punktem ustalonym"
 #: ../src/datain.c:2730
 #: n:493
 msgid "Previously fixed or equated here"
-msgstr ""
+msgstr "Wcześniej ustalone lub połączone tutaj"
 
 #: ../src/cavern.c:312
 #: ../src/filename.c:83
@@ -697,13 +719,13 @@ msgstr "*EXPORT musi następować bezpośrednio po “*BEGIN <SURVEY>”"
 #: n:76
 #, c-format
 msgid "Assuming 2 digit year is %d"
-msgstr ""
+msgstr "Zakładam 2 cyfrowy rok to %d"
 
 #: ../src/commands.c:2937
 #: n:158
 #, c-format
 msgid "Interpreting as an ISO-format date - use “*date surveyed %d-%02d” to suppress this warning, or “*date %d %d” if you wanted a date range"
-msgstr ""
+msgstr "Interpretuję jako datę w formacie ISO - użyj “*date surveyed %d-%02d” aby wyłączyć to ostrzeżenie albo “*date %d %d” jeśli chciałeś ustawić zakres dat"
 
 #: ../src/commands.c:2877
 #: ../src/commands.c:2951
@@ -718,7 +740,7 @@ msgstr "Wprowadź rok pomiędzy 1900 a 2078"
 #: ../src/commands.c:2360
 #: n:534
 msgid "Invalid year"
-msgstr ""
+msgstr "Nieprawidłowy rok"
 
 #. TRANSLATORS: Suspicious means something like 410 degrees or -20
 #. degrees
@@ -805,7 +827,7 @@ msgstr "Zdublowana wartość “%s”"
 #: n:416
 #, c-format
 msgid "Duplicate date type “%s”"
-msgstr ""
+msgstr "Duplikat typu daty “%s”"
 
 #: ../src/commands.c:1368
 #: n:68
@@ -1330,8 +1352,10 @@ msgstr "OPCJA"
 msgid "Scale"
 msgstr "Skala"
 
-#. TRANSLATORS: These example input values should not be translated.
-#: ../src/survexport.cc:134
+#. TRANSLATORS: Used in survexport --help output.  The --scale option
+#. accepts any of these ways of specifying the scale.  These example
+#. input values should not be translated.
+#: ../src/survexport.cc:139
 #: n:217
 msgid "scale (50, 0.02, 1:50 and 2:100 all mean 1:50)"
 msgstr ""
@@ -1432,7 +1456,7 @@ msgstr "Przekrój patrząc na %s"
 #: ../src/survexport.cc:140
 #: n:462
 msgid "plan view (equivalent to --tilt=-90)"
-msgstr ""
+msgstr "widok planu (równoznaczne z --tilt=-90)"
 
 #. TRANSLATORS: This is used on printouts of tilted elevations, with
 #. the first %s replaced by something like "123°", and the second by
@@ -1448,7 +1472,7 @@ msgstr "Przekrój patrząc na %s, pochylony o %s"
 #: ../src/survexport.cc:142
 #: n:463
 msgid "elevation view (equivalent to --tilt=0)"
-msgstr ""
+msgstr "widok przekroju (równoznaczne z --tilt=0)"
 
 #. TRANSLATORS: This is used on printouts of extended elevations.
 #: ../src/printing.cc:1236
@@ -1573,10 +1597,13 @@ msgstr "Spodziewałem się “%s”, “%s”, albo “%s”"
 msgid "Expecting “%s”, “%s”, “%s”, or “%s”"
 msgstr "Spodziewałem się “%s”, “%s”, “%s”, albo “%s”"
 
-#: ../src/readval.c:692
-#: ../src/readval.c:700
-#: ../src/readval.c:708
-#: ../src/readval.c:716
+#. TRANSLATORS: Quadrant bearings have the format e.g. S34E or N65.5W.
+#. They're enabled by `*units bearing quadrants` and supported in
+#. Walls format data.
+#: ../src/readval.c:712
+#: ../src/readval.c:720
+#: ../src/readval.c:728
+#: ../src/readval.c:736
 #: n:483
 #, c-format
 msgid "Expecting quadrant bearing, found “%s”"
@@ -1680,8 +1707,8 @@ msgstr "ustaw ścieżkę plików wyjściowych"
 #. TRANSLATORS: --help output for cavern --quiet option
 #: ../src/cavern.c:117
 #: n:163
-msgid "only show brief summary (-qq for errors only)"
-msgstr "wyświetl tylko krótkie podsumowanie (-qq pokaże tylko błędy)"
+msgid "fewer messages (-qq for even fewer)"
+msgstr "mniej wiadomości (-qq aby uzyskać jeszcze mniej)"
 
 #. TRANSLATORS: --help output for cavern --no-auxiliary-files option
 #: ../src/cavern.c:119
@@ -1713,8 +1740,13 @@ msgstr "określ wersję formatu 3d na wyjściu"
 msgid ".espec file to control extending"
 msgstr "Plik .espec z instrukcjami rozwinięcia"
 
-#. TRANSLATORS: --help output for extend --show-breaks option
-#: ../src/extend.c:490
+#. TRANSLATORS: --help output for extend --show-breaks option.  When
+#. generating an extended elevation, the survey gets broken (disconnected)
+#. when there's a loop, and the station we break at appears twice in the
+#. output.  This option adds a leg between copies of a station, flagged as
+#. "surface" (so they can be toggled on off, and appear as dotted lines in
+#. aven).
+#: ../src/extend.c:496
 #: n:91
 msgid "show breaks with surface survey legs in output"
 msgstr ""
@@ -1764,7 +1796,7 @@ msgstr "Wybierz plik terenu do wczytania"
 #: ../src/mainfrm.cc:1498
 #: n:496
 msgid "Select a geodata file to overlay"
-msgstr ""
+msgstr "Wybierz plik danych geograficznych aby nałożyć"
 
 #: ../src/mainfrm.cc:1462
 #: n:452
@@ -1774,7 +1806,7 @@ msgstr "Pliki terenu"
 #: ../src/mainfrm.cc:1494
 #: n:495
 msgid "Geodata files"
-msgstr ""
+msgstr "Pliki geodanych"
 
 #. TRANSLATORS: Aven shows a circle of terrain covering the area
 #. of the survey plus a bit, but the terrain data file didn't
@@ -1782,7 +1814,7 @@ msgstr ""
 #: ../src/gfxcore.cc:3175
 #: n:161
 msgid "No terrain data near area of survey"
-msgstr ""
+msgstr "Brak danych terenu blisko obszaru pomiarowego"
 
 #. TRANSLATORS: Here "survey" is a "cave map" rather than list of questions
 #. - it should be translated to the terminology that cavers using the
@@ -1853,7 +1885,7 @@ msgstr "Pliki Compass CLP"
 #: ../src/mainfrm.cc:1423
 #: n:504
 msgid "Walls project files"
-msgstr ""
+msgstr "Pliki projektu Walls"
 
 #. TRANSLATORS: "Walls" is David McKenzie's cave
 #. surveying package, so should not be translated
@@ -1924,13 +1956,13 @@ msgstr "Pliki JSON"
 #: ../src/printing.cc:376
 #: n:523
 msgid "Shapefiles (lines)"
-msgstr ""
+msgstr "Shapefiles (linie)"
 
 #: ../src/export.cc:108
 #: ../src/printing.cc:377
 #: n:524
 msgid "Shapefiles (points)"
-msgstr ""
+msgstr "Shapefiles (punkty)"
 
 #. TRANSLATORS: Log files from running cavern (extension .log)
 #: ../src/cavernlog.cc:652
@@ -1999,7 +2031,6 @@ msgstr "[PLIK_POMIAROWY]"
 #. Part of cavern --help
 #: ../src/cavern.c:227
 #: n:507
-#, fuzzy
 msgid "[SURVEY_DATA_FILE]"
 msgstr "[PLIK_POMIAROWY]"
 
@@ -2103,53 +2134,53 @@ msgstr "Au&toobrót\tSpace"
 
 #: ../src/mainfrm.cc:793
 #: n:234
-msgid "&Reverse Direction"
-msgstr "&Odwróć kierunki"
+msgid "&Reverse Direction\tR"
+msgstr "&Odwróć kierunki\tR"
 
 #. TRANSLATORS: View *looking* North
 #: ../src/gfxcore.cc:4393
 #: ../src/mainfrm.cc:796
 #: n:240
-msgid "View &North"
-msgstr "Na &północ"
+msgid "View &North\tN"
+msgstr "Na &północ\tN"
 
 #. TRANSLATORS: View *looking* East
 #: ../src/gfxcore.cc:4395
 #: ../src/mainfrm.cc:797
 #: n:241
-msgid "View &East"
-msgstr "Na &wschód"
+msgid "View &East\tE"
+msgstr "Na &wschód\tE"
 
 #. TRANSLATORS: View *looking* South
 #: ../src/gfxcore.cc:4397
 #: ../src/mainfrm.cc:798
 #: n:242
-msgid "View &South"
-msgstr "Na połu&dnie"
+msgid "View &South\tS"
+msgstr "Na połu&dnie\tS"
 
 #. TRANSLATORS: View *looking* West
 #: ../src/gfxcore.cc:4399
 #: ../src/mainfrm.cc:799
 #: n:243
-msgid "View &West"
-msgstr "Na &zachód"
+msgid "View &West\tW"
+msgstr "Na &zachód\tW"
 
 #: ../src/gfxcore.cc:4419
 #: ../src/mainfrm.cc:801
 #: n:248
-msgid "&Plan View"
-msgstr "Widok p&lanu"
+msgid "&Plan View\tP"
+msgstr "Widok p&lanu\tP"
 
 #: ../src/gfxcore.cc:4420
 #: ../src/mainfrm.cc:802
 #: n:249
-msgid "Ele&vation"
-msgstr "Prze&krój"
+msgid "E&levation\tL"
+msgstr "Prze&krój\tL"
 
 #: ../src/mainfrm.cc:804
 #: n:254
-msgid "Restore De&fault View"
-msgstr "Przywróć do&myślny widok"
+msgid "Restore De&fault View\tDelete"
+msgstr "Przywróć do&myślny widok\tDelete"
 
 #. TRANSLATORS: Used as a label for the surrounding box for the "Bearing"
 #. and "Tilt angle" fields, and the "Plan view" and "Elevation" buttons in
@@ -2194,8 +2225,11 @@ msgstr "Jedna strona"
 msgid "Bearing"
 msgstr "Azymut"
 
-#. TRANSLATORS: These example input values should not be translated.
-#: ../src/survexport.cc:136
+#. TRANSLATORS: Used in survexport --help output.  The --bearing option
+#. accepts any of these ways of specifying how much to rotate the
+#. survey about a vertical axis.  These example input values should not
+#. be translated.
+#: ../src/survexport.cc:145
 #: n:460
 msgid "bearing (90, 90d, 100g all mean 90°)"
 msgstr ""
@@ -2203,12 +2237,24 @@ msgstr ""
 #: ../src/pos.cc:90
 #: n:100
 msgid "Station Name"
-msgstr ""
+msgstr "Nazwa stacji"
 
 #: ../src/printing.cc:496
 #: n:260
 msgid "Station Names"
 msgstr "Nazwy punktów"
+
+#. TRANSLATORS: Label for a checkbox in the print/export dialog.
+#: ../src/printing.cc:500
+#: n:537
+msgid "Anonymous stations"
+msgstr "Anonimowe stacje"
+
+#. TRANSLATORS: Option description in `survexport --help` output.
+#: ../src/survexport.cc:149
+#: n:538
+msgid "anonymous stations"
+msgstr "anonimowe stacje"
 
 #: ../src/survexport.cc:147
 #: n:475
@@ -2306,8 +2352,11 @@ msgstr "obcięte do wysokości terenu"
 msgid "Tilt angle"
 msgstr "Kąt pochyłu"
 
-#. TRANSLATORS: These example input values should not be translated.
-#: ../src/survexport.cc:138
+#. TRANSLATORS: Used in survexport --help output.  The --tilt option
+#. accepts any of these ways of specifying how much to rotate the
+#. survey about a horizontol axis.  These example input values should
+#. not be translated.
+#: ../src/survexport.cc:151
 #: n:461
 msgid "tilt (45, 45d, 50g, 100% all mean 45°)"
 msgstr ""
@@ -2520,8 +2569,10 @@ msgstr "Koloruj po &Długości"
 msgid "Colour by &Survey"
 msgstr "Koloruj po &Sesji"
 
-#: ../src/gfxcore.cc:4471
-#: ../src/mainfrm.cc:871
+#. TRANSLATORS: Menu item in Aven.  Selects colouring survey legs by
+#. the survey style ("normal", diving, "nosurvey", etc).
+#: ../src/gfxcore.cc:4474
+#: ../src/mainfrm.cc:883
 #: n:482
 msgid "Colour by St&yle"
 msgstr ""
@@ -2736,7 +2787,7 @@ msgstr "Szukaj"
 #: ../src/mainfrm.cc:1033
 #: n:333
 msgid "Find stations"
-msgstr ""
+msgstr "Znajdź stacje"
 
 #. TRANSLATORS: Find station tooltip when stations are found.  %d is
 #. replaced by the number of matching stations and %s%s%s by the
@@ -2745,16 +2796,18 @@ msgstr ""
 #: n:334
 #, c-format
 msgid "%d stations match %s%s%s"
-msgstr ""
+msgstr "%d stacji pasujących do wzorca %s%s%s"
 
 #. TRANSLATORS: Tooltip for aven's station search control.
 #: ../src/mainfrm.cc:1037
 #: ../src/mainfrm.cc:2365
 #: n:533
 msgid "Station name search (substring or wildcard)"
-msgstr ""
+msgstr "Wyszukiwanie nazwy stacji (podciąg lub symbol wieloznaczny)"
 
-#: ../src/mainfrm.cc:1050
+#. TRANSLATORS: Tooltip for Z exaggeration control.  Vertical distances
+#. in aven are scaled by this factor.
+#: ../src/mainfrm.cc:1064
 #: n:535
 msgid "Z exaggeration factor"
 msgstr ""
@@ -2787,9 +2840,9 @@ msgstr "Panel &boczny"
 #: ../src/mainfrm.cc:1751
 #: ../src/mainfrm.cc:1856
 #: n:338
-#, fuzzy, c-format
+#, c-format
 msgid "%.2f E, %.2f N"
-msgstr "%.2f W, %.2f P"
+msgstr "%.2f Wsch., %.2f Płn."
 
 #. TRANSLATORS: Used in Aven:
 #. From <stationname>: H 12.24m, Brg 234.5°
@@ -2813,9 +2866,9 @@ msgstr "H %.2f%s, V %.2f%s"
 #. measured by the clino)
 #: ../src/mainfrm.cc:1931
 #: n:341
-#, fuzzy, c-format
+#, c-format
 msgid "%s: %s, Dist %.2f%s, Brg %03.1f%s, Grd %s"
-msgstr "%s: %s, Odlg %.2f%s, Az %03.1f%s, Upadzie %s"
+msgstr "%s: %s, Odl. %.2f%s, Az. %03.1f%s, Upad. %s"
 
 #. TRANSLATORS: tickable menu item in View menu.
 #.
@@ -3057,6 +3110,10 @@ msgstr "Pokaż wszystko"
 msgid "Hide others"
 msgstr "Ukryj inne"
 
+#. TRANSLATORS: Menu item for Aven's survey tree.  Bring up the menu
+#. on a survey in the tree and select this and all the other surveys
+#. at the same level will be hidden, leaving only the chosen survey
+#. showing.
 #: ../src/aventreectrl.cc:389
 #: n:388
 msgid "Hide si&blings"
@@ -3093,10 +3150,12 @@ msgstr "&Otwórz...\tCtrl+O"
 msgid "Open &Terrain..."
 msgstr "Otwórz &Teren..."
 
+#. TRANSLATORS: This is a menu item which allows displaying a GPX, KML,
+#. shapefile, etc over the survey in Aven.
 #: ../src/mainfrm.cc:757
 #: n:494
 msgid "Overlay &Geodata..."
-msgstr ""
+msgstr "Nałóż dane &geograficzne..."
 
 #: ../src/mainfrm.cc:758
 #: n:144
@@ -3230,7 +3289,10 @@ msgstr "punkt anonimowy"
 msgid "Can't have a leg between two anonymous stations"
 msgstr "Nie można dokonać pomiaru pomiędzy dwoma anonimowymi punktami"
 
-#: ../src/mainfrm.cc:850
+#. TRANSLATORS: A sub-menu in aven which allows selecting how to display
+#. survey legs with the "splay" flag set (options in the sub-menu
+#. are "Hide"/"Dashed"/"Fade"/"Show").
+#: ../src/mainfrm.cc:866
 #: ../src/printing.cc:488
 #: n:406
 msgid "Spla&y Legs"
@@ -3241,7 +3303,10 @@ msgstr "Domiary &boczne"
 msgid "splay legs"
 msgstr "domiary boczne"
 
-#: ../src/mainfrm.cc:857
+#. TRANSLATORS: A sub-menu in aven which allows selecting how to display
+#. survey legs with the "duplicate" flag set (options in the sub-menu
+#. are "Hide"/"Dashed"/"Fade"/"Show").
+#: ../src/mainfrm.cc:877
 #: n:251
 #, fuzzy
 msgid "&Duplicate Legs"
@@ -3491,14 +3556,25 @@ msgstr "Ponowne wejście do wprowadzonego już pomiaru jest wycofywane z użycia
 msgid "Originally entered here"
 msgstr "Pierwotnie wprowadzono tutaj"
 
+#. TRANSLATORS: Used when a BEGIN command has a survey name, but the
+#. END command omits it, e.g.:
+#.
+#. *begin entrance
+#. 1 2 10.00 178 -01
+#. *end
+#.
+#. gives:
+#.
+#. eg.svx:3: warning: Survey name omitted from END
+#. eg.svx:1: info: Corresponding BEGIN was here
 #: ../src/commands.c:1123
 #: n:22
 #, c-format
 msgid "Corresponding %s was here"
-msgstr ""
+msgstr "Odpowiadający %s był tutaj"
 
 #. TRANSLATORS: Use of the ROOT character (which is "\" by default) is
-#. deprecated, so this error would be generated by:
+#. deprecated, so this warning would be generated by:
 #.
 #. *equate \foo.7 1
 #.
@@ -3525,12 +3601,12 @@ msgstr "pokaż daty pomiarów (jeśli dostępne)"
 #: ../src/dump3d.c:52
 #: n:509
 msgid "equivalent to --show-dates=-"
-msgstr ""
+msgstr "równoważne z --show-dates=-"
 
 #: ../src/dump3d.c:53
 #: n:486
 msgid "convert MOVE and LINE into LEG"
-msgstr ""
+msgstr "przekonwertuj MOVE i LINE do LEG"
 
 #: ../src/gpx.cc:86
 #: ../src/kml.cc:85
@@ -3552,7 +3628,7 @@ msgstr "Błąd podczas inicjalizacji wyjściowego układu współrzednych “%s�
 #: n:492
 #, c-format
 msgid "File “%s” not georeferenced"
-msgstr ""
+msgstr "Plik “%s” bez georeferencji"
 
 #: ../src/survexport.cc:158
 #: n:148
@@ -3627,12 +3703,12 @@ msgstr "wyjście w formacie Survex POS"
 #: ../src/survexport.cc:173
 #: n:525
 msgid "produce Shapefile (lines) output"
-msgstr ""
+msgstr "wyjście w formacie Shapefile (linie)"
 
 #: ../src/survexport.cc:174
 #: n:526
 msgid "produce Shapefile (points) output"
-msgstr ""
+msgstr "wyjście w formacie Shapefile (punkty)"
 
 #: ../src/survexport.cc:175
 #: n:160
@@ -3642,23 +3718,23 @@ msgstr "wyjście w formacie SVG"
 #: ../src/survexport.cc:411
 #: n:252
 msgid "Export format not specified and not known from output file extension"
-msgstr ""
+msgstr "Nie określony format eksportu i nie jest znany z rozszerzenia pliku wyjściowego"
 
 #: ../src/survexport.cc:416
 #: n:253
 msgid "Export format not specified"
-msgstr ""
+msgstr "Nie określony format eksportu"
 
 #: ../src/survexport.cc:157
 #: n:155
 msgid "include items exported by default"
-msgstr ""
+msgstr "dołącz domyślne elementy eksportu"
 
 #: ../src/datain.c:2515
 #: n:499
 #, c-format
 msgid "Macro “%s” not defined"
-msgstr ""
+msgstr "Nie zdefiniowane Makro “%s”"
 
 #: ../src/datain.c:2244
 #: ../src/datain.c:2276
@@ -3667,7 +3743,7 @@ msgstr ""
 #: n:506
 #, c-format
 msgid "Ignoring “%s”"
-msgstr ""
+msgstr "ignoruje “%s”"
 
 #. TRANSLATORS: Warning issued about a dubious case in survey data in
 #. Walls format (.srv).  Real world example:
@@ -3682,30 +3758,30 @@ msgstr ""
 #: ../src/datain.c:4453
 #: n:508
 msgid "Parsing as “to” station but may be isolated LRUD with missing closing delimiter"
-msgstr ""
+msgstr "Odczytuję jako stacja docelowa ale możę być to pomiar LRUD z możliwym błędem symbolu zakończenia"
 
 #: ../src/gdalexport.cc:47
 #: ../src/gdalexport.cc:53
 #: n:527
 #, c-format
 msgid "Failed to initialise GDAL “%s” driver"
-msgstr ""
+msgstr "Niepowodzenie w inicjalizacji sterownika GDAL “%s”"
 
 #: ../src/gdalexport.cc:142
 #: n:528
 msgid "Failed to create GDAL layer"
-msgstr ""
+msgstr "Niepowodzenie w stworzeniu warstwy GDAL"
 
 #: ../src/gdalexport.cc:152
 #: n:529
 msgid "Failed to create GDAL field"
-msgstr ""
+msgstr "Niepowodzenie w stworzeniu pola GDAL"
 
 #: ../src/gdalexport.cc:189
 #: ../src/gdalexport.cc:207
 #: n:530
 msgid "Failed to create GDAL feature"
-msgstr ""
+msgstr "Niepowodzenie w stworzeniu właściwości GDAL"
 
 #, c-format
 #~ msgid "Error in format of font file “%s”"

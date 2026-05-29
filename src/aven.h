@@ -17,8 +17,8 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 */
 
 /* Note: this header needs to be safe to include from C code */
@@ -42,7 +42,11 @@ void aven_v_report(int severity, const char *fnm, int line, int en,
 
 #include <GL/glew.h>
 #include "message.h"
-#include "wx.h"
+
+#include <wx/wx.h>
+#if !wxCHECK_VERSION(3,2,0)
+# error We support building with wxWidgets 3.2.0 or newer
+#endif
 
 #include <string>
 

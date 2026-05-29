@@ -17,14 +17,13 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 //
 
 #include <config.h>
 
 #include <wx/confbase.h>
-#include <wx/image.h>
 
 #include <algorithm>
 
@@ -389,7 +388,7 @@ bool GLAList::DrawList() const {
 
 BEGIN_EVENT_TABLE(GLACanvas, wxGLCanvas)
     EVT_SIZE(GLACanvas::OnSize)
-#ifdef HAS_DPI_INDEPENDENT_PIXELS
+#ifdef wxHAS_DPI_INDEPENDENT_PIXELS
     EVT_MOVE(GLACanvas::OnMove)
 #endif
 END_EVENT_TABLE()
@@ -414,16 +413,7 @@ GLACanvas::~GLACanvas()
 
 void GLACanvas::FirstShow()
 {
-#ifdef HAS_DPI_INDEPENDENT_PIXELS
-    content_scale_factor = wxGLCanvas::GetContentScaleFactor();
-#endif
-
-    // Update our record of the client area size and centre.
-    GetClientSize(&x_size, &y_size);
-    x_size *= content_scale_factor;
-    y_size *= content_scale_factor;
-    if (x_size < 1) x_size = 1;
-    if (y_size < 1) y_size = 1;
+    UpdateSize();
 
     ctx.SetCurrent(*this);
 
@@ -518,7 +508,7 @@ void GLACanvas::FirstShow()
     wxString path = wmsg_cfgpth();
     path += wxCONFIG_PATH_SEPARATOR;
     path += wxT("unifont.pixelfont");
-    if (!m_Font.load(path, content_scale_factor >= 2)) {
+    if (!m_Font.load(path, dpi_scale_factor >= 2)) {
 	// FIXME: do something better.
 	// We have this message available: Error in format of font file “%s”
 	fprintf(stderr, "Failed to parse compiled-in font data\n");
@@ -643,47 +633,52 @@ void GLACanvas::SetScale(double scale)
     }
 }
 
-#ifdef HAS_DPI_INDEPENDENT_PIXELS
-void GLACanvas::UpdateContentScaleFactor()
-{
-    double new_content_scale_factor = wxGLCanvas::GetContentScaleFactor();
-    if (new_content_scale_factor == content_scale_factor) return;
-
-    content_scale_factor = new_content_scale_factor;
-    for (auto& i : drawing_lists) {
-	i.invalidate_if(INVALIDATE_ON_HIDPI);
-    }
-}
-
 void GLACanvas::OnMove(wxMoveEvent & event)
 {
-    UpdateContentScaleFactor();
+    UpdateSize();
     event.Skip();
 }
+
+void GLACanvas::UpdateSize() {
+    // Update our record of the DPI and client area size, and invalidate any
+    // cached lists which depend on anything that has changed.
+    unsigned int mask = 0;
+
+    double new_dpi_scale_factor = wxGLCanvas::GetDPIScaleFactor();
+    if (dpi_scale_factor != new_dpi_scale_factor) {
+	dpi_scale_factor = new_dpi_scale_factor;
+	mask |= INVALIDATE_ON_HIDPI;
+    }
+
+    int new_w, new_h;
+    GetClientSize(&new_w, &new_h);
+#ifdef wxHAS_DPI_INDEPENDENT_PIXELS
+    auto content_scale_factor = GetContentScaleFactor();
+    new_w *= content_scale_factor;
+    new_h *= content_scale_factor;
 #endif
-
-void GLACanvas::OnSize(wxSizeEvent & event)
-{
-    UpdateContentScaleFactor();
-
-    wxSize size = event.GetSize();
-
-    int new_w = size.GetWidth() * content_scale_factor;
-    int new_h = size.GetHeight() * content_scale_factor;
     // The width and height go to zero when the panel is dragged right
     // across so we clamp them to be at least 1 to avoid problems.
     if (new_w < 1) new_w = 1;
     if (new_h < 1) new_h = 1;
-    unsigned int mask = 0;
-    if (new_w != x_size) mask |= INVALIDATE_ON_X_RESIZE;
-    if (new_h != y_size) mask |= INVALIDATE_ON_Y_RESIZE;
-    if (mask) {
+    if (x_size != new_w) {
 	x_size = new_w;
+	mask |= INVALIDATE_ON_X_RESIZE;
+    }
+    if (y_size != new_h) {
 	y_size = new_h;
+	mask |= INVALIDATE_ON_Y_RESIZE;
+    }
+    if (mask) {
 	for (auto& i : drawing_lists) {
 	    i.invalidate_if(mask);
 	}
     }
+}
+
+void GLACanvas::OnSize(wxSizeEvent & event)
+{
+    UpdateSize();
 
     event.Skip();
 
@@ -719,7 +714,12 @@ void GLACanvas::SetVolumeDiameter(glaCoord diameter)
     // Set the size of the data drawing volume by giving the diameter of the
     // smallest sphere containing it.
 
-    m_VolumeDiameter = max(glaCoord(1.0), diameter);
+    diameter = max(glaCoord(1.0), diameter);
+    if (diameter != m_VolumeDiameter) {
+	// Adjust scale so on-screen scale is unchanged.
+	SetScale(m_Scale * diameter / m_VolumeDiameter);
+	m_VolumeDiameter = diameter;
+    }
 }
 
 void GLACanvas::StartDrawing()

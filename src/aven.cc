@@ -17,8 +17,8 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 //
 
 #include <config.h>
@@ -40,7 +40,6 @@
 #include <stdio.h>
 
 #include <wx/confbase.h>
-#include <wx/image.h>
 #if wxUSE_DISPLAY
 // wxDisplay was added in wx 2.5; but it may not be built for mingw (because
 // the header seems to be missing).
@@ -186,9 +185,7 @@ int main(int argc, char **argv)
     // The GLX-based wxGLCanvas doesn't work under Wayland, and the code
     // segfaults: https://github.com/wxWidgets/wxWidgets/issues/17702
     //
-    // Therefore we force X11 unless we're using the EGL-based wxGLCanvas
-    // (which was added in wxWidgets 3.1.5 and hasn't been backported to
-    // 3.0.x).
+    // Therefore we force X11 unless we're using the EGL-based wxGLCanvas.
     //
     // Setting GDK_BACKEND=x11 is the recommended workaround, and it seems to
     // work to set it here.  GTK2 doesn't support Wayland, so doesn't need

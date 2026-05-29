@@ -13,20 +13,23 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+ * along with this program; if not, see
+ * <https://www.gnu.org/licenses/>.
  */
 
 #include "str.h"
 
 /* Fix station if not already fixed.
  *
+ * stn_offset gives column info - it should be the file offset (offset member
+ * of a filepos) or -1 for no column info.
+ *
  * Returns:
  *  0 if not already fixed
  *  1 if already fixed at the same coordinates
  * -1 if already fixed but at different coordinates
  */
-int fix_station(prefix *fix_name, const double* coords);
+int fix_station(prefix *fix_name, const double* coords, long stn_offset);
 
 /* Fix station with variance.
  *
@@ -57,7 +60,6 @@ void default_calib(settings *s);
 void pop_settings(void);
 void invalidate_pj_cached(void);
 void report_declination(settings *p);
-void set_declination_location(real x, real y, real z, const char *proj_str);
 
 void copy_on_write_meta(settings *s);
 
@@ -86,5 +88,6 @@ int match_tok(const sztok *tab, int tab_size);
 
 #define TABSIZE(T) ((sizeof(T) / sizeof(sztok)) - 1)
 
-void scan_compass_station_name(prefix *stn);
+void update_separator_map_for_foreign_name(const char* name);
+void update_separator_map_for_foreign_format(const short *t);
 void update_output_separator(void);

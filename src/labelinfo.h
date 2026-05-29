@@ -17,8 +17,8 @@
 //  GNU General Public License for more details.
 //
 //  You should have received a copy of the GNU General Public License
-//  along with this program; if not, write to the Free Software
-//  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+//  along with this program; if not, see
+//  <https://www.gnu.org/licenses/>.
 //
 
 #ifndef labelinfo_h
@@ -28,7 +28,7 @@
 #include "img_for_survex.h"
 #include "message.h"
 #include "vector3.h"
-#include "wx.h"
+#include <wx/treectrl.h>
 
 // macOS headers pollute the global namespace with generic names like
 // "class Point", which clashes with our "class Point".  So for __WXMAC__

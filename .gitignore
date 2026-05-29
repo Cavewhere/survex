@@ -38,6 +38,7 @@ lib/Makefile
 lib/Makefile.in
 lib/bg.msg
 lib/ca.msg
+lib/cs.msg
 lib/de.msg
 lib/de_CH.msg
 lib/el.msg
@@ -81,7 +82,6 @@ src/thgeomagdata.h
 src/z_getopt.c
 stamp-h1
 survex.iss
-survex.spec
 survex-*.*.*.tar.gz
 survex-*.*.*
 test-driver
