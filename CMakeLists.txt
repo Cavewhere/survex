@@ -56,6 +56,11 @@ include(CTest)
 
 option(SURVEX_CONAN "Use Conan to manage dependencies" ON)
 
+# The aven viewer and survexport tool are the wxWidgets GUI front-ends. CaveWhere
+# replaces aven entirely and does not need survexport, so it leaves this OFF. When
+# off we skip those two executables (and their wxWidgets/GLEW/GDAL requirements).
+option(SURVEX_BUILD_AVEN "Build the wxWidgets GUI tools (aven, survexport)" OFF)
+
 # In this file we are doing all of our 'configure' checks. Things like checking
 # for headers, functions, libraries, types and size of types.
 include (${CMAKE_ROOT}/Modules/CheckIncludeFile.cmake)
@@ -136,7 +141,7 @@ find_package(Python3 COMPONENTS Interpreter)
 find_package(Perl)
 find_package(PROJ REQUIRED)
 
-if(NOT MOBILE_BUILD)
+if(NOT MOBILE_BUILD AND SURVEX_BUILD_AVEN)
     find_package(GLEW REQUIRED)
     find_package(GDAL REQUIRED)
     find_package(wxWidgets REQUIRED COMPONENTS core base adv gl html)
@@ -368,6 +373,7 @@ add_custom_command(
 )
 add_custom_target(img2aven DEPENDS ${PROJECT_BINARY_DIR}/img2aven.h)
 
+if(SURVEX_BUILD_AVEN)
 add_executable(survexport
     ${SRC_DIR}/survexport.cc
     ${SRC_DIR}/model.cc
@@ -396,6 +402,7 @@ target_compile_definitions(survexport PUBLIC
 add_dependencies(survexport
     img2aven
     )
+endif() # SURVEX_BUILD_AVEN
 
 
 set(FONT_FILES
@@ -426,6 +433,7 @@ add_custom_command(
     )
 add_custom_target(gdtconvert DEPENDS ${PROJECT_BINARY_DIR}/avenpal.h)
 
+if(SURVEX_BUILD_AVEN)
 add_executable(aven WIN32
     ${SRC_DIR}/aven.cc
     ${SRC_DIR}/gfxcore.cc
@@ -475,6 +483,7 @@ target_compile_definitions(aven PUBLIC
     _CRT_SECURE_NO_WARNINGS
     HAVE_GDAL
     )
+endif() # SURVEX_BUILD_AVEN
 
 endif() # NOT MOBILE_BUILD
 
