@@ -1,0 +1,11 @@
+; pos=yes warn=0
+; Test that *cs custom @FILENAME assumes a .prj extension if the name as given
+; doesn't exist, and that a UTF-8 "BOM" at the start of the file is skipped.
+; The coordinate system is quoted here too, with the `@` inside the quotes.
+*cs EPSG:6318
+*cs out CUSTOM "@csprj2"
+
+*fix entrance -86.0905 37.1966 200
+
+entrance a 30.0 090 -05
+a        b 25.0 135 +02

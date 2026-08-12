@@ -33,6 +33,7 @@
 #include "datain.h"
 #include "date.h"
 #include "debug.h"
+#include "filelist.h"
 #include "filename.h"
 #include "message.h"
 #include "netbits.h"
@@ -2443,6 +2444,92 @@ static const sztok cs_tab[] = {
      {NULL,       CS_NONE}
 };
 
+/* Read a coordinate system from the file FNM, as specified by
+ * `*cs custom @FILENAME`.  FP is the position of FILENAME in the current file,
+ * which any diagnostic is reported against.
+ *
+ * WKT and PROJJSON are made up of double quoted strings and are usually
+ * written over several lines, which makes them awkward to write in a .svx
+ * file.  Keeping such a description in its own file also means a .prj file
+ * such as those which accompany ESRI shapefiles can be used directly.
+ *
+ * Returns the coordinate system description, or NULL if the file couldn't be
+ * opened (in which case a diagnostic has been reported).
+ */
+static char *
+read_cs_from_file(const char *fnm, const filepos *fp)
+{
+   char *pth = path_from_fnm(file.filename);
+   char *fnm_used = NULL;
+   FILE *fh = fopen_portable(pth, fnm, EXT_PRJ, "rb", &fnm_used);
+   free(pth);
+   if (fh == NULL) {
+      set_pos(fp);
+      compile_diagnostic(DIAG_ERR|DIAG_STRING, /*Couldn’t open file “%s”*/1,
+			 fnm);
+      return NULL;
+   }
+
+   int c = GETC(fh);
+   if (c == 0xef) {
+      /* Skip a UTF-8 "BOM" if there is one - PROJ rejects a description which
+       * starts with one. */
+      if (GETC(fh) == 0xbb && GETC(fh) == 0xbf) {
+	 c = GETC(fh);
+      } else {
+	 rewind(fh);
+	 c = GETC(fh);
+      }
+   }
+
+   /* We store the coordinate system in the .3d file as part of a
+    * newline-terminated line, so it can't contain a newline.  Join the lines
+    * with a single space, dropping blanks at the start and end of each line.
+    * Neither WKT nor PROJJSON allows a newline inside a quoted name, so only
+    * insignificant whitespace is affected.
+    */
+   /* The s_clear() calls give each string a buffer, which for an empty file it
+    * would otherwise still lack by the time we use it - s_steal() writes the
+    * terminating zero byte to one, and s_appends() reads from one.
+    */
+   string cs = S_INIT;
+   s_clear(&cs);
+   string blanks = S_INIT;
+   s_clear(&blanks);
+   bool line_break = false;
+   for ( ; c != EOF; c = GETC(fh)) {
+      if (c == '\n' || c == '\r') {
+	 line_break = true;
+	 s_clear(&blanks);
+	 continue;
+      }
+      if (c == ' ' || c == '\t') {
+	 /* Only keep blanks which turn out to be between two non-blanks on
+	  * the same line. */
+	 if (cs.len) s_appendch(&blanks, c);
+	 continue;
+      }
+      if (cs.len) {
+	 if (line_break) {
+	    s_appendch(&cs, ' ');
+	 } else {
+	    s_appends(&cs, &blanks);
+	 }
+      }
+      s_clear(&blanks);
+      line_break = false;
+      s_appendch(&cs, c);
+   }
+   s_free(&blanks);
+
+   if (FERROR(fh))
+      fatalerror_in_file(fnm_used, 0, /*Error reading file*/18);
+   fclose(fh);
+   free(fnm_used);
+
+   return s_steal(&cs);
+}
+
 static void
 cmd_cs(void)
 {
@@ -2501,14 +2588,36 @@ cmd_cs(void)
        switch (cs) {
 	 case CS_NONE:
 	   break;
-	 case CS_CUSTOM:
+	 case CS_CUSTOM: {
 	   ok_for_output = MAYBE;
+	   skipblanks();
+	   /* `@FILENAME` reads the coordinate system from a file.  If FILENAME
+	    * is quoted then the `@` may be written either side of the opening
+	    * quote.
+	    */
+	   bool from_file = (ch == '@');
+	   if (from_file) nextch();
 	   get_pos(&fp);
 	   string str = S_INIT;
 	   read_string(&str);
-	   proj_str = s_steal(&str);
+	   const char *p = s_str(&str);
+	   if (!from_file && *p == '@') {
+	      from_file = true;
+	      ++p;
+	   }
+	   if (from_file) {
+	      proj_str = read_cs_from_file(p, &fp);
+	      s_free(&str);
+	      if (!proj_str) {
+		 skipline();
+		 return;
+	      }
+	   } else {
+	      proj_str = s_steal(&str);
+	   }
 	   cs_sub = 0;
 	   break;
+	 }
 	 case CS_EPSG: case CS_ESRI:
 	   ok_for_output = MAYBE;
 	   if (ch == ':' && isdigit(nextch())) {
@@ -2722,6 +2831,7 @@ cmd_cs(void)
 	 /* Same as the current output projection, so valid for input. */
       } else if (pcs->proj_str && strcmp(proj_str, pcs->proj_str) == 0) {
 	 /* Same as the current input projection, so nothing to do! */
+	 free(proj_str);
 	 return;
       } else if (ok_for_output == MAYBE) {
 	 /* (ok_for_output == MAYBE) also happens to indicate whether we need
@@ -2735,6 +2845,7 @@ cmd_cs(void)
 			       proj_context_errno_string(PJ_DEFAULT_CTX,
 							 proj_context_errno(PJ_DEFAULT_CTX)));
 	    skipline();
+	    free(proj_str);
 	    return;
 	 }
 	 proj_destroy(pj);

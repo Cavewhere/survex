@@ -1,0 +1,8 @@
+; pos=fail error=2
+; Test the error from *cs custom @FILENAME naming a file which isn't there.
+*cs EPSG:6318
+*cs out CUSTOM @nosuchfile.prj
+
+*fix entrance -86.0905 37.1966 200
+
+entrance a 30.0 090 -05

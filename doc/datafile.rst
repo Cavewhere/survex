@@ -501,6 +501,11 @@ Example
        ; Output in the coordinate system used in the Totes Gebirge in Austria
        *cs out custom "+proj=tmerc +lat_0=0 +lon_0=13d20 +k=1 +x_0=0 +y_0=-5200000 +ellps=bessel +towgs84=577.326,90.129,463.919,5.137,1.474,5.297,2.4232"
 
+   ::
+
+       ; Output in a low distortion projection described by mammoth.prj
+       *cs out custom @mammoth.prj
+
 Description
    ``*cs`` allows the coordinate systems used for fixed points and for
    processed survey data to be specified.
@@ -529,7 +534,35 @@ Description
      resource for finding the EPSG code you want.  For example, ``EPSG:4167``
      is NZGD2000.  Supported since Survex 1.2.15.
 
-   * ``CUSTOM`` followed by a PROJ string (like in the example above).
+   * ``CUSTOM`` followed by a PROJ string, or by ``@`` and the name of a file
+     containing a description of the coordinate system - the last two examples
+     above show each of these in turn.
+
+     Such a file may contain a PROJ string, but the point of it is that it can
+     also hold WKT or PROJJSON, which are made up of double quoted strings
+     written over several lines and so are awkward to write in a ``.svx``
+     file.  This means a ``.prj`` file such as those which accompany ESRI
+     shapefiles can be used directly, so you can georeference a survey to match
+     GIS data you already have.
+
+     It's worth using WKT when the datum you need is one PROJ has no
+     ``+datum=`` keyword for, which is the case for most datums in current use
+     (such as NAD83(2011), ETRS89 and GDA2020).  A PROJ string can only express
+     a datum as an ellipsoid plus a static shift, so PROJ quietly drops such a
+     datum when it converts a coordinate system to a PROJ string.
+
+     The filename is relative to the directory containing the file the ``*cs``
+     command is in, and an extension of ``.prj`` is assumed if the name as
+     given doesn't exist.  Use double quotes around the name if it contains
+     spaces - the ``@`` may go either side of the opening quote, so both
+     ``@"My Cave.prj"`` and ``"@My Cave.prj"`` work.
+
+     The lines of the file are joined together with a single space, since the
+     coordinate system is stored in the ``.3d`` file as a single line.  This
+     only affects whitespace which the formats treat as insignificant, because
+     neither WKT nor PROJJSON allows a newline inside a quoted name.
+
+     Reading the coordinate system from a file was added in Survex 1.4.23.
 
    * ``ESRI:`` followed by a positive integer code.  ESRI codes are used by
      ArcGIS to specify coordinate systems (in a similar way to EPSG codes)
