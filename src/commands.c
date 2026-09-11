@@ -2413,6 +2413,7 @@ typedef enum {
     CS_EPSG,
     CS_ESRI,
     CS_EUR79Z30,
+    CS_FILE,
     CS_IJTSK,
     CS_IJTSK03,
     CS_JTSK,
@@ -2430,6 +2431,7 @@ static const sztok cs_tab[] = {
      {"EPSG",     CS_EPSG},	/* EPSG:<number> */
      {"ESRI",     CS_ESRI},	/* ESRI:<number> */
      {"EUR79Z30", CS_EUR79Z30},
+     {"FILE",     CS_FILE},	/* FILE <filename> */
      {"IJTSK",    CS_IJTSK},
      {"IJTSK03",  CS_IJTSK03},
      {"JTSK",     CS_JTSK},
@@ -2444,17 +2446,12 @@ static const sztok cs_tab[] = {
      {NULL,       CS_NONE}
 };
 
-/* Read a coordinate system from the file FNM, as specified by
- * `*cs custom @FILENAME`.  FP is the position of FILENAME in the current file,
- * which any diagnostic is reported against.
+/* Read a coordinate system description from the file FNM, as specified by
+ * `*cs file FILENAME`.  FP is the position of FILENAME, which any diagnostic
+ * is reported against.
  *
- * WKT and PROJJSON are made up of double quoted strings and are usually
- * written over several lines, which makes them awkward to write in a .svx
- * file.  Keeping such a description in its own file also means a .prj file
- * such as those which accompany ESRI shapefiles can be used directly.
- *
- * Returns the coordinate system description, or NULL if the file couldn't be
- * opened (in which case a diagnostic has been reported).
+ * Returns the description, or NULL if the file couldn't be opened (in which
+ * case a diagnostic has been reported).
  */
 static char *
 read_cs_from_file(const char *fnm, const filepos *fp)
@@ -2470,34 +2467,18 @@ read_cs_from_file(const char *fnm, const filepos *fp)
       return NULL;
    }
 
-   int c = GETC(fh);
-   if (c == 0xef) {
-      /* Skip a UTF-8 "BOM" if there is one - PROJ rejects a description which
-       * starts with one. */
-      if (GETC(fh) == 0xbb && GETC(fh) == 0xbf) {
-	 c = GETC(fh);
-      } else {
-	 rewind(fh);
-	 c = GETC(fh);
-      }
-   }
-
-   /* We store the coordinate system in the .3d file as part of a
-    * newline-terminated line, so it can't contain a newline.  Join the lines
-    * with a single space, dropping blanks at the start and end of each line.
+   /* We store the coordinate system in the .3d file as a single line, so join
+    * the lines with a space, dropping blanks at the start and end of each.
     * Neither WKT nor PROJJSON allows a newline inside a quoted name, so only
     * insignificant whitespace is affected.
     */
-   /* The s_clear() calls give each string a buffer, which for an empty file it
-    * would otherwise still lack by the time we use it - s_steal() writes the
-    * terminating zero byte to one, and s_appends() reads from one.
-    */
    string cs = S_INIT;
+   /* s_clear() gives cs a buffer, which s_steal() needs even for an empty
+    * file. */
    s_clear(&cs);
    string blanks = S_INIT;
-   s_clear(&blanks);
    bool line_break = false;
-   for ( ; c != EOF; c = GETC(fh)) {
+   for (int c = GETC(fh); c != EOF; c = GETC(fh)) {
       if (c == '\n' || c == '\r') {
 	 line_break = true;
 	 s_clear(&blanks);
@@ -2588,32 +2569,24 @@ cmd_cs(void)
        switch (cs) {
 	 case CS_NONE:
 	   break;
-	 case CS_CUSTOM: {
+	 case CS_CUSTOM:
 	   ok_for_output = MAYBE;
-	   skipblanks();
-	   /* `@FILENAME` reads the coordinate system from a file.  If FILENAME
-	    * is quoted then the `@` may be written either side of the opening
-	    * quote.
-	    */
-	   bool from_file = (ch == '@');
-	   if (from_file) nextch();
 	   get_pos(&fp);
 	   string str = S_INIT;
 	   read_string(&str);
-	   const char *p = s_str(&str);
-	   if (!from_file && *p == '@') {
-	      from_file = true;
-	      ++p;
-	   }
-	   if (from_file) {
-	      proj_str = read_cs_from_file(p, &fp);
-	      s_free(&str);
-	      if (!proj_str) {
-		 skipline();
-		 return;
-	      }
-	   } else {
-	      proj_str = s_steal(&str);
+	   proj_str = s_steal(&str);
+	   cs_sub = 0;
+	   break;
+	 case CS_FILE: {
+	   ok_for_output = MAYBE;
+	   get_pos(&fp);
+	   string fnm_str = S_INIT;
+	   read_string(&fnm_str);
+	   proj_str = read_cs_from_file(s_str(&fnm_str), &fp);
+	   s_free(&fnm_str);
+	   if (!proj_str) {
+	      skipline();
+	      return;
 	   }
 	   cs_sub = 0;
 	   break;
@@ -2689,7 +2662,7 @@ cmd_cs(void)
 	   break;
        }
    }
-   if (cs_sub == INT_MIN || isalnum(ch)) {
+   if (cs_sub == INT_MIN || (cs != CS_FILE && isalnum(ch))) {
       set_pos(&fp);
       compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Unknown coordinate system*/434);
       skipline();
@@ -2700,6 +2673,7 @@ cmd_cs(void)
       case CS_NONE:
 	 break;
       case CS_CUSTOM:
+      case CS_FILE:
 	 /* proj_str already set */
 	 break;
       case CS_EPSG:

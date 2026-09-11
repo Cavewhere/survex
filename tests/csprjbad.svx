@@ -1,7 +1,12 @@
-; pos=fail error=2
-; Test the error from *cs custom @FILENAME naming a file which isn't there.
+; pos=fail warn=0 error=4
+; Test errors from *cs file FILENAME.
+*cs out FILE nosuchfile.prj
+; PROJ rejects a description which starts with a UTF-8 "BOM".
+*cs out FILE csprjbom.prj
+; Junk after the filename is reported as such, not as an unknown coordinate
+; system.
+*cs FILE "csprj.prj"x
 *cs EPSG:6318
-*cs out CUSTOM @nosuchfile.prj
 
 *fix entrance -86.0905 37.1966 200
 
