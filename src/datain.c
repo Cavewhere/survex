@@ -303,14 +303,49 @@ static int caret_width = 0;
  * separator map. */
 static bool separator_map_updated_for_walls = false;
 
+/* Handles the active data_file() frames have open.  Each frame keeps its
+ * enclosing file's handle in a stack-local `file_store`, which a fatal error's
+ * longjmp unwinds without closing, so this chain is what lets
+ * data_file_reset_state() close every handle the run still has open. */
+typedef struct open_file {
+   FILE *fh;
+   struct open_file *next;
+} open_file;
+
+static open_file *open_files = NULL;
+
+static void
+push_open_file(FILE *fh)
+{
+   open_file *p = osnew(open_file);
+   p->fh = fh;
+   p->next = open_files;
+   open_files = p;
+}
+
+static void
+close_open_file(FILE *fh)
+{
+   open_file **prev = &open_files;
+   while (*prev) {
+      if ((*prev)->fh == fh) {
+	 open_file *p = *prev;
+	 *prev = p->next;
+	 free(p);
+	 break;
+      }
+      prev = &(*prev)->next;
+   }
+   fclose(fh);
+}
+
 /* Reset the parser file state a fatal error leaves behind: the longjmp out of
  * data_file() skips the frames that own the include chain, so `file` keeps
- * parent links into unwound stack frames.  Closing file.fh releases the
- * innermost handle; the outer handles belonged to the unwound frames. */
+ * parent links into unwound stack frames and their handles stay open. */
 void
 data_file_reset_state(void)
 {
-   if (file.fh) fclose(file.fh);
+   while (open_files) close_open_file(open_files->fh);
    memset(&file, 0, sizeof(file));
    ch = 0;
    caret_width = 0;
@@ -3244,6 +3279,7 @@ next_line:
 		}
 		FWRITE_(s_str(&line), s_len(&line), 1, file.fh);
 #endif
+		push_open_file(file.fh);
 		fseek(file.fh, fp_args.offset - file.lpos, SEEK_SET);
 		ch = (unsigned char)s_str(&line)[fp_args.offset - file.lpos - 1];
 		file.lpos = 0;
@@ -3630,7 +3666,7 @@ read_flagged_stations:
 
 	if (!s_empty(&line)) {
 	    // Revert to reading from the file.
-	    fclose(file.fh);
+	    close_open_file(file.fh);
 	    s_free(&line);
 	    file = file_store;
 	    ch = ch_store;
@@ -3891,6 +3927,7 @@ process_entry:
 		int ch_store = ch;
 		if (file.fh) file.parent = &file_store;
 		file.fh = fh;
+		push_open_file(fh);
 		file.filename = filename;
 		file.line = 1;
 		file.lpos = 0;
@@ -3909,7 +3946,7 @@ process_entry:
 		if (FERROR(file.fh))
 		    fatalerror_in_file(file.filename, 0, /*Error reading file*/18);
 
-		(void)fclose(file.fh);
+		close_open_file(file.fh);
 
 		/* don't free this - it may be pointed to by prefix.file */
 		/* free(file.filename); */
@@ -4216,6 +4253,7 @@ data_file(const char *pth, const char *fnm)
       file_store = file;
       if (file.fh) file.parent = &file_store;
       file.fh = fh;
+      push_open_file(fh);
       file.filename = filename;
       file.line = 1;
       file.lpos = 0;
@@ -4261,7 +4299,7 @@ data_file(const char *pth, const char *fnm)
    if (FERROR(file.fh))
       fatalerror_in_file(file.filename, 0, /*Error reading file*/18);
 
-   (void)fclose(file.fh);
+   close_open_file(file.fh);
 
    file = file_store;
 
