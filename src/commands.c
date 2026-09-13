@@ -1043,9 +1043,8 @@ pop_settings(void)
     if (p->Translate != pcs->Translate)
 	free(p->Translate - 1);
 
-    /* free meta if not used by parent, or in this block */
-    if (p->meta && p->meta != pcs->meta && p->meta->ref_count == 0)
-	free(p->meta);
+    /* meta is freed by cavern at the end of the run - see
+     * cavern_register_meta(). */
 
     free(p);
 }
@@ -3063,6 +3062,7 @@ copy_on_write_meta(settings *s)
 	   *meta_new = *(s->meta);
        }
        meta_new->ref_count = 0;
+       cavern_register_meta(meta_new);
        s->meta = meta_new;
    }
 }

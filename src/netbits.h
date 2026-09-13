@@ -19,6 +19,8 @@
 
 void clear_last_leg(void);
 
+void netbits_reset_state(void);
+
 node *StnFromPfx(prefix *name);
 
 linkfor *copy_link(linkfor *leg);

@@ -48,6 +48,14 @@ void clear_last_leg(void) {
    last_leg.to_name = NULL;
 }
 
+/* last_leg and stn_iter point into the survey graph, which cavern frees
+ * between runs when it's embedded as a library, so clear them to stop the
+ * next run following a dangling pointer. */
+void netbits_reset_state(void) {
+   clear_last_leg();
+   stn_iter = NULL;
+}
+
 static char freeleg(node **stnptr);
 
 #ifdef NO_COVARIANCES

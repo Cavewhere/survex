@@ -36,12 +36,21 @@
 
 int root_depr_count = 0;
 
+/* Caches which speed up adding an increasing sequence of names to a large
+ * survey.  File-scope rather than function statics so readval_reset_state()
+ * can clear them: they point into the survey graph, which cavern frees
+ * between runs when it's embedded as a library. */
+static prefix *cached_survey = NULL, *cached_station = NULL;
+static prefix *walls_cached_survey = NULL, *walls_cached_station = NULL;
+
 /* Clear the count of reported uses of the deprecated ROOT "\", which caps that
  * warning at 5 per run, so a library caller's next run reports it again. */
 void
 readval_reset_state(void)
 {
    root_depr_count = 0;
+   cached_survey = cached_station = NULL;
+   walls_cached_survey = walls_cached_station = NULL;
 }
 
 static prefix *
@@ -245,7 +254,6 @@ anon_wall_station:
       } else {
 	 /* Use caching to speed up adding an increasing sequence to a
 	  * large survey */
-	 static prefix *cached_survey = NULL, *cached_station = NULL;
 	 prefix *ptrPrev = NULL;
 	 int cmp = 1; /* result of strcmp ( -ve for <, 0 for =, +ve for > ) */
 	 if (cached_survey == back_ptr) {
@@ -571,12 +579,11 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 	    } else {
 		/* Use caching to speed up adding an increasing sequence to a
 		 * large survey */
-		static prefix *cached_survey = NULL, *cached_station = NULL;
 		prefix *ptrPrev = NULL;
 		int cmp = 1; /* result of strcmp ( -ve for <, 0 for =, +ve for > ) */
-		if (cached_survey == back_ptr) {
-		    cmp = strcmp(prefix_ident(cached_station), name);
-		    if (cmp <= 0) ptr = cached_station;
+		if (walls_cached_survey == back_ptr) {
+		    cmp = strcmp(prefix_ident(walls_cached_station), name);
+		    if (cmp <= 0) ptr = walls_cached_station;
 		}
 		while (ptr && (cmp = strcmp(prefix_ident(ptr), name))<0) {
 		    ptrPrev = ptr;
@@ -619,8 +626,8 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		if (!TSTBIT(ptr->sflags, SFLAGS_SURVEY)) {
 		    ptr->min_export = USHRT_MAX;
 		}
-		cached_survey = back_ptr;
-		cached_station = ptr;
+		walls_cached_survey = back_ptr;
+		walls_cached_station = ptr;
 	    }
 	    if (name == p) free(p);
 	}

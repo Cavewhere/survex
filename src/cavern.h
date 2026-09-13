@@ -409,6 +409,10 @@ typedef struct Settings {
    meta_data * meta;
 } settings;
 
+/* Take ownership of a newly allocated meta_data; cavern frees it when the
+ * run finishes. */
+void cavern_register_meta(meta_data *meta);
+
 /* global variables */
 extern settings *pcs;
 extern prefix *root;

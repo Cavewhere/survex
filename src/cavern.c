@@ -113,6 +113,8 @@ static void cavern_cleanup_state(void);
 static void cavern_free_settings_chain(settings *s);
 static void cavern_free_nosurvey_links(void);
 static void cavern_free_model(void);
+static void cavern_free_survey_graph(void);
+static void cavern_free_meta(void);
 static void cavern_restore_stdout(void);
 static int cavern_run_impl(int argc, char **argv);
 
@@ -572,18 +574,17 @@ cavern_cleanup_state(void)
    pcs = NULL;
    cavern_free_nosurvey_links();
    cavern_free_model();
+   cavern_free_survey_graph();
+   cavern_free_meta();
    cavern_reset_cs_state();
    data_file_reset_state();
    walls_reset_state();
    commands_reset_state();
    readval_reset_state();
+   netbits_reset_state();
    s_free(&survey_title);
    survey_title = (string)S_INIT;
    invalidate_pj_cached();
-   anon_list = NULL;
-   fixedlist = NULL;
-   stnlist = NULL;
-   root = NULL;
 }
 
 static void
@@ -595,10 +596,10 @@ cavern_free_settings_chain(settings *s)
     * each node owns, as pop_settings() does.  The walk goes child to parent,
     * so the parent is s->next.
     *
-    * ordering and meta are deliberately leaked here: ordering often points
-    * at a static table (e.g. compass_order in datain.c) and only the normal
-    * path nulls it before popping, and meta is reference counted by legs
-    * which are themselves discarded by this teardown.
+    * ordering is deliberately leaked here: it often points at a static table
+    * (e.g. compass_order in datain.c) and only the normal path nulls it
+    * before popping.  meta is owned by the run's meta registry, which
+    * cavern_free_meta() empties.
     */
    while (s) {
       settings *next = s->next;
@@ -640,6 +641,138 @@ cavern_free_model(void)
       model = next_psg;
    }
    next_lrud = NULL;
+}
+
+/* Equated stations share a single pos, so the prefix tree walk collects pos
+ * pointers here and frees each distinct one once. */
+typedef struct {
+   pos **p;
+   size_t len;
+   size_t capacity;
+} pos_list;
+
+static void
+pos_list_add(pos_list *list, pos *p)
+{
+   if (!p) return;
+   if (list->len == list->capacity) {
+      list->capacity = list->capacity ? list->capacity * 2 : 256;
+      list->p = osrealloc(list->p, list->capacity * sizeof(pos *));
+   }
+   list->p[list->len++] = p;
+}
+
+static int
+cmp_pos_ptr(const void *a, const void *b)
+{
+   pos *pa = *(pos *const *)a;
+   pos *pb = *(pos *const *)b;
+   return (pa > pb) - (pa < pb);
+}
+
+static void
+pos_list_free_unique(pos_list *list)
+{
+   if (list->len == 0) {
+      free(list->p);
+      return;
+   }
+   qsort(list->p, list->len, sizeof(pos *), cmp_pos_ptr);
+   for (size_t i = 0; i < list->len; i++) {
+      if (i == 0 || list->p[i] != list->p[i - 1]) free(list->p[i]);
+   }
+   free(list->p);
+}
+
+/* Free the legs and stations still on the station lists.  A run which gets
+ * as far as do_stats() has already freed these, so usually there's nothing
+ * to do here, but a run which ends in a fatal error hasn't.  Each forward
+ * leg is freed together with its reverse half in a first pass, so that the
+ * second pass never reaches through a station it has already freed. */
+static void
+cavern_free_stations(void)
+{
+   node *lists[2] = { stnlist, fixedlist };
+   stnlist = fixedlist = NULL;
+   for (int list = 0; list < 2; list++) {
+      for (node *stn = lists[list]; stn; stn = stn->next) {
+	 for (int d = 0; d < 3; d++) {
+	    linkfor *leg = stn->leg[d];
+	    if (leg && data_here(leg)) {
+	       node *to = leg->l.to;
+	       int reverse_dirn = reverse_leg_dirn(leg);
+	       free(to->leg[reverse_dirn]);
+	       to->leg[reverse_dirn] = NULL;
+	       free(leg);
+	       stn->leg[d] = NULL;
+	    }
+	 }
+      }
+   }
+   for (int list = 0; list < 2; list++) {
+      node *stn = lists[list];
+      while (stn) {
+	 node *next = stn->next;
+	 stn->name->stn = NULL;
+	 free(stn);
+	 stn = next;
+      }
+   }
+}
+
+/* Free a prefix and its descendants.  The recursion follows `down` (which is
+ * only as deep as the survey hierarchy) and loops along `right`, which is how
+ * the anonymous station list is chained too. */
+static void
+cavern_free_prefix_tree(prefix *pfx, pos_list *shared)
+{
+   while (pfx) {
+      prefix *right = pfx->right;
+      cavern_free_prefix_tree(pfx->down, shared);
+      pos_list_add(shared, pfx->pos);
+      if (!TSTBIT(pfx->sflags, SFLAGS_IDENT_INLINE))
+	 free((char *)pfx->ident.p);
+      free(pfx);
+      pfx = right;
+   }
+}
+
+static void
+cavern_free_survey_graph(void)
+{
+   pos_list shared = { NULL, 0, 0 };
+   cavern_free_stations();
+   cavern_free_prefix_tree(root, &shared);
+   root = NULL;
+   cavern_free_prefix_tree(anon_list, &shared);
+   anon_list = NULL;
+   pos_list_free_unique(&shared);
+}
+
+/* A meta_data is shared by every leg, LRUD tube and nosurvey link created
+ * while it is current, and a fatal error means those are never freed, so
+ * cavern owns each meta_data for the whole run and frees them all here. */
+static meta_data **meta_all = NULL;
+static size_t meta_all_len = 0;
+static size_t meta_all_capacity = 0;
+
+void
+cavern_register_meta(meta_data *meta)
+{
+   if (meta_all_len == meta_all_capacity) {
+      meta_all_capacity = meta_all_capacity ? meta_all_capacity * 2 : 16;
+      meta_all = osrealloc(meta_all, meta_all_capacity * sizeof(meta_data *));
+   }
+   meta_all[meta_all_len++] = meta;
+}
+
+static void
+cavern_free_meta(void)
+{
+   for (size_t i = 0; i < meta_all_len; i++) free(meta_all[i]);
+   free(meta_all);
+   meta_all = NULL;
+   meta_all_len = meta_all_capacity = 0;
 }
 
 void

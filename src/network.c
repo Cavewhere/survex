@@ -731,6 +731,7 @@ replace_subnets(void)
 	 }
 /*printf("---%f %f %f\n",POS(stnZ, 0), POS(stnZ, 1), POS(stnZ, 2));*/
 	 remove_stn_from_list(&fixedlist, stnZ);
+	 free(stnZ->name->pos);
 	 free(stnZ->name);
 	 free(stnZ);
       } else {
