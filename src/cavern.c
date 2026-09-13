@@ -573,6 +573,7 @@ cavern_cleanup_state(void)
    cavern_free_model();
    cavern_reset_cs_state();
    data_file_reset_state();
+   walls_reset_state();
    commands_reset_state();
    s_free(&survey_title);
    survey_title = (string)S_INIT;

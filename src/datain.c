@@ -1906,17 +1906,33 @@ push_walls_options(void)
 }
 
 static void
-pop_walls_options(void)
+free_walls_options(void)
 {
-    pcs->ordering = NULL; /* Avoid free() of static array. */
-    pop_settings();
     walls_options *p = p_walls_options;
-    p_walls_options = p_walls_options->next;
+    p_walls_options = p->next;
     for (int i = 0; i < 3; ++i) {
 	free(p->prefix[i]);
     }
     s_free(&p->path);
     free(p);
+}
+
+static void
+pop_walls_options(void)
+{
+    pcs->ordering = NULL; /* Avoid free() of static array. */
+    pop_settings();
+    free_walls_options();
+}
+
+/* Drop the Walls options levels a fatal error leaves pushed: the longjmp out
+ * of data_file() skips pop_walls_options(), so the next run would read the
+ * stack as "nested" and inherit the dead run's options.  The settings each
+ * level pushed are freed with the rest of the chain by the caller. */
+void
+walls_reset_state(void)
+{
+    while (p_walls_options) free_walls_options();
 }
 
 static void
