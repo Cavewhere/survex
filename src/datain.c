@@ -1520,6 +1520,25 @@ walls_swap_macro_tables()
     walls_macros = tmp;
 }
 
+static void
+walls_free_macro_table(walls_macro ***table)
+{
+    if (!*table) return;
+
+    for (unsigned i = 0; i < WALLS_MACRO_HASH_SIZE; ++i) {
+	walls_macro *p = (*table)[i];
+	while (p) {
+	    walls_macro *to_free = p;
+	    p = p->next;
+	    free(to_free->name - 1);
+	    free(to_free->value);
+	    free(to_free);
+	}
+    }
+    free(*table);
+    *table = NULL;
+}
+
 // Takes ownership of the contents of p_name and of value.
 // Passing NULL for value sets empty string.
 // Note that p_name includes the leading `$`.
@@ -1933,6 +1952,12 @@ void
 walls_reset_state(void)
 {
     while (p_walls_options) free_walls_options();
+
+    /* A fatal error skips the end-of-SRV clear and the second
+     * walls_swap_macro_tables(), so free both tables, which also undoes a
+     * pending swap. */
+    walls_free_macro_table(&walls_macros);
+    walls_free_macro_table(&walls_macros_wpj);
 }
 
 static void
