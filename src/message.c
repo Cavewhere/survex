@@ -843,6 +843,14 @@ void
    char *p;
    SVX_ASSERT(argv);
 
+   /* Each pass allocates fresh copies of the appname, the support file path
+    * and the language, so a process which runs cavern more than once would
+    * leak the previous copies.  All of this depends only on argv and the
+    * environment, so work it out once.  cmdline_init() handles --version.
+    */
+   static bool msg_init_done = false;
+   if (msg_init_done) return;
+
    /* Point to argv[0] itself so we report a more helpful error if the
     * code to work out the clean appname generates a signal */
    appname_copy = argv[0];
@@ -1083,6 +1091,11 @@ macos_got_msg:
 #endif
 
    select_charset(default_charset());
+
+   /* Only now that everything resolved: a run which dies in here (say the
+    * message file is missing) retries on the next call instead of leaving
+    * msg_array NULL behind a set flag. */
+   msg_init_done = true;
 }
 
 #ifndef AVEN
