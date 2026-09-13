@@ -21,6 +21,8 @@
 
 extern int root_depr_count;
 
+void readval_reset_state(void);
+
 enum {
     /* Can the prefix be omitted?  If it is, read_prefix() returns NULL. */
     PFX_OPT = 1,

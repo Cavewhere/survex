@@ -36,6 +36,14 @@
 
 int root_depr_count = 0;
 
+/* Clear the count of reported uses of the deprecated ROOT "\", which caps that
+ * warning at 5 per run, so a library caller's next run reports it again. */
+void
+readval_reset_state(void)
+{
+   root_depr_count = 0;
+}
+
 static prefix *
 new_anon_station(void)
 {

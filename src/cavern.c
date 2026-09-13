@@ -48,6 +48,7 @@
 #include "netskel.h"
 #include "osalloc.h"
 #include "out.h"
+#include "readval.h"
 #include "str.h"
 #include "svx_exit.h"
 #include "validate.h"
@@ -575,6 +576,7 @@ cavern_cleanup_state(void)
    data_file_reset_state();
    walls_reset_state();
    commands_reset_state();
+   readval_reset_state();
    s_free(&survey_title);
    survey_title = (string)S_INIT;
    invalidate_pj_cached();

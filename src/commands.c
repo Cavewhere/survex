@@ -232,6 +232,14 @@ static short separator_map[256];
 
 static bool separator_defaults_added = false;
 
+/* Uses of each deprecated construct reported so far, which cap each warning at
+ * 5 per run.  File-scope rather than function statics so commands_reset_state()
+ * can clear them for the next run. */
+static int reenter_depr_count = 0;
+static int data_depr_count = 0;
+static int default_depr_count = 0;
+static int prefix_depr_count = 0;
+
 void
 update_separator_map_for_foreign_name(const char* p)
 {
@@ -810,6 +818,10 @@ commands_reset_state(void)
    memset(separator_map, 0, sizeof(separator_map));
    separator_defaults_added = false;
    output_separator = '.';
+   reenter_depr_count = 0;
+   data_depr_count = 0;
+   default_depr_count = 0;
+   prefix_depr_count = 0;
 }
 
 static void
@@ -818,7 +830,6 @@ check_reentry(prefix *survey, const filepos* fpos_ptr)
    /* Don't try to check "*prefix \" or "*begin \" */
    if (!survey->up) return;
    if (TSTBIT(survey->sflags, SFLAGS_PREFIX_ENTERED)) {
-      static int reenter_depr_count = 0;
       filepos fp_tmp;
 
       if (reenter_depr_count >= 5)
@@ -1693,7 +1704,6 @@ cmd_data(void)
    /* Olde syntax had optional field for survey grade, so allow an omit
     * but issue a warning about it */
    if (isOmit(ch)) {
-      static int data_depr_count = 0;
       if (data_depr_count < 5) {
 	 compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /*“*data %s %c …” is deprecated - use “*data %s …” instead*/104,
 			    s_str(&token), ch, s_str(&token));
@@ -3387,7 +3397,6 @@ handle_command(void)
       break;
     case CMD_DEFAULT: {
       // Issue warning here before we skipblanks().
-      static int default_depr_count = 0;
       if (default_depr_count < 5) {
 	  /* TRANSLATORS: If you're unsure what "deprecated" means, see:
 	   * https://en.wikipedia.org/wiki/Deprecation */
@@ -3400,7 +3409,6 @@ handle_command(void)
     }
     case CMD_PREFIX: {
       // Issue warning here before we skipblanks().
-      static int prefix_depr_count = 0;
       if (prefix_depr_count < 5) {
 	  /* TRANSLATORS: If you're unsure what "deprecated" means, see:
 	   * https://en.wikipedia.org/wiki/Deprecation */
