@@ -108,8 +108,8 @@ TESTS_=
  lech level 2fixbug dot17 3dcorner\
  unconnected-bug\
  stationnotes\
- backread.dat corrections.dat depthguage.dat flags.dat karstcompat.dat\
- lrud.dat nomeasure.dat noteam.dat\
+ backread.dat corrections.dat crcrlf.dat depthguage.dat flags.dat\
+ karstcompat.dat lrud.dat nomeasure.dat noteam.dat\
  badmak.mak\
  fixfeet.mak utm.mak\
  clptest.dat clptest.clp\

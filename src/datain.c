@@ -576,6 +576,17 @@ process_eol(void)
     * lines as one */
    while (ch != EOF) {
       nextch();
+      if (ch == '\r' && ch == eolchar) {
+	 /* Treat CR CR LF as one line end, as some Compass DAT files have.  A
+	  * repeated CR with no LF after it still starts a new line, so CR-only
+	  * files keep their blank lines. */
+	 int c = GETC(file.fh);
+	 if (c == '\n') {
+	    ch = eolchar = c;
+	    continue;
+	 }
+	 if (c != EOF) ungetc(c, file.fh);
+      }
       if (ch == eolchar || !isEol(ch)) {
 	 break;
       }

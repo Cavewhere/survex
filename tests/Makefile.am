@@ -124,6 +124,7 @@ gettokennullderef.svx lech.svx level.svx level.pos\
 backread.dat backread.dump\
 clptest.dat clptest.clp clptest.dump\
 corrections.dat corrections.pos\
+crcrlf.dat crcrlf.pos\
 depthguage.dat depthguage.dump\
 karstcompat.dat karstcompat.dump\
 flags.dat flags.dump flags.out lrud.dat lrud.out lrud.pos\
