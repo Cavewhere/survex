@@ -1137,6 +1137,11 @@ static const prefix * first_fix_name = NULL;
 static const char * first_fix_filename;
 static unsigned first_fix_line;
 
+/* Where the first *fix with no coordinates was seen; cleared by cavern_reset_cs_state(). */
+static prefix * name_omit_already = NULL;
+static const char * name_omit_already_filename = NULL;
+static unsigned int name_omit_already_line;
+
 /* Tracks whether the *cs command has been seen during this cavern run. Lifted
  * out of cmd_cs's local static so cavern_reset_cs_state() can clear it
  * between cavern_run invocations when cavern is embedded as a library. */
@@ -1148,15 +1153,15 @@ cavern_reset_cs_state(void)
     first_fix_name = NULL;
     first_fix_filename = NULL;
     first_fix_line = 0;
+    name_omit_already = NULL;
+    name_omit_already_filename = NULL;
+    name_omit_already_line = 0;
     had_cs = false;
 }
 
 static void
 cmd_fix(void)
 {
-   static prefix *name_omit_already = NULL;
-   static const char * name_omit_already_filename = NULL;
-   static unsigned int name_omit_already_line;
    PJ_COORD coord;
    filepos fp_stn, fp;
 
