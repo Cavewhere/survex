@@ -299,6 +299,19 @@ grab_line(void)
 
 static int caret_width = 0;
 
+/* Reset the parser file state a fatal error leaves behind: the longjmp out of
+ * data_file() skips the frames that own the include chain, so `file` keeps
+ * parent links into unwound stack frames.  Closing file.fh releases the
+ * innermost handle; the outer handles belonged to the unwound frames. */
+void
+data_file_reset_state(void)
+{
+   if (file.fh) fclose(file.fh);
+   memset(&file, 0, sizeof(file));
+   ch = 0;
+   caret_width = 0;
+}
+
 static void
 compile_v_report_fpos(int diag_flags, long fpos, int en, va_list ap)
 {

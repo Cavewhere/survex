@@ -44,6 +44,9 @@ extern parse file;
 extern jmp_buf jbSkipLine;
 extern bool f_export_ok;
 
+/* Drop parser file state left behind by a fatal (longjmp) exit. */
+void data_file_reset_state(void);
+
 #define nextch() (ch = GETC(file.fh))
 
 typedef struct {
