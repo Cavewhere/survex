@@ -37,7 +37,7 @@ badinc.out badinc.svx\
 badinc2.out badinc2.svx\
 badinc3.out badinc3.svx\
 badinc4.out badinc4.svx\
-badinc5.mak badinc5.out\
+badinc5.mak badinc5.out badinc5.pos\
 export.svx export2.svx\
 singlefix.svx singlefix.out singlefix.pos singlereffix.svx singlereffix.pos\
 singlefixerr.svx singlefixerr.out singlefixerr.pos singlereffixerr.svx singlereffixerr.pos\
@@ -131,6 +131,7 @@ flags.dat flags.dump flags.out lrud.dat lrud.out lrud.pos\
 nomeasure.dat nomeasure.out nomeasure.pos noteam.dat noteam.out noteam.pos\
 badmak.mak badmak.out\
 fixfeet.mak fixfeet.pos\
+linkfix.mak linkfix.pos linkfixa.dat linkfixb.dat\
 folder.mak subdir/cave1a.dat subdir/cave1b.dat subdir/subsubdir/cave2.dat\
 utm.mak utm.out utm.dump\
 walls.srv walls.out walls.dump\

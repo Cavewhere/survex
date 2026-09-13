@@ -299,6 +299,10 @@ grab_line(void)
 
 static int caret_width = 0;
 
+/* Whether this run has already folded the Walls name characters into the
+ * separator map. */
+static bool separator_map_updated_for_walls = false;
+
 /* Reset the parser file state a fatal error leaves behind: the longjmp out of
  * data_file() skips the frames that own the include chain, so `file` keeps
  * parent links into unwound stack frames.  Closing file.fh releases the
@@ -310,6 +314,7 @@ data_file_reset_state(void)
    memset(&file, 0, sizeof(file));
    ch = 0;
    caret_width = 0;
+   separator_map_updated_for_walls = false;
 }
 
 static void
@@ -506,7 +511,7 @@ compile_diagnostic_token_show(int diag_flags, int en)
 }
 
 static void
-compile_error_string(const char * s, int en, ...)
+compile_diagnostic_string(int severity, const char * s, int en, ...)
 {
     va_list ap;
     va_start(ap, en);
@@ -515,7 +520,7 @@ compile_error_string(const char * s, int en, ...)
 	caret_width = strlen(s);
 	fpos = ftell(file.fh);
     }
-    compile_v_report_fpos(DIAG_ERR, fpos, en, ap);
+    compile_v_report_fpos(severity, fpos, en, ap);
     va_end(ap);
 }
 
@@ -973,12 +978,105 @@ data_file_compass_clp(void)
     data_file_compass_dat_or_clp(true);
 }
 
+/* Find the survey NAME in PARENT, creating it if it isn't there yet.
+ *
+ * A Compass MAK entry names a file rather than a survey read from the input, so
+ * the prefix is built here instead of by read_prefix().
+ */
+static prefix *
+find_or_create_survey(prefix *parent, const char *name)
+{
+    prefix *prev = NULL;
+    prefix *ptr = parent->down;
+    int cmp = 1;
+    while (ptr && (cmp = strcmp(prefix_ident(ptr), name)) < 0) {
+	prev = ptr;
+	ptr = ptr->right;
+    }
+    if (cmp == 0) {
+	ptr->sflags |= BIT(SFLAGS_SURVEY);
+	return ptr;
+    }
+
+    prefix *survey = osnew(prefix);
+    survey->sflags = BIT(SFLAGS_SURVEY);
+    if (strlen(name) < sizeof(survey->ident.i)) {
+	strcpy(survey->ident.i, name);
+	survey->sflags |= BIT(SFLAGS_IDENT_INLINE);
+    } else {
+	survey->ident.p = osstrdup(name);
+    }
+    survey->up = parent;
+    survey->down = NULL;
+    survey->right = ptr;
+    survey->stn = NULL;
+    survey->pos = NULL;
+    survey->filename = file.filename;
+    survey->line = file.line;
+    survey->column = 0;
+    survey->min_export = survey->max_export = 0;
+    if (prev) {
+	prev->right = survey;
+    } else {
+	parent->down = survey;
+    }
+    return survey;
+}
+
+/* Find or create the survey to read a Compass MAK entry's DAT file into, named
+ * after the DAT's leafname without its extension, lower-cased.
+ */
+static prefix *
+mak_dat_survey(const char *dat_fnm)
+{
+    const char *leaf = dat_fnm;
+    for (const char *p = dat_fnm; *p; ++p) {
+	if (*p == '/' || *p == '\\') leaf = p + 1;
+    }
+    const char *ext = strrchr(leaf, FNM_SEP_EXT);
+    size_t len = ext ? (size_t)(ext - leaf) : strlen(leaf);
+    string name = S_INIT;
+    for (size_t i = 0; i < len; ++i)
+	s_appendch(&name, tolower((unsigned char)leaf[i]));
+    /* A nameless DAT such as ".DAT" still needs a survey name. */
+    if (s_empty(&name)) s_append(&name, "dat");
+    prefix *survey = find_or_create_survey(pcs->Prefix, s_str(&name));
+    s_free(&name);
+    return survey;
+}
+
+/* Find the station NAME in SURVEY, without creating it. */
+static prefix *
+find_station_in_survey(prefix *survey, const char *name)
+{
+    for (prefix *ptr = survey->down; ptr; ptr = ptr->right) {
+	if (!TSTBIT(ptr->sflags, SFLAGS_SURVEY) &&
+	    strcmp(prefix_ident(ptr), name) == 0) {
+	    return ptr;
+	}
+    }
+    return NULL;
+}
+
+/* Enter SURVEY, which the caller leaves again with pop_settings(). */
+static void
+push_survey_settings(prefix *survey)
+{
+    settings *pcsNew = osnew(settings);
+    *pcsNew = *pcs; /* copy contents */
+    pcsNew->begin_lineno = 0;
+    pcsNew->next = pcs;
+    pcs = pcsNew;
+    pcs->Prefix = survey;
+}
+
 static void
 data_file_compass_mak(void)
 {
     // Format documentation:
     // https://fountainware.com/compass/HTML_Help/Project_Manager/projectfileformat.htm
     initialise_common_compass_settings();
+    settings *volatile pcs_mak = pcs;
     short *t = pcs->Translate;
     // In a Compass MAK file a station name can't contain these three
     // characters due to how the syntax works.
@@ -986,6 +1084,7 @@ data_file_compass_mak(void)
 
     if (setjmp(jbSkipLine)) {
 	// Recover from errors in nested functions by longjmp() to here.
+	while (pcs != pcs_mak) pop_settings();
 	skipline();
 	process_eol();
     }
@@ -1002,6 +1101,12 @@ data_file_compass_mak(void)
 	struct mak_folder *next;
 	int len;
     } *folder_stack = NULL;
+    // The surveys read from this MAK so far, most recent first.
+    struct mak_survey {
+	struct mak_survey *next;
+	prefix *survey;
+    };
+    struct mak_survey *volatile mak_surveys = NULL;
 
     skipblanks_mak();
     while (ch != EOF && !FERROR(file.fh)) {
@@ -1010,6 +1115,8 @@ data_file_compass_mak(void)
 	      /* Include a file. */
 	      int ch_store;
 	      string dat_fnm = S_INIT;
+	      prefix *dat_survey = NULL;
+	      bool dat_read = false;
 	      while (isEol(ch)) process_eol();
 	      nextch_mak();
 	      int trim_len = 0;
@@ -1053,9 +1160,38 @@ data_file_compass_mak(void)
 			  }
 		      }
 		  }
-		  ch_store = ch;
-		  data_file(s_str(&path), s_str(&dat_fnm));
-		  ch = ch_store;
+		  // Compass gives each DAT file of a project its own station
+		  // namespace, so read each into its own survey and join them
+		  // up via the link stations listed after the filename.
+		  dat_survey = mak_dat_survey(s_str(&dat_fnm));
+		  push_survey_settings(dat_survey);
+
+		  char *dat_filename;
+		  FILE *dat_fh = fopen_portable(s_str(&path), s_str(&dat_fnm),
+						EXT_SVX_DATA, "rb",
+						&dat_filename);
+		  if (dat_fh) {
+		      fclose(dat_fh);
+		      free(dat_filename);
+		      ch_store = ch;
+		      // data_file() aims jbSkipLine at its own frame and
+		      // leaves it there when it returns, so save and restore
+		      // it to keep errors in the rest of this MAK recoverable
+		      // by the setjmp() above.
+		      jmp_buf jbSkipLine_mak;
+		      memcpy(jbSkipLine_mak, jbSkipLine, sizeof(jmp_buf));
+		      data_file(s_str(&path), s_str(&dat_fnm));
+		      memcpy(jbSkipLine, jbSkipLine_mak, sizeof(jmp_buf));
+		      ch = ch_store;
+		      dat_read = true;
+		  } else {
+		      // Compass can't process a project with a missing DAT file
+		      // either, but the files which are present still give
+		      // useful results, so warn rather than failing the run.
+		      compile_diagnostic_string(DIAG_WARN, s_str(&dat_fnm),
+						/*Couldn’t open file “%s”*/1,
+						s_str(&dat_fnm));
+		  }
 	      }
 	      s_free(&dat_fnm);
 	      while (ch != ';' && ch != EOF) {
@@ -1073,8 +1209,10 @@ data_file_compass_mak(void)
 			  // Compass treats these fixed points as entrances
 			  // ("distance from entrance" in a .DAT file counts
 			  // from 0.0 at these points) so we do too.
-			  name->sflags |= BIT(SFLAGS_FIXED) |
-					  BIT(SFLAGS_ENTRANCE);
+			  if (dat_read) {
+			      name->sflags |= BIT(SFLAGS_FIXED) |
+					      BIT(SFLAGS_ENTRANCE);
+			  }
 			  nextch_mak();
 			  if (ch == 'F' || ch == 'f') {
 			      in_feet = true;
@@ -1104,7 +1242,8 @@ data_file_compass_mak(void)
 			      coords[1] *= METRES_PER_FOOT;
 			      coords[2] *= METRES_PER_FOOT;
 			  }
-			  int fix_result = fix_station(name, coords, fp_name.offset);
+			  int fix_result = dat_read ?
+			      fix_station(name, coords, fp_name.offset) : 0;
 			  if (fix_result) {
 			      filepos fp;
 			      get_pos(&fp);
@@ -1121,13 +1260,39 @@ data_file_compass_mak(void)
 			  if (ch == ']') {
 			      nextch_mak();
 			  }
-		      } else {
-			  /* FIXME: link station - ignore for now */
-			  /* FIXME: perhaps issue warning?  Other station names
-			   * can be "reused", which is problematic... */
+		      } else if (dat_read) {
+			  /* A link station joins this file to a file listed
+			   * before it, so equate it with the station of the
+			   * same name in the most recent survey which has one.
+			   * Compass tolerates a link station which no earlier
+			   * file uses, so we do too.  Compass considers every
+			   * earlier file; equating with the most recent one
+			   * which has the station is enough to join up the
+			   * files, and avoids merging two unrelated stations
+			   * which happen to share a name.
+			   */
+			  const char *ident = prefix_ident(name);
+			  for (struct mak_survey *p = mak_surveys; p;
+			       p = p->next) {
+			      prefix *earlier = find_station_in_survey(p->survey,
+								      ident);
+			      if (earlier && earlier->stn && name->stn) {
+				  process_equate(earlier, name);
+				  break;
+			      }
+			  }
 		      }
 		      while (ch != ',' && ch != ';' && ch != EOF)
 			  nextch_mak();
+		  }
+	      }
+	      if (dat_survey) {
+		  pop_settings();
+		  if (dat_read) {
+		      struct mak_survey *p = osnew(struct mak_survey);
+		      p->next = mak_surveys;
+		      p->survey = dat_survey;
+		      mak_surveys = p;
 		  }
 	      }
 	      if (ch == ';') nextch_mak();
@@ -1303,6 +1468,12 @@ update_proj_str:
 	struct mak_folder *next = folder_stack->next;
 	free(folder_stack);
 	folder_stack = next;
+    }
+
+    while (mak_surveys) {
+	struct mak_survey *next = mak_surveys->next;
+	free(mak_surveys);
+	mak_surveys = next;
     }
 
     pop_settings();
@@ -1791,7 +1962,6 @@ walls_initialise_settings(void)
     t['+'] |= SPECIAL_PLUS;
     pcs->Translate = t;
 
-    static bool separator_map_updated_for_walls = false;
     if (!separator_map_updated_for_walls) {
 	separator_map_updated_for_walls = true;
 	update_separator_map_for_foreign_format(t);
@@ -3989,7 +4159,7 @@ data_file(const char *pth, const char *fnm)
       }
 
       if (fh == NULL) {
-	 compile_error_string(fnm, /*Couldn’t open file “%s”*/1, fnm);
+	 compile_diagnostic_string(DIAG_ERR, fnm, /*Couldn’t open file “%s”*/1, fnm);
 	 return;
       }
 

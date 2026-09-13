@@ -230,6 +230,8 @@ default_translate(settings *s)
  * separator to use in the .3d file. */
 static short separator_map[256];
 
+static bool separator_defaults_added = false;
+
 void
 update_separator_map_for_foreign_name(const char* p)
 {
@@ -279,11 +281,10 @@ find_output_separator(void)
 	return '.';
     }
 
-    static bool added_defaults = false;
-    if (!added_defaults) {
+    if (!separator_defaults_added) {
 	/* Add the default settings to separator_map. */
 	init_default_translate_map(separator_map);
-	added_defaults = true;
+	separator_defaults_added = true;
     }
 
     /* 30 punctuation characters plus space to try arranged in a sensible order
@@ -797,6 +798,18 @@ void
 update_output_separator(void)
 {
    output_separator = find_output_separator();
+}
+
+/* The separator choice accumulates over a whole run, so a library caller which
+ * runs cavern again needs it cleared - otherwise a run of Compass or Survex
+ * data inherits the ':' which a previous run of Walls data settled on.
+ */
+void
+commands_reset_state(void)
+{
+   memset(separator_map, 0, sizeof(separator_map));
+   separator_defaults_added = false;
+   output_separator = '.';
 }
 
 static void

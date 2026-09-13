@@ -1,4 +1,4 @@
-/ pos=fail warn=1 error=1
+/ pos=yes warn=1
 # ba
 ck/comment here should be ignored/re/comment to end of line
 ad.dat ,

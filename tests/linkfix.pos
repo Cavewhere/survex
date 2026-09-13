@@ -1,0 +1,7 @@
+( Easting, Northing, Altitude )
+(    0.00,     0.00,     0.00 ) linkfixa.1
+(    3.05,     0.00,     0.00 ) linkfixa.A2
+(    6.10,     0.00,     0.00 ) linkfixa.A3
+(    3.05,     6.10,    -0.00 ) linkfixb.1
+(    3.05,     0.00,     0.00 ) linkfixb.A2
+(    3.05,     3.05,    -0.00 ) linkfixb.B2
