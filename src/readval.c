@@ -43,6 +43,10 @@ int root_depr_count = 0;
 static prefix *cached_survey = NULL, *cached_station = NULL;
 static prefix *walls_cached_survey = NULL, *walls_cached_station = NULL;
 
+/* Whether this run has already marked the space in Walls' reserved "empty
+ * name" as used in the separator map. */
+static bool marked_space_as_used = false;
+
 /* Clear the count of reported uses of the deprecated ROOT "\", which caps that
  * warning at 5 per run, so a library caller's next run reports it again. */
 void
@@ -51,6 +55,7 @@ readval_reset_state(void)
    root_depr_count = 0;
    cached_survey = cached_station = NULL;
    walls_cached_survey = walls_cached_station = NULL;
+   marked_space_as_used = false;
 }
 
 static prefix *
@@ -485,7 +490,6 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 	    // Use a name with a space in so it can't collide with a real
 	    // Walls station name.
 	    s_append(&component, "empty name");
-	    static bool marked_space_as_used = false;
 	    if (!marked_space_as_used) {
 		marked_space_as_used = true;
 		update_separator_map_for_foreign_name(" ");
