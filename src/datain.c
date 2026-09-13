@@ -1209,14 +1209,7 @@ data_file_compass_mak(void)
 		      fclose(dat_fh);
 		      free(dat_filename);
 		      ch_store = ch;
-		      // data_file() aims jbSkipLine at its own frame and
-		      // leaves it there when it returns, so save and restore
-		      // it to keep errors in the rest of this MAK recoverable
-		      // by the setjmp() above.
-		      jmp_buf jbSkipLine_mak;
-		      memcpy(jbSkipLine_mak, jbSkipLine, sizeof(jmp_buf));
 		      data_file(s_str(&path), s_str(&dat_fnm));
-		      memcpy(jbSkipLine, jbSkipLine_mak, sizeof(jmp_buf));
 		      ch = ch_store;
 		      dat_read = true;
 		  } else {
@@ -3937,11 +3930,16 @@ process_entry:
 
 		using_data_file(file.filename);
 
+		/* This site calls the reader directly, so it needs
+		 * data_file()'s save and restore of jbSkipLine too. */
+		jmp_buf jbSkipLine_store;
+		memcpy(jbSkipLine_store, jbSkipLine, sizeof(jmp_buf));
 		push_walls_options();
 		walls_swap_macro_tables();
 		data_file_walls_srv();
 		walls_swap_macro_tables();
 		pop_walls_options();
+		memcpy(jbSkipLine, jbSkipLine_store, sizeof(jmp_buf));
 
 		if (FERROR(file.fh))
 		    fatalerror_in_file(file.filename, 0, /*Error reading file*/18);
@@ -4264,6 +4262,12 @@ data_file(const char *pth, const char *fnm)
 
    using_data_file(file.filename);
 
+   /* Each data_file_*() below aims jbSkipLine at its own frame and leaves it
+    * there on return, so save and restore it to keep an error after this file
+    * recoverable in the file which included it. */
+   jmp_buf jbSkipLine_store;
+   memcpy(jbSkipLine_store, jbSkipLine, sizeof(jmp_buf));
+
    switch (ext) {
      case EXT3('d', 'a', 't'):
        // Compass survey data.
@@ -4295,6 +4299,8 @@ data_file(const char *pth, const char *fnm)
        data_file_survex();
        break;
    }
+
+   memcpy(jbSkipLine, jbSkipLine_store, sizeof(jmp_buf));
 
    if (FERROR(file.fh))
       fatalerror_in_file(file.filename, 0, /*Error reading file*/18);
