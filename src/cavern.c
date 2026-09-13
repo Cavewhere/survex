@@ -584,14 +584,27 @@ cavern_cleanup_state(void)
 static void
 cavern_free_settings_chain(settings *s)
 {
+   /* cmd_begin() and the Compass/Walls readers push a shallow struct copy of
+    * the parent settings, so a child shares Translate, proj_str and
+    * dec_context with its parent until it replaces them.  Free only what
+    * each node owns, as pop_settings() does.  The walk goes child to parent,
+    * so the parent is s->next.
+    *
+    * ordering and meta are deliberately leaked here: ordering often points
+    * at a static table (e.g. compass_order in datain.c) and only the normal
+    * path nulls it before popping, and meta is reference counted by legs
+    * which are themselves discarded by this teardown.
+    */
    while (s) {
       settings *next = s->next;
-      if (s->Translate) {
+      if (s->Translate && (!next || next->Translate != s->Translate)) {
 	 short *base = s->Translate - 1;
 	 free(base);
       }
-      free(s->proj_str);
-      free(s->dec_context);
+      if (s->proj_str && (!next || next->proj_str != s->proj_str))
+	 free(s->proj_str);
+      if (s->dec_context && (!next || next->dec_context != s->dec_context))
+	 free(s->dec_context);
       free(s);
       s = next;
    }
