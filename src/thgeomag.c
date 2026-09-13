@@ -48,21 +48,22 @@ double thgeomag(double lat, double lon, double h, double dat) {
 
   int n,m;
 
-  static double P[nmax+1][nmax+1];
-  static double DP[nmax+1][nmax+1];
-  static double gnm[nmax+1][nmax+1];
-  static double hnm[nmax+1][nmax+1];
-  static double sm[nmax+1];
-  static double cm[nmax+1];
+  /* All scratch is function-local: thgeomag() runs on several threads at once,
+   * so sharing any of it would be a data race.  P and DP are zeroed whole
+   * because the recurrence below reads P[n-2][m] and DP[n-2][m] with m > n-2. */
+  double P[nmax+1][nmax+1] = {{0}};
+  double DP[nmax+1][nmax+1] = {{0}};
+  double gnm[nmax+1][nmax+1];
+  double hnm[nmax+1][nmax+1];
+  double sm[nmax+1];
+  double cm[nmax+1];
 
-  static double root[nmax+1];
-  static double roots[nmax+1][nmax+1][2];
+  double root[nmax+1];
+  double roots[nmax+1][nmax+1][2];
 
 
   double yearfrac,sr,r,theta,c,s,psi,fn,fn_0,B_r,B_theta,B_phi,X,Y; /* Z */
   double sinpsi, cospsi, inv_s;
-
-  static int been_here = 0;
 
   double sinlat = sin(lat);
   double coslat = cos(lat);
@@ -88,14 +89,6 @@ double thgeomag(double lat, double lon, double h, double dat) {
   /* protect against zero divide at geographic poles */
   inv_s =  1.0 / (s + (s == 0.)*1.0e-8); 
 
-  /*zero out arrays */
-  for ( n = 0; n <= nmax; n++ ) {
-    for ( m = 0; m <= n; m++ ) {
-      P[n][m] = 0;
-      DP[n][m] = 0;
-    }
-  }
-
   /* diagonal elements */
   P[0][0] = 1;
   P[1][1] = s;
@@ -104,20 +97,16 @@ double thgeomag(double lat, double lon, double h, double dat) {
   P[1][0] = c ;
   DP[1][0] = -s;
 
-  /* these values will not change for subsequent function calls */
-  if( !been_here ) {
-    for ( n = 2; n <= nmax; n++ ) {
-      root[n] = sqrt((2.0*n-1) / (2.0*n));
-    }
+  for ( n = 2; n <= nmax; n++ ) {
+    root[n] = sqrt((2.0*n-1) / (2.0*n));
+  }
 
-    for ( m = 0; m <= nmax; m++ ) {
-      double mm = m*m;
-      for ( n = max(m + 1, 2); n <= nmax; n++ ) {
-        roots[m][n][0] = sqrt((n-1)*(n-1) - mm);
-        roots[m][n][1] = 1.0 / sqrt( n*n - mm);
-      }
+  for ( m = 0; m <= nmax; m++ ) {
+    double mm = m*m;
+    for ( n = max(m + 1, 2); n <= nmax; n++ ) {
+      roots[m][n][0] = sqrt((n-1)*(n-1) - mm);
+      roots[m][n][1] = 1.0 / sqrt( n*n - mm);
     }
-    been_here = 1;
   }
 
   for ( n=2; n <= nmax; n++ ) {
