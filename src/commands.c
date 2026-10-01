@@ -207,6 +207,7 @@ init_default_translate_map(short * t)
    t['{'] |= SPECIAL_OPEN;
    t['}'] |= SPECIAL_CLOSE;
 #endif
+   t['"'] |= SPECIAL_DQUOTE_;
 }
 
 static void
@@ -751,6 +752,9 @@ cmd_set(void)
    for (i = 0; i < 256; i++)
       if (!isalnum(i)) pcs->Translate[i] &= ~mask;
 
+   // Set special flag for double quote.
+   pcs->Translate['"'] |= SPECIAL_DQUOTE_;
+
    /* now set this flag for all specified chars */
    while (!isEol(ch)) {
       int char_to_set;
@@ -779,6 +783,11 @@ cmd_set(void)
       pcs->Translate[char_to_set] |= mask;
       separator_map[char_to_set] |= mask;
       nextch();
+   }
+
+   // Clear special flag for double quote if it has been assigned a meaning.
+   if (pcs->Translate['"'] != SPECIAL_DQUOTE_) {
+       pcs->Translate['"'] &= ~SPECIAL_DQUOTE_;
    }
 
    output_separator = find_output_separator();
@@ -1546,6 +1555,8 @@ cmd_data(void)
 	{"LENGTH",       Tape },
 	{"NEWLINE",      Newline },
 	{"NORTHING",     Dy },
+	{"NOTE",         Note },
+	{"NOTEALL",      NoteAll },
 	{"RIGHT",        Right },
 	{"STATION",      Station }, /* Fr&To in multiline */
 	{"TAPE",	 Tape }, /* alternative name */
@@ -1556,7 +1567,9 @@ cmd_data(void)
 	{NULL,		 End }
    };
 
-#define MASK_stns BIT(Fr) | BIT(To) | BIT(Station)
+#define MASK_note BIT(Note) | BIT(NoteAll)
+#define MASK_station BIT(Station) | MASK_note
+#define MASK_stns BIT(Fr) | BIT(To) | MASK_station
 #define MASK_tape BIT(Tape) | BIT(BackTape) | BIT(FrCount) | BIT(ToCount) | BIT(Count)
 #define MASK_dpth BIT(FrDepth) | BIT(ToDepth) | BIT(Depth) | BIT(DepthChange)
 #define MASK_comp BIT(Comp) | BIT(BackComp)
@@ -1567,7 +1580,7 @@ cmd_data(void)
 #define MASK_CARTESIAN MASK_stns | BIT(Dx) | BIT(Dy) | BIT(Dz)
 #define MASK_CYLPOLAR  MASK_stns | BIT(Dir) | MASK_tape | MASK_comp | MASK_dpth
 #define MASK_NOSURVEY MASK_stns
-#define MASK_PASSAGE BIT(Station) | BIT(Left) | BIT(Right) | BIT(Up) | BIT(Down)
+#define MASK_PASSAGE MASK_station | BIT(Left) | BIT(Right) | BIT(Up) | BIT(Down)
 #define MASK_IGNORE 0 // No readings in this style.
 
    // readings which may be given for each style (index is STYLE_*)
@@ -1578,23 +1591,30 @@ cmd_data(void)
 
    // readings which may be omitted for each style (index is STYLE_*)
    static const unsigned long mask_optional[] = {
-      BIT(Dir) | BIT(Clino) | BIT(BackClino),
-      BIT(Dir) | BIT(Clino) | BIT(BackClino),
-      0,
-      BIT(Dir),
-      0,
-      0, /* BIT(Left) | BIT(Right) | BIT(Up) | BIT(Down), */
+      // STYLE_NORMAL:
+      MASK_note | BIT(Dir) | MASK_clin,
+      // STYLE_DIVING:
+      MASK_note | BIT(Dir) | MASK_clin,
+      // STYLE_CARTESIAN:
+      MASK_note,
+      // STYLE_CYLPOLAR:
+      MASK_note | BIT(Dir),
+      // STYLE_NOSURVEY:
+      MASK_note,
+      // STYLE_IGNORE:
+      MASK_note | BIT(Left) | BIT(Right) | BIT(Up) | BIT(Down),
       0
    };
 
+#define MASK_common BIT(Ignore) | BIT(IgnoreAll) | BIT(End)
    /* all valid readings */
    static const unsigned long mask_all[] = {
-      MASK_NORMAL | BIT(Newline) | BIT(Ignore) | BIT(IgnoreAll) | BIT(End),
-      MASK_DIVING | BIT(Newline) | BIT(Ignore) | BIT(IgnoreAll) | BIT(End),
-      MASK_CARTESIAN | BIT(Newline) | BIT(Ignore) | BIT(IgnoreAll) | BIT(End),
-      MASK_CYLPOLAR | BIT(Newline) | BIT(Ignore) | BIT(IgnoreAll) | BIT(End),
-      MASK_NOSURVEY | BIT(Ignore) | BIT(IgnoreAll) | BIT(End),
-      MASK_PASSAGE | BIT(Ignore) | BIT(IgnoreAll) | BIT(End),
+      MASK_NORMAL | BIT(Newline) | MASK_common,
+      MASK_DIVING | BIT(Newline) | MASK_common,
+      MASK_CARTESIAN | BIT(Newline) | MASK_common,
+      MASK_CYLPOLAR | BIT(Newline) | MASK_common,
+      MASK_NOSURVEY | MASK_common,
+      MASK_PASSAGE | MASK_common,
       MASK_IGNORE
    };
 #define STYLE_DEFAULT   -2
@@ -1613,7 +1633,7 @@ cmd_data(void)
 	{NULL,		 STYLE_UNKNOWN }
    };
 
-#define m_multi (BIT(Station) | BIT(Count) | BIT(Depth))
+#define m_multi (BIT(Station) | BIT(Count) | BIT(Depth) | BIT(Note) | BIT(NoteAll))
 
    int style, k = 0;
    reading d;
@@ -1669,12 +1689,12 @@ cmd_data(void)
    int kMac = 6; /* minimum for NORMAL style */
    reading *new_order = osmalloc(kMac * sizeof(reading));
    char *style_name = s_steal(&token);
-   do {
-      filepos fp;
-      get_pos(&fp);
+   while (true) {
+      skipblanks();
+      if (!isalpha((unsigned char)ch)) break;
       get_token();
       d = match_tok(dtab, TABSIZE(dtab));
-      if (d == End && !s_empty(&token)) {
+      if (d == End) {
 	 compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP,
 			    /*Reading “%s” not allowed in data style “%s”*/63,
 			    s_str(&token), style_name);
@@ -1683,10 +1703,23 @@ cmd_data(void)
 	 return;
       }
 
-      /* only token allowed after IGNOREALL is NEWLINE */
-      if (k && new_order[k - 1] == IgnoreAll && d != Newline) {
-	 set_pos(&fp);
-	 break;
+      /* only token allowed after IGNOREALL or NOTEALL is NEWLINE */
+      if (k &&
+	  (new_order[k - 1] == IgnoreAll || new_order[k - 1] == NoteAll) &&
+	  d != Newline) {
+	 /* TRANSLATORS: The first %s is replaced by the problematic reading.
+	  * The second %s is replaced a reading which consumes the rest of the
+	  * current line.  An example bad command and the resulting error:
+	  *
+	  * *data nosurvey ignoreall station
+	  * x.svx:1: Reading “station” not allowed after reading “ignoreall”
+	  */
+	 compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP,
+			    /*Reading “%s” not allowed after reading “%s”*/540,
+			    s_str(&token), "ignoreall");
+	 free(style_name);
+	 free(new_order);
+	 return;
       }
       /* Note: an unknown token is reported as trailing garbage */
       if (!TSTBIT(mask_all[style], d)) {
@@ -1719,7 +1752,7 @@ cmd_data(void)
       /* Check for duplicates unless it's a special reading:
        *   IGNOREALL,IGNORE (duplicates allowed) ; END (not possible)
        */
-      if (!((BIT(Ignore) | BIT(End) | BIT(IgnoreAll)) & BIT(d))) {
+      if (!((BIT(Ignore) | BIT(IgnoreAll)) & BIT(d))) {
 	 if (TSTBIT(mUsed, d)) {
 	    /* TRANSLATORS: complains about a situation like trying to define
 	     * two from stations per leg */
@@ -1757,12 +1790,16 @@ cmd_data(void)
 	       if (mUsed & (BIT(FrDepth) | BIT(ToDepth) | BIT(Depth)))
 		  fBad = true;
 	       break;
+	     case Note: case NoteAll:
+	       if (mUsed & (BIT(Note) | BIT(NoteAll)))
+		  fBad = true;
+	       break;
 	     case Newline:
 	       if (mUsed & ~m_multi) {
 		  /* TRANSLATORS: e.g.
 		   *
 		   * *data normal from to tape newline compass clino */
-		  compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*NEWLINE can only be preceded by STATION, DEPTH, and COUNT*/226);
+		  compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*NEWLINE can only be preceded by STATION, DEPTH, and COUNT*/226);//FIXME: NOTE, NOTEALL
 		  free(style_name);
 		  free(new_order);
 		  return;
@@ -1806,39 +1843,59 @@ cmd_data(void)
 	 new_order = osrealloc(new_order, kMac * sizeof(reading));
       }
       new_order[k++] = d;
-   } while (d != End);
+   }
 
-   if (k >= 2 && new_order[k - 2] == Newline) {
+   if (k && (new_order[k - 1] == Newline ||
+             new_order[k - 1] == IgnoreAllAndNewLine)) {
       /* TRANSLATORS: error from:
        *
-       * *data normal from to tape compass clino newline */
+       * *data normal station newline */
       compile_diagnostic(DIAG_ERR|DIAG_TOKEN|DIAG_SKIP, /*NEWLINE can’t be the last reading*/223);
       free(style_name);
       free(new_order);
       return;
    }
 
-   if (style == STYLE_NOSURVEY) {
-      if (TSTBIT(mUsed, Station)) {
-	 if (k >= kMac) {
-	    kMac = kMac * 2;
-	    new_order = osrealloc(new_order, kMac * sizeof(reading));
-	 }
-	 new_order[k - 1] = Newline;
-	 new_order[k++] = End;
-      }
-   } else if (style == STYLE_PASSAGE) {
-      /* Station doesn't mean "multiline" for STYLE_PASSAGE. */
-   } else if (!TSTBIT(mUsed, Newline) && (m_multi & mUsed)) {
+   /* Station doesn't mean "multiline" for STYLE_PASSAGE.  In STYLE_NOSURVEY,
+    * "interleaved" style isn't really interleaved.
+    */
+   if (style != STYLE_NOSURVEY &&
+       style != STYLE_PASSAGE &&
+       !TSTBIT(mUsed, Newline) &&
+       (m_multi & mUsed)) {
       /* TRANSLATORS: Error given by something like:
        *
        * *data normal station tape compass clino
        *
-       * ("station" signifies interleaved data). */
+       * ("station" signifies interleaved data).
+       */
       compile_diagnostic(DIAG_ERR|DIAG_SKIP, /*Interleaved readings, but no NEWLINE*/224);
       free(style_name);
       free(new_order);
       return;
+   }
+
+   if (style == STYLE_NOSURVEY && TSTBIT(mUsed, Station)) {
+       // Convert IgnoreAll to IgnoreAllAndNewLine or append Newline.
+       if (k && new_order[k - 1] == IgnoreAll) {
+	   new_order[k - 1] = IgnoreAllAndNewLine;
+       } else {
+	   if (k >= kMac) {
+	       kMac = kMac * 2;
+	       new_order = osrealloc(new_order, kMac * sizeof(reading));
+	   }
+	   new_order[k++] = Newline;
+       }
+   }
+   if (k && new_order[k - 1] == IgnoreAll) {
+       // IgnoreAll serves in place of End.
+   } else {
+       // Add End.
+       if (k >= kMac) {
+	   kMac = kMac * 2;
+	   new_order = osrealloc(new_order, kMac * sizeof(reading));
+       }
+       new_order[k++] = End;
    }
 
 #if 0
@@ -2289,9 +2346,12 @@ cmd_sd(void)
       default_grade(pcs);
       return;
    }
+   filepos fp;
+   get_pos(&fp);
    sd = read_numeric(false);
    if (sd <= (real)0.0) {
-      compile_diagnostic(DIAG_ERR|DIAG_SKIP|DIAG_COL, /*Standard deviation must be positive*/48);
+      set_pos(&fp);
+      compile_diagnostic(DIAG_ERR|DIAG_SKIP|DIAG_NUM, /*Standard deviation must be positive*/48);
       return;
    }
    units = get_units(qmask, false);
@@ -2402,6 +2462,17 @@ cmd_copyright(void)
     }
     s_free(&text);
 
+    if (isBlank(ch)) {
+	skipblanks();
+	if (!isComm(ch) && !isEol(ch)) {
+	    if (!read_string_warning(&text)) {
+		skipline();
+		return;
+	    }
+	    s_free(&text);
+	}
+    }
+
     skipblanks();
     if (!isComm(ch) && !isEol(ch))
 	compile_diagnostic(DIAG_WARN|DIAG_TAIL, /*End of line not blank*/15);
@@ -2476,32 +2547,30 @@ read_cs_from_file(const char *fnm, const filepos *fp)
    /* s_clear() gives cs a buffer, which s_steal() needs even for an empty
     * file. */
    s_clear(&cs);
-   string blanks = S_INIT;
-   bool line_break = false;
+   int last_nonblank = 0;
+   bool start_of_line = true;
    for (int c = GETC(fh); c != EOF; c = GETC(fh)) {
-      if (c == '\n' || c == '\r') {
-	 line_break = true;
-	 s_clear(&blanks);
-	 continue;
-      }
       if (c == ' ' || c == '\t') {
-	 /* Only keep blanks which turn out to be between two non-blanks on
-	  * the same line. */
-	 if (cs.len) s_appendch(&blanks, c);
+	 // Drop blanks which follow a newline.
+	 if (!start_of_line) s_appendch(&cs, c);
 	 continue;
       }
-      if (cs.len) {
-	 if (line_break) {
-	    s_appendch(&cs, ' ');
-	 } else {
-	    s_appends(&cs, &blanks);
+      if (c == '\n' || c == '\r') {
+	 if (!start_of_line) {
+	     // Discard blanks back to the last non-blank and replace
+	     // the newline with a space unless we're still at the start of
+	     // the string.
+	     s_truncate(&cs, last_nonblank);
+	     if (s_len(&cs)) s_appendch(&cs, ' ');
+	     start_of_line = true;
 	 }
+	 continue;
       }
-      s_clear(&blanks);
-      line_break = false;
+      start_of_line = false;
       s_appendch(&cs, c);
+      last_nonblank = s_len(&cs);
    }
-   s_free(&blanks);
+   s_truncate(&cs, last_nonblank);
 
    if (FERROR(fh))
       fatalerror_in_file(fnm_used, 0, /*Error reading file*/18);
@@ -2662,7 +2731,8 @@ cmd_cs(void)
 	   break;
        }
    }
-   if (cs_sub == INT_MIN || (cs != CS_FILE && isalnum(ch))) {
+   if (cs_sub == INT_MIN ||
+       (cs != CS_CUSTOM && cs != CS_FILE && isalnum(ch))) {
       set_pos(&fp);
       compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Unknown coordinate system*/434);
       skipline();

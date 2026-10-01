@@ -111,14 +111,14 @@ jmp_buf jbSkipLine;
 
 bool f_export_ok;
 
-static real value[Fr - 1];
-#define VAL(N) value[(N)-1]
-static real variance[Fr - 1];
-#define VAR(N) variance[(N)-1]
-static long location[Fr - 1];
-#define LOC(N) location[(N)-1]
-static int location_width[Fr - 1];
-#define WID(N) location_width[(N)-1]
+static real reading_value[Fr - 1];
+#define VAL(N) reading_value[(N)-1]
+static real reading_variance[Fr - 1];
+#define VAR(N) reading_variance[(N)-1]
+static long reading_location[Fr - 1];
+#define LOC(N) reading_location[(N)-1]
+static int reading_location_width[Fr - 1];
+#define WID(N) reading_location_width[(N)-1]
 
 /* style functions */
 static void data_normal(void);
@@ -336,34 +336,36 @@ compile_diagnostic(int diag_flags, int en, ...)
    int diag_context_code = (diag_flags & DIAG_CONTEXT_MASK);
    if (diag_context_code) {
       int len = 0;
-      if (diag_context_code != DIAG_COL && diag_context_code != DIAG_TOKEN) {
-	 skipblanks();
-      }
       switch (diag_context_code) {
 	case DIAG_COL:
 	 break;
 	case DIAG_TOKEN:
+	case DIAG_QTOKEN:
 	 len = s_len(&token);
 	 break;
 	case DIAG_WORD:
+	 skipblanks();
 	 while (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
 	    ++len;
 	    nextch();
 	 }
 	 break;
 	case DIAG_UINT:
+	 skipblanks();
 	 while (isdigit(ch)) {
 	    ++len;
 	    nextch();
 	 }
 	 break;
 	case DIAG_DATE:
+	 skipblanks();
 	 while (isdigit(ch) || ch == '.') {
 	    ++len;
 	    nextch();
 	 }
 	 break;
 	case DIAG_STRING: {
+	 skipblanks();
 	 string p = S_INIT;
 	 len = ftell(file.fh);
 	 read_string(&p);
@@ -373,6 +375,7 @@ compile_diagnostic(int diag_flags, int en, ...)
 	 break;
 	}
 	case DIAG_TAIL: {
+	 skipblanks();
 	 filepos fp_last_nonblank = {0}; // Initialise to avoid warning.
 	 int len_last_nonblank = len;
 	 while (!isComm(ch) && !isEol(ch)) {
@@ -391,6 +394,7 @@ compile_diagnostic(int diag_flags, int en, ...)
 	 break;
 	}
 	case DIAG_NUM:
+	 skipblanks();
 	 if (isMinus(ch) || isPlus(ch)) {
 	    ++len;
 	    nextch();
@@ -411,6 +415,14 @@ compile_diagnostic(int diag_flags, int en, ...)
       }
       caret_width = len;
       fpos = ftell(file.fh);
+      if (diag_context_code == DIAG_QTOKEN) {
+	 fseek(file.fh, fpos - 2, SEEK_SET);
+	 if (GETC(file.fh) == '"') {
+	     // Adjust for token in double quotes.
+	     --fpos;
+	 }
+	 fseek(file.fh, fpos, SEEK_SET);
+      }
    } else if (diag_flags & DIAG_FROM_MASK) {
       caret_width = diag_flags >> DIAG_FROM_SHIFT;
       fpos = ftell(file.fh);
@@ -1315,23 +1327,28 @@ walls_swap_macro_tables()
 
 // Takes ownership of the contents of p_name and of value.
 // Passing NULL for value sets empty string.
+// Note that p_name includes the leading `$`.
 static void
 walls_set_macro(walls_macro ***table, string *p_name, char *val)
 {
-    //printf("MACRO: $|%s|=\"%s\":\n", name, val);
     if (!*table) {
 	*table = osmalloc(WALLS_MACRO_HASH_SIZE * sizeof(walls_macro*));
 	for (size_t i = 0; i < WALLS_MACRO_HASH_SIZE; i++)
 	    (*table)[i] = NULL;
     }
 
-    unsigned h = hash_data(s_str(p_name), s_len(p_name)) &
-		 (WALLS_MACRO_HASH_SIZE - 1);
+    // Adjust to skip the leading `$`.
+    int name_len = s_len(p_name) - 1;
+    char *name = s_steal(p_name) + 1;
+    //printf("MACRO: $|%s|=\"%s\":\n", name, val);
+
+    unsigned h = hash_data(name, name_len) & (WALLS_MACRO_HASH_SIZE - 1);
     walls_macro *p = (*table)[h];
     while (p) {
-	if (s_eqlen(p_name, p->name, p->name_len)) {
+	if (name_len == p->name_len && memcmp(name, p->name, name_len) == 0) {
+	    // Adjust back for skipping the leading `$`.
+	    free(name - 1);
 	    // Update existing definition of macro.
-	    s_free(p_name);
 	    free(p->value);
 	    p->value = val;
 	    return;
@@ -1340,8 +1357,8 @@ walls_set_macro(walls_macro ***table, string *p_name, char *val)
     }
 
     walls_macro *entry = osnew(walls_macro);
-    entry->name_len = s_len(p_name);
-    entry->name = s_steal(p_name);
+    entry->name_len = name_len;
+    entry->name = name;
     entry->value = val;
     entry->next = (*table)[h];
     (*table)[h] = entry;
@@ -1558,6 +1575,9 @@ typedef struct walls_options {
     // RECT in effect?
     bool rect;
 
+    // TYPEAB=C,... in effect?
+    bool typeab_c;
+
     // Flags to apply to stations in #FIX.
     int fix_station_flags;
 
@@ -1572,6 +1592,25 @@ typedef struct walls_options {
 
     // Current ORDER= setting for RECT data.
     int order_rect;
+
+    // Current INCH= setting (extra DZ for each leg, not inch the length unit).
+    real inch;
+
+    // Current INCAB= setting.
+    real incab;
+
+    // Current UVH= setting (also set by UV=).
+    real uvh;
+
+    // Current UVV= setting (also set by UV=).
+    real uvv;
+
+#ifndef NO_COVARIANCES
+    // Current covariance(horizontal,z) scale factor.
+    //
+    // We cache this value to save a lot of redundant square root calculations.
+    real uv_covzh;
+#endif
 
     // Current path including trailing directory separator if one is needed.
     string path;
@@ -1597,6 +1636,9 @@ static const walls_options walls_options_default = {
     // rect
     false,
 
+    // typeab_c
+    false,
+
     // fix_station_flags
     0,
 
@@ -1611,6 +1653,23 @@ static const walls_options walls_options_default = {
 
     // order_rect
     WALLS_ORDER_CT(Dx, Dy, Dz) & ((1 << 24) - 1),
+
+    // inch
+    0.0,
+
+    // incab
+    0.0,
+
+    // uvh
+    1.0,
+
+    // uvv
+    1.0,
+
+#ifndef NO_COVARIANCES
+    // uv_covzh
+    1.0,
+#endif
 
     // path
     S_INIT,
@@ -1719,11 +1778,42 @@ walls_initialise_settings(void)
     // Spec says "maximum of eight characters" - we currently allow arbitrarily
     // many.
     pcs->Truncate = INT_MAX;
+    // Treat a tape measurement of zero as an equate since Walls manual says:
+    //
+    //   "Also, corrections are not applied to zero heights or distances, both
+    //   of which are allowed.  (Zero-length vectors can be defined.)"
+    //
+    // Treat a clino measurement of ±90° as a plumb since Walls manual says:
+    //
+    //   "Note that only the distance correction, INCD, will be applied to pure
+    //   vertical shots, where the inclination is +90 or -90 degrees."
     pcs->infer = BIT(INFER_EQUATES) |
 		 BIT(INFER_PLUMBS);
     // Walls cartesian data is aligned to True North.
     pcs->cartesian_north = TRUE_NORTH;
     pcs->cartesian_rotation = 0.0;
+
+    // Set compass and clino variances so backsights warn above 5°, and scale
+    // the other default Survex variances by the same amount to give the same
+    // closure result.
+    real angle_variance = sqrd((5.0 + 1e-6) * (M_PI / 180.0) / 3.0) * 0.5;
+    real distance_variance = sqrd(0.05) * angle_variance / sqrd(rad(0.5));
+    pcs->Var[Q_BEARING] = angle_variance;
+    pcs->Var[Q_BACKBEARING] = angle_variance;
+    pcs->Var[Q_GRADIENT] = angle_variance;
+    pcs->Var[Q_BACKGRADIENT] = angle_variance;
+    pcs->Var[Q_POS] = distance_variance;
+    pcs->Var[Q_LENGTH] = distance_variance;
+    pcs->Var[Q_BACKLENGTH] = distance_variance;
+    pcs->Var[Q_COUNT] = distance_variance;
+    pcs->Var[Q_DX] = pcs->Var[Q_DY] = pcs->Var[Q_DZ] = distance_variance;
+    pcs->Var[Q_BEARING] = angle_variance;
+    pcs->Var[Q_GRADIENT] = angle_variance;
+    pcs->Var[Q_BACKBEARING] = angle_variance;
+    pcs->Var[Q_BACKGRADIENT] = angle_variance;
+    pcs->Var[Q_PLUMB] = angle_variance * 0.5;
+    pcs->Var[Q_LEVEL] = angle_variance * 0.5;
+    pcs->Var[Q_DEPTH] = distance_variance;
 }
 
 static void
@@ -1755,6 +1845,13 @@ walls_update_data_order(void)
 	    style = STYLE_DIVING;
 	    *p++ = WallsSRVFrDepth;
 	    *p++ = WallsSRVToDepth;
+	} else if (p_walls_options->tape_method == WALLS_TAPE_IT &&
+		   (p - p_walls_options->data_order) == 4) {
+	    // `TAPE=IT ORDER=DA` or `TAPE=IT ORDER=AD` is equivalent to
+	    // Survex's cylpolar style.
+	    style = STYLE_CYLPOLAR;
+	    *p++ = WallsSRVFrDepth;
+	    *p++ = WallsSRVToDepth;
 	} else {
 	    *p++ = WallsSRVHeights;
 	}
@@ -1765,6 +1862,16 @@ walls_update_data_order(void)
     pcs->ordering = p_walls_options->data_order;
 
     pcs->recorded_style = pcs->style = style;
+}
+
+static void
+walls_update_backcomp_calibration(void)
+{
+    real calibration = -(p_walls_options->incab);
+    if (p_walls_options->typeab_c) {
+	calibration += M_PI;
+    }
+    pcs->z[Q_BACKBEARING] = calibration;
 }
 
 static void
@@ -1781,9 +1888,45 @@ walls_reset(void)
     for (int i = 0; i < 3; ++i) {
 	free(p_walls_options->prefix[i]);
     }
+    walls_options * save_next = p_walls_options->next;
     *p_walls_options = walls_options_default;
+    p_walls_options->next = save_next;
 
     walls_update_data_order();
+    walls_update_backcomp_calibration();
+}
+
+static void
+walls_comma_warning(bool f_decimal_point)
+{
+    if (f_decimal_point) return;
+
+    filepos fp;
+    get_pos(&fp);
+    if (!isdigit(nextch())) {
+	set_pos(&fp);
+	return;
+    }
+
+    while (isdigit(nextch())) { }
+    int following_ch = ch;
+    set_pos(&fp);
+    if (following_ch == '.') return;
+
+    // TRANSLATORS: Warning issued about a dubious case in survey data in Walls
+    // format (.srv).  Real world example:
+    //
+    // GB1        GB2        5,00    0       30
+    //
+    // In Europe a comma is customarily used for the decimal point, and the
+    // user intended this to be a leg of length 5, compass 0, clino 30.
+    // However Walls treats comma like a space so this is equivalent to:
+    //
+    // GB1        GB2        5 00    0       30
+    //
+    // Walls quietly parses this as length 5, compass 00, clino 0 and (optional
+    // field) instrument height 30.
+    compile_diagnostic(DIAG_WARN|DIAG_COL, /*Interpreting “,” as separating readings but may be intended as a decimal point*/539);
 }
 
 static real
@@ -1816,7 +1959,7 @@ bad_angle_units:
 }
 
 static real
-read_walls_distance(bool f_optional, real default_units)
+read_walls_distance(bool f_optional, real default_units, bool comma_ok)
 {
     bool f_decimal_point = false;
     real distance;
@@ -1866,6 +2009,9 @@ bad_distance_units:
 		while (!isBlank(ch) && !isEol(ch)) nextch();
 	    }
 	} else {
+	    if (!comma_ok && ch == ',') {
+		walls_comma_warning(f_decimal_point);
+	    }
 	    distance *= default_units;
 	}
     }
@@ -1906,7 +2052,7 @@ read_walls_variance_overrides(real* p_var_xy, real* p_var_z)
 	    nextch();
 	}
 
-	val_h = read_walls_distance(false, pcs->units[Q_LENGTH]);
+	val_h = read_walls_distance(false, pcs->units[Q_LENGTH], true);
     }
     bool rms_v = rms_h;
     real val_v = val_h;
@@ -1950,6 +2096,8 @@ read_walls_variance_overrides(real* p_var_xy, real* p_var_z)
 
     if (val_h == 0) {
 	// Use default variance, which is exact for a fixed point.
+	// Apply UV=/UVH= options.
+	*p_var_xy *= p_walls_options->uvh;
     } else if (val_h == HUGE_REAL) {
 	// Infinite variance.  It seems `?` and `*` effectively
 	// mean the same for a fixed point.  We don't really
@@ -1965,6 +2113,8 @@ read_walls_variance_overrides(real* p_var_xy, real* p_var_z)
 	// 100, while each horizontal component would be given half
 	// that variance, or 50".
 	*p_var_xy = val_h * val_h / 2.0;
+	// Apply UV=/UVH= options.
+	*p_var_xy *= p_walls_options->uvh;
     } else {
 	// The value is to be treated as the length of a leg to use
 	// the variances of, so this is based on the leg variance
@@ -1972,14 +2122,20 @@ read_walls_variance_overrides(real* p_var_xy, real* p_var_z)
 	// that for Survex the leg length does not affect the
 	// variances.
 	*p_var_xy = var(Q_POS) / 3.0 + var(Q_LENGTH) / 2.0;
+	// Apply UV=/UVH= options.
+	*p_var_xy *= p_walls_options->uvh;
     }
-    if (val_v < 0.0) {
+    if (val_v == 0.0) {
 	// Use default variance, which is exact for a fixed point.
+	// Apply UV=/UVV= options.
+	*p_var_z *= p_walls_options->uvv;
     } else if (val_v == HUGE_REAL) {
 	// Infinite variance.
 	*p_var_z = HUGE_REAL;
     } else if (rms_v) {
 	*p_var_z = val_v * val_v;
+	// Apply UV=/UVV= options.
+	*p_var_z *= p_walls_options->uvv;
     } else {
 	// The value is to be treated as the length of a leg to use
 	// the variances of, so this is based on the leg variance
@@ -1987,6 +2143,8 @@ read_walls_variance_overrides(real* p_var_xy, real* p_var_z)
 	// that for Survex the leg length does not affect the
 	// variances.
 	*p_var_z = var(Q_POS) / 3.0 + var(Q_LENGTH) / 2.0;
+	// Apply UV=/UVV= options.
+	*p_var_z *= p_walls_options->uvv;
     }
 }
 
@@ -2133,16 +2291,46 @@ convert_compass_dat_flags(unsigned long compass_dat_flags)
 }
 
 static void
+walls_get_option_token(void)
+{
+    skipblanks();
+    s_clear(&token);
+    s_clear(&uctoken);
+    if (ch == '"') {
+	// Apparently undocumented quoted token syntax.
+	// FIXME: Warn?
+	nextch();
+	while (ch != '"') {
+	    if (isEol(ch)) {
+		compile_diagnostic(DIAG_ERR|DIAG_COL, /*Missing \"*/69);
+		return;
+	    }
+	    s_appendch(&token, ch);
+	    s_appendch(&uctoken, toupper(ch));
+	    nextch();
+	}
+	nextch();
+	return;
+    }
+    while (!isBlank(ch) && !isComm(ch) && !isEol(ch) && ch != '=') {
+	s_appendch(&token, ch);
+	s_appendch(&uctoken, toupper(ch));
+	nextch();
+    }
+}
+
+static void
 walls_parse_options(void)
 {
     // Track if we need to call walls_update_data_order().  We postpone
     // doing so until after we've parsed a set of options to avoid some
     // redundant calls.
     bool update_data_order = false;
-    skipblanks();
-    while (!isEol(ch)) {
-	get_token();
-	if (s_empty(&token) && isComm(ch)) {
+    // Track if we need to call walls_update_backcomp_calibration().
+    bool update_backcomp_calibration = false;
+    while (true) {
+	walls_get_option_token();
+	if (s_empty(&token) && (isComm(ch) || isEol(ch))) {
 	    break;
 	}
 	filepos fp_option;
@@ -2203,7 +2391,7 @@ walls_parse_options(void)
 		pcs->units[Q_DZ] = METRES_PER_FOOT;
 	    break;
 	  case WALLS_UNITS_OPT_D:
-	    get_token();
+	    walls_get_option_token();
 	    // From testing it seems Walls only checks the initial letter - e.g.
 	    // "M", "METERS", "METRES", "F", "FEET" and even "FISH" are accepted,
 	    // but "X" gives an error.
@@ -2221,7 +2409,7 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_A:
-	    get_token();
+	    walls_get_option_token();
 	    // It seems Walls only checks the initial letter.
 	    if (s_str(&uctoken)[0] == 'D') {
 		// Degrees.
@@ -2244,7 +2432,7 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_AB:
-	    get_token();
+	    walls_get_option_token();
 	    // It seems Walls only checks the initial letter.
 	    if (s_str(&uctoken)[0] == 'D') {
 		// Degrees.
@@ -2267,7 +2455,7 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_V:
-	    get_token();
+	    walls_get_option_token();
 	    pcs->f_clino_percent = false;
 	    // It seems Walls only checks the initial letter.
 	    if (s_str(&uctoken)[0] == 'D') {
@@ -2294,7 +2482,7 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_VB:
-	    get_token();
+	    walls_get_option_token();
 	    pcs->f_backclino_percent = false;
 	    // It seems Walls only checks the initial letter.
 	    if (s_str(&uctoken)[0] == 'D') {
@@ -2321,7 +2509,7 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_S:
-	    get_token();
+	    walls_get_option_token();
 	    // From testing it seems Walls only checks the initial letter - e.g.
 	    // "M", "METERS", "METRES", "F", "FEET" and even "FISH" are accepted,
 	    // but "X" gives an error.
@@ -2343,11 +2531,11 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_ORDER: {
-	    get_token();
+	    walls_get_option_token();
 	    int order = match_tok(walls_order_tab,
 				  TABSIZE(walls_order_tab));
 	    if (order < 0) {
-		compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Data style “%s” unknown*/65, s_str(&token));
+		compile_diagnostic(DIAG_ERR|DIAG_QTOKEN, /*Data style “%s” unknown*/65, s_str(&token));
 		break;
 	    }
 	    bool rect = (order & (1 << 24));
@@ -2366,20 +2554,16 @@ walls_parse_options(void)
 	    pcs->z[Q_BEARING] = -read_walls_angle(pcs->units[Q_BEARING]);
 	    break;
 	  case WALLS_UNITS_OPT_INCAB:
-	    pcs->z[Q_BACKBEARING] = -read_walls_angle(pcs->units[Q_BACKBEARING]);
+	    p_walls_options->incab =
+		read_walls_angle(pcs->units[Q_BACKBEARING]);
+	    update_backcomp_calibration = true;
 	    break;
 	  case WALLS_UNITS_OPT_INCD:
-	    pcs->z[Q_LENGTH] = -read_walls_distance(false, pcs->units[Q_LENGTH]);
+	    pcs->z[Q_LENGTH] = -read_walls_distance(false, pcs->units[Q_LENGTH], false);
 	    break;
 	  case WALLS_UNITS_OPT_INCH:
-	    // INCH=0 is what we do anyway, so only warn about non-zero values.
-	    if (read_walls_distance(false, pcs->units[Q_LENGTH]) != 0.0) {
-		filepos fp;
-		get_pos(&fp);
-		set_pos(&fp_option);
-		compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /*Unknown command “%s”*/12, s_str(&token));
-		set_pos(&fp);
-	    }
+	    p_walls_options->inch =
+		read_walls_distance(false, pcs->units[Q_LENGTH], false);
 	    break;
 	  case WALLS_UNITS_OPT_INCV:
 	    pcs->z[Q_GRADIENT] = -read_walls_angle(pcs->units[Q_GRADIENT]);
@@ -2387,11 +2571,18 @@ walls_parse_options(void)
 	  case WALLS_UNITS_OPT_INCVB:
 	    pcs->z[Q_BACKGRADIENT] = -read_walls_angle(pcs->units[Q_BACKGRADIENT]);
 	    break;
-	  case WALLS_UNITS_OPT_GRID:
+	  case WALLS_UNITS_OPT_GRID: {
 	    // FIXME: GRID= not useful with geo-referenced data?
-	    compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /*Unknown command “%s”*/12, s_str(&token));
+	    filepos fp;
+	    get_pos(&fp);
+	    set_pos(&fp_option);
+	    // TRANSLATORS: "Walls" is David McKenzie's cave surveying package,
+	    // so should not be translated.
+	    compile_diagnostic(DIAG_WARN|DIAG_QTOKEN, /*Ignoring unsupported Walls option “%s”*/582, s_str(&token));
+	    set_pos(&fp);
 	    (void)read_walls_angle(M_PI / 180.0);
 	    break;
+	  }
 	  case WALLS_UNITS_OPT_RECT:
 	    // There are two different RECT options, one with a
 	    // parameter and one without!
@@ -2406,23 +2597,43 @@ walls_parse_options(void)
 		update_data_order = true;
 	    }
 	    break;
-	  case WALLS_UNITS_OPT_CASE:
-	    get_token();
-	    // Walls documents `CASE = Upper / Lower / Mixed` which hints that
-	    // it only actually tests the first character.  It also seems that
-	    // any other character is treated as `Mixed` too.
-	    switch (s_str(&uctoken)[0]) {
-	      case 'L':
-		pcs->Case = LOWER;
-		break;
-	      case 'U':
-		pcs->Case = UPPER;
-		break;
-	      default:
-		pcs->Case = OFF;
-		break;
+	  case WALLS_UNITS_OPT_CASE: {
+	    static const sztok case_tab[] = {
+	         {"L", LOWER},
+	         {"LOWER", LOWER},
+	         {"M", OFF},
+	         {"MIXED", OFF},
+	         {"U", UPPER},
+	         {"UPPER", UPPER},
+	         {NULL, -1}
+	    };
+	    walls_get_option_token();
+	    int case_setting = match_tok(case_tab, TABSIZE(case_tab));
+	    if (case_setting < 0) {
+		// Walls documents `CASE = Upper / Lower / Mixed` which means
+		// that the value can be abbreviated to just the first
+		// character.  However it actually only tests the first
+		// character, and it seems that any other initial character is
+		// treated as `Mixed` too.  We support these too but issue a
+		// warning.
+		compile_diagnostic(DIAG_WARN|DIAG_QTOKEN,
+				   /*Expecting “%s”, “%s”, or “%s”*/188,
+				   "LOWER", "UPPER", "MIXED");
+		switch (s_str(&uctoken)[0]) {
+		  case 'L':
+		    case_setting = LOWER;
+		    break;
+		  case 'U':
+		    case_setting = UPPER;
+		    break;
+		  default:
+		    case_setting = OFF;
+		    break;
+		}
 	    }
+	    pcs->Case = case_setting;
 	    break;
+	  }
 	  case WALLS_UNITS_OPT_CT:
 	    p_walls_options->rect = false;
 	    update_data_order = true;
@@ -2454,11 +2665,11 @@ walls_parse_options(void)
 	    break;
 	  }
 	  case WALLS_UNITS_OPT_TAPE: {
-	    get_token();
+	    walls_get_option_token();
 	    int tape_method = match_tok(walls_tape_tab,
 					TABSIZE(walls_tape_tab));
 	    if (tape_method < 0) {
-		compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+		compile_diagnostic(DIAG_ERR|DIAG_QTOKEN,
 				   /*Expecting “%s”, “%s”, “%s”, or “%s”*/189,
 				   "IS", "IT", "SS", "ST");
 		break;
@@ -2468,11 +2679,17 @@ walls_parse_options(void)
 	    break;
 	  }
 	  case WALLS_UNITS_OPT_TYPEAB:
-	    get_token();
+	    walls_get_option_token();
 	    if (s_str(&uctoken)[0] == 'N') {
-		pcs->z[Q_BACKBEARING] = 0.0;
+		if (p_walls_options->typeab_c) {
+		    p_walls_options->typeab_c = false;
+		    update_backcomp_calibration = true;
+		}
 	    } else if (s_str(&uctoken)[0] == 'C') {
-		pcs->z[Q_BACKBEARING] = M_PI;
+		if (!p_walls_options->typeab_c) {
+		    p_walls_options->typeab_c = true;
+		    update_backcomp_calibration = true;
+		}
 	    } else {
 		filepos fp;
 		get_pos(&fp);
@@ -2481,10 +2698,14 @@ walls_parse_options(void)
 		compile_diagnostic(DIAG_ERR|DIAG_COL, /*Expecting “%s” or “%s”*/103, "C", "N");
 		set_pos(&fp);
 	    }
+	    update_backcomp_calibration = true;
 	    if (ch == ',') {
 		nextch();
-		// FIXME: Use threshold value.
-		(void)read_numeric(false);
+		// Set compass variance based on threshold.
+		real tolerance = read_numeric(false) + 1e-6;
+		real variance = sqrd(tolerance * (M_PI / 180.0) / 3.0) * 0.5;
+		pcs->Var[Q_BEARING] = variance;
+		pcs->Var[Q_BACKBEARING] = variance;
 		if (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
 		    // Walls quietly ignores junk after a valid number here.
 		    get_word();
@@ -2500,7 +2721,7 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_TYPEVB:
-	    get_token();
+	    walls_get_option_token();
 	    if (s_str(&uctoken)[0] == 'N') {
 		pcs->sc[Q_BACKGRADIENT] = 1.0;
 	    } else if (s_str(&uctoken)[0] == 'C') {
@@ -2515,8 +2736,11 @@ walls_parse_options(void)
 	    }
 	    if (ch == ',') {
 		nextch();
-		// FIXME: Use threshold value.
-		(void)read_numeric(false);
+		// Set clino variance based on threshold.
+		real tolerance = read_numeric(false) + 1e-6;
+		real variance = sqrd(tolerance * (M_PI / 180.0) / 3.0) * 0.5;
+		pcs->Var[Q_GRADIENT] = variance;
+		pcs->Var[Q_BACKGRADIENT] = variance;
 		if (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
 		    // Walls quietly ignores junk after a valid number here.
 		    get_word();
@@ -2533,16 +2757,42 @@ walls_parse_options(void)
 	    break;
 	  case WALLS_UNITS_OPT_UV:
 	  case WALLS_UNITS_OPT_UVH:
-	  case WALLS_UNITS_OPT_UVV:
+	  case WALLS_UNITS_OPT_UVV: {
 	    // Scale factors for variances (with horizontal-only and
-	    // vertical-only variants).  FIXME: Actually apply these!
-	    (void)read_numeric(false);
+	    // vertical-only variants).
+	    filepos fp_arg;
+	    get_pos(&fp_arg);
+	    real scale_factor = read_numeric(false);
+	    if (scale_factor < 0) {
+		set_pos(&fp_arg);
+		// TRANSLATORS: "Walls" is David McKenzie's cave surveying package,
+		// so should not be translated.
+		compile_diagnostic(DIAG_ERR|DIAG_NUM, /*Value can not be negative*/583);
+	    } else if (opt == WALLS_UNITS_OPT_UV) {
+		p_walls_options->uvh = scale_factor;
+		p_walls_options->uvv = scale_factor;
+#ifndef NO_COVARIANCES
+		p_walls_options->uv_covzh = scale_factor;
+#endif
+	    } else {
+		if (opt == WALLS_UNITS_OPT_UVH) {
+		    p_walls_options->uvh = scale_factor;
+		} else {
+		    p_walls_options->uvv = scale_factor;
+		}
+#ifndef NO_COVARIANCES
+		// Update cached covariance(horizontal,z) scale factor.
+		p_walls_options->uv_covzh =
+		    sqrt(p_walls_options->uvh * p_walls_options->uvv);
+#endif
+	    }
 	    if (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
 		// Walls quietly ignores junk after a valid number here.
 		get_word();
 		compile_diagnostic(DIAG_WARN|DIAG_TOKEN, /*Ignoring “%s”*/506, s_str(&token));
 	    }
 	    break;
+	  }
 	  case WALLS_UNITS_OPT_FLAG:
 	    // Default flag to apply to stations in #FIX.
 	    skipblanks();
@@ -2561,7 +2811,7 @@ walls_parse_options(void)
 	    // FIXME: Should this be processed before other arguments?
 	    if (!p_walls_options->explicit) {
 		/* TRANSLATORS: %s is replaced with e.g. BEGIN or .BOOK or #[ */
-		compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*No matching %s*/192, "SAVE");
+		compile_diagnostic(DIAG_ERR|DIAG_QTOKEN, /*No matching %s*/192, "SAVE");
 		break;
 	    }
 	    pop_walls_options();
@@ -2574,51 +2824,34 @@ walls_parse_options(void)
 	    break;
 	  }
 	  case WALLS_UNITS_OPT_NULL:
-	    if (s_str(&uctoken)[0] == '\0' && ch == '$') {
+	    if (s_str(&token)[0] == '$' && s_len(&token) > 1) {
 		// Macro definition.
-		filepos fp;
-		get_pos(&fp);
-		nextch();
-		string name = S_INIT;
-		while (!isBlank(ch) && !isComm(ch) && !isEol(ch) && ch != '=') {
-		    s_appendch(&name, ch);
+		skipblanks();
+		if (ch != '=') {
+		    // Set an empty value.
+		    walls_set_macro(&walls_macros, &token, NULL);
+		} else {
 		    nextch();
+		    string val = S_INIT;
+		    read_string(&val);
+		    walls_set_macro(&walls_macros, &token, s_steal(&val));
 		}
-		if (!s_empty(&name)) {
-		    skipblanks();
-		    if (ch != '=') {
-			// Set an empty value.
-			walls_set_macro(&walls_macros, &name, NULL);
-		    } else {
-			nextch();
-			string val = S_INIT;
-			read_string(&val);
-			walls_set_macro(&walls_macros, &name, s_steal(&val));
-		    }
-		    break;
-		}
-		s_free(&name);
-		set_pos(&fp);
-		s_clear(&token);
+		break;
 	    }
-	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN, /*Unknown command “%s”*/12, s_str(&token));
+	    compile_diagnostic(DIAG_ERR|DIAG_QTOKEN, /*Unknown command “%s”*/12, s_str(&token));
 	    if (ch == '=') {
 		// Skip over `=` and the rest of the argument so we handle a
-		// typo-ed option name nicely.
+		// missing or typo-ed option name nicely.
 		do {
 		    nextch();
 		} while (!isBlank(ch) && !isComm(ch) && !isEol(ch));
 	    }
 	    break;
 	}
-//		pcs->z[Q_BACKBEARING] = pcs->z[Q_BEARING] = -rad(read_numeric(false));
-//		pcs->z[Q_BACKGRADIENT] = pcs->z[Q_GRADIENT] = -rad(read_numeric(false));
-//		pcs->z[Q_LENGTH] = -METRES_PER_FOOT * read_numeric(false);
-
-	skipblanks();
     }
 
     if (update_data_order) walls_update_data_order();
+    if (update_backcomp_calibration) walls_update_backcomp_calibration();
 }
 
 static void
@@ -2638,6 +2871,7 @@ data_file_walls_srv(void)
     int fix_station_flags = p_walls_options->fix_station_flags;
 
     walls_update_data_order();
+    walls_update_backcomp_calibration();
 
     /* errors in nested functions can longjmp here */
     if (setjmp(jbSkipLine)) {
@@ -2848,7 +3082,7 @@ next_line:
 		    // Read as a distance if this is the altitude, or we've
 		    // already seen a distance for x or y, or if the coordinate
 		    // doesn't start with a compass point letter.
-		    coord = read_walls_distance(false, pcs->units[Q_LENGTH]);
+		    coord = read_walls_distance(false, pcs->units[Q_LENGTH], false);
 		    if (dim != 2) format = UTM;
 		} else {
 		    // Set negate if S or W.
@@ -2886,8 +3120,29 @@ next_line:
 	    }
 	    skipblanks();
 	    if (ch == '/') {
-		// Station note - ignore for now.  Note: Must be '/'.
+		// Station note.  Note: Must be introduced by '/' not `\`.
+		//
+		// Walls handling of `#` is subtle here - e.g. `#15` is
+		// part of the note; `#s`/`#seg`/`#segment` ends the
+		// note and set the segment; `#` followed by another
+		// letter (note: blanks are allowed in between) gives the
+		// weirdly confused error "Use only #SEG on vector lines".
+		//
+		// We just ignore the note and don't check for `#segment`.
+		// We currently ignore segments too, so this just means we
+		// won't error for some cases where Walls would.
 		skipline();
+	    } else if (ch == '#') {
+		nextch();
+		get_token();
+		walls_cmd seg_directive = match_tok(walls_cmd_tab,
+						    TABSIZE(walls_cmd_tab));
+		if (seg_directive == WALLS_CMD_SEGMENT) {
+		    skipline();
+		} else {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN|DIAG_SKIP,
+				       /*Unknown command “%s”*/12, s_str(&token));
+		}
 	    }
 
 	    if (format == LATLONG) {
@@ -3086,12 +3341,19 @@ read_flagged_stations:
 	    break;
 	  }
 	  case WALLS_CMD_NOTE: {
-	    // A text note attached to a station - ignore for now except we
-	    // read the station name and count this as a use so suppress
-	    // "unused fixed point" warnings.
+	    // A text note attached to a station - we check the directive
+	    // is valid and mark the station as used (so `#note` will suppress
+	    // "unused fixed point" warnings) but we don't currently store the
+	    // note.
 	    prefix *name = read_walls_station(p_walls_options->prefix,
 					      false, NULL);
 	    name->sflags |= BIT(SFLAGS_USED);
+	    skipblanks();
+	    if (isComm(ch) || isEol(ch)) {
+		// Walls gives an error for an empty note.
+		compile_diagnostic(DIAG_ERR|DIAG_COL,
+				   /*Expecting string field*/121);
+	    }
 	    skipline();
 	    break;
 	  }
@@ -3099,7 +3361,7 @@ read_flagged_stations:
 	    walls_parse_segment(&p_walls_options->compass_dat_flags);
 	    break;
 	  case WALLS_CMD_SYMBOL:
-	    // Now to draw symbols.  Not really appropriate here as this is
+	    // How to draw symbols.  Not really appropriate here as this is
 	    // presentation information, so we just ignore it.
 	    skipline();
 	    break;
@@ -3853,9 +4115,37 @@ warn_readings_differ(int msgno, real diff, int units,
       }
    }
    strcpy(p, get_units_string(units));
-   // FIXME: Highlight r_fore too.
-   (void)r_fore;
+
+   // We can only currently highlight one region of the line so check if the
+   // foresight and backsight are adjacent readings and if so extend the
+   // highlight to cover both.  If the reading are not adjacent then only
+   // the backsight is highlighted.
+   //
+   // FIXME: Provide a way to highlight two regions?
+   long save_loc = LOC(r_back);
+   int save_wid = WID(r_back);
+   for (int i = 0;
+	pcs->ordering[i] != End && pcs->ordering[i] != IgnoreAll;
+	++i) {
+       reading r = pcs->ordering[i];
+       if (r == r_fore) {
+	   if (pcs->ordering[i + 1] == r_back) {
+	       WID(r_back) += LOC(r_back) - LOC(r_fore);
+	       LOC(r_back) = LOC(r_fore);
+	   } else if (i > 0 && pcs->ordering[i - 1] == r_back) {
+	       WID(r_back) += LOC(r_fore) - LOC(r_back);
+	   }
+	   break;
+       }
+       if (r == WallsSRVComp || r == WallsSRVClino) {
+	   WID(r_back) += LOC(r_back) - LOC(r_fore);
+	   LOC(r_back) = LOC(r_fore);
+	   break;
+       }
+   }
    compile_diagnostic_reading(DIAG_WARN, r_back, msgno, buf);
+   LOC(r_back) = save_loc;
+   WID(r_back) = save_wid;
 }
 
 // If one (or both) compass readings are given, return Comp or BackComp
@@ -4236,12 +4526,23 @@ process_normal(prefix *fr, prefix *to, bool fToFirst,
        backctype == CTYPE_PLUMB || backctype == CTYPE_INFERPLUMB) {
       /* plumbed */
       if (comp_given != End) {
+	 // Always warn if there's an explicit plumb (`UP`/`DOWN`/etc) with
+	 // a compass reading
+	 //
+	 // Also warn for inferred plumbs (`+90`/`-90`/etc) unless the compass
+	 // reading is 0° or 180° (since those are commonly seen dummy values
+	 // in Compass and Walls datasets) or HUGE_REAL (which means it was
+	 // omitted).
 	 if (ctype == CTYPE_PLUMB ||
-	     (ctype == CTYPE_INFERPLUMB && VAL(Comp) != 0.0) ||
 	     backctype == CTYPE_PLUMB ||
+	     (ctype == CTYPE_INFERPLUMB &&
+	      VAL(Comp) != 0.0 &&
+	      VAL(Comp) != HUGE_REAL &&
+	      fabs(VAL(Comp) - M_PI) > EPSILON) ||
 	     (backctype == CTYPE_INFERPLUMB &&
-	      (VAL(BackComp) != 0.0 &&
-	       fabs(VAL(BackComp) - M_PI) > EPSILON))) {
+	      VAL(BackComp) != 0.0 &&
+	      VAL(BackComp) != HUGE_REAL &&
+	      fabs(VAL(BackComp) - M_PI) > EPSILON)) {
 	    /* TRANSLATORS: A "plumbed leg" is one measured using a plumbline
 	     * (a weight on a string).  So the problem here is that the leg is
 	     * vertical, so a compass reading has no meaning! */
@@ -4384,24 +4685,40 @@ process_normal(prefix *fr, prefix *to, bool fToFirst,
    }
 
    // Apply any Walls variance overrides (also from Compass C shot flag).
+#ifndef NO_COVARIANCES
+   if (p_walls_options) {
+       cxy *= p_walls_options->uvh;
+       czx *= p_walls_options->uv_covzh;
+       cyz *= p_walls_options->uv_covzh;
+   }
+#endif
    if (VAR(Dx) >= 0) {
        vx = VAR(Dx);
 #ifndef NO_COVARIANCES
        czx = cxy = 0.0;
 #endif
+   } else {
+       if (p_walls_options) vx *= p_walls_options->uvh;
    }
    if (VAR(Dy) >= 0) {
        vy = VAR(Dy);
 #ifndef NO_COVARIANCES
        cxy = cyz = 0.0;
 #endif
+   } else {
+       if (p_walls_options) vy *= p_walls_options->uvh;
    }
    if (VAR(Dz) >= 0) {
        vz = VAR(Dz);
 #ifndef NO_COVARIANCES
        cyz = czx = 0.0;
 #endif
+   } else {
+       if (p_walls_options) vz *= p_walls_options->uvv;
    }
+
+   // For Walls INCH= and also instrument and target heights.
+   dz += VAL(ToDepth);
 
 #if DEBUG_DATAIN_1
    printf("Just before addleg, vx = %f\n", vx);
@@ -4582,7 +4899,7 @@ static void
 read_walls_lrud(void)
 {
     int end = (ch == '*' ? ch : '>');
-    while (nextch() != end && !isEol(ch)) {
+    while (nextch() != end && !isComm(ch) && !isEol(ch)) {
 	// FIXME: Process LRUD.
     }
     if (ch == end) {
@@ -4609,7 +4926,7 @@ read_walls_extras(unsigned long* p_compass_dat_flags)
 	skipblanks();
 	switch (ch) {
 	  case '(': {
-	    real var_xy = HUGE_REAL, var_z = HUGE_REAL;
+	    real var_xy = 0.0, var_z = 0.0;
 	    read_walls_variance_overrides(&var_xy, &var_z);
 	    // For now don't allow 0 variance, make it 1mm instead.  FIXME We
 	    // really should check connectivity before allowing 0.
@@ -4651,24 +4968,70 @@ read_walls_extras(unsigned long* p_compass_dat_flags)
 }
 
 static bool
-read_walls_srv_to(prefix **p_to, unsigned long* p_compass_dat_flags)
+read_walls_srv_to(prefix *fr, prefix **p_to, unsigned long* p_compass_dat_flags)
 {
     skipblanks();
     filepos fp;
     get_pos(&fp);
     bool might_be_lrud = (ch == '*' || ch == '<');
     if (might_be_lrud) {
-	// Isolated LRUD if there's a closing delimiter.  If not then
-	// Walls parses the `*` or `<` as the first character of the `To`
-	// station name.
-	int end = (ch == '*' ? ch : '>');
-	do {
-	    nextch();
-	} while (ch != end && !isComm(ch) && !isEol(ch));
-	bool parse_as_lrud = (ch == end);
+	// Isolated LRUD if there's a closing delimiter, e.g.:
+	// P25      *8 5 15 3.58*
+	// P25      <8 5 15 3.58>
+	//
+	// Just a station if there's actual LRUD, e.g.:
+	// P25      *8 5 15 3.58 <--,--,--,-->
+	// P25      *8 5 15 3.58 *--,--,--,--*
+	// P25      <8 5 15 3.58 *--,--,--,--*
+	//
+	// Otherwise Walls parses the `*` or `<` as the first character of the
+	// `To` station name, including for:
+	// P25      <8 5 15 3.58 <--,--,--,-->
+	bool parse_as_lrud = false;
+	if (ch == '*') {
+	    do {
+		nextch();
+		if (ch == '<' || ch == '*') {
+		    int delimiter1 = ch;
+		    int check_for = (ch == '*' ? ch : '>');
+		    do {
+			nextch();
+			if (ch == check_for) {
+			    // There's actual LRUD after the readings.
+			    might_be_lrud = false;
+			    goto parse_as_station;
+			}
+		    } while (!isComm(ch) && !isEol(ch));
+		    parse_as_lrud = (delimiter1 == '*');
+		    break;
+		}
+	    } while (!isComm(ch) && !isEol(ch));
+	} else {
+	    SVX_ASSERT(ch == '<');
+	    do {
+		nextch();
+		if (ch == '>') {
+		    parse_as_lrud = true;
+		    break;
+		}
+		if (ch == '*') {
+		    do {
+			nextch();
+			if (ch == '*') {
+			    // There's actual LRUD after the readings.
+			    might_be_lrud = false;
+			    goto parse_as_station;
+			}
+		    } while (!isComm(ch) && !isEol(ch));
+		}
+	    } while (!isComm(ch) && !isEol(ch));
+	}
+
+parse_as_station:
 	set_pos(&fp);
 	if (parse_as_lrud) {
 handle_isolated_lrud:
+	    fr->sflags |= BIT(SFLAGS_USED);
 	    read_walls_extras(p_compass_dat_flags);
 	    skipblanks();
 	    if (!isEol(ch) && !isComm(ch)) {
@@ -4702,6 +5065,7 @@ handle_isolated_lrud:
     skipblanks();
     if (ch == '*' || ch == '<') {
 	// Odd apparently undocumented variant of isolated LRUD.
+	(*p_to)->sflags |= BIT(SFLAGS_USED);
 	goto handle_isolated_lrud;
     }
     return true;
@@ -4725,7 +5089,7 @@ data_cartesian(void)
     * error in a reading, we might not, so make sure it has been cleared here.
     */
    pcs->flags &= ~(BIT(FLAGS_ANON_ONE_END) | BIT(FLAGS_IMPLICIT_SPLAY));
-   for (const reading *ordering = pcs->ordering ; ; ordering++) {
+   for (const reading *ordering = pcs->ordering; ; ordering++) {
       skipblanks();
       switch (*ordering) {
        case Fr:
@@ -4750,13 +5114,26 @@ data_cartesian(void)
 	  fr = read_walls_station(p_walls_options->prefix, true, NULL);
 	  break;
        case WallsSRVTo:
-	  if (!read_walls_srv_to(&to, &compass_dat_flags)) {
+	  if (!read_walls_srv_to(fr, &to, &compass_dat_flags)) {
 	      // Isolated LRUD so don't try to parse line as a survey leg.
 	      return;
 	  }
 	  break;
        case WallsSRVExtras:
 	  read_walls_extras(&compass_dat_flags);
+	  break;
+       case Note: {
+	  if (isOmit(ch)) {
+	      nextch();
+	      break;
+	  }
+	  string note = S_INIT;
+	  read_string(&note);
+	  s_free(&note);
+	  break;
+       }
+       case NoteAll:
+	  skipline();
 	  break;
        case Ignore:
 	 skipword(); break;
@@ -4911,11 +5288,15 @@ data_normal(void)
    bool fDepthChange;
    unsigned long compass_dat_flags = 0;
    if (p_walls_options) compass_dat_flags = p_walls_options->compass_dat_flags;
+   int style = pcs->style;
 
    VAL(Tape) = VAL(BackTape) = HUGE_REAL;
    VAL(Comp) = VAL(BackComp) = HUGE_REAL;
    VAL(FrCount) = VAL(ToCount) = 0;
    VAL(FrDepth) = VAL(ToDepth) = 0;
+   if (p_walls_options) {
+       VAL(ToDepth) = p_walls_options->inch;
+   }
    VAL(Left) = VAL(Right) = VAL(Up) = VAL(Down) = HUGE_REAL;
 
    // Initialise variance slots where we store variance overrides.
@@ -5142,7 +5523,7 @@ data_normal(void)
 	  fr = read_walls_station(p_walls_options->prefix, true, NULL);
 	  break;
        case WallsSRVTo:
-	  if (!read_walls_srv_to(&to, &compass_dat_flags)) {
+	  if (!read_walls_srv_to(fr, &to, &compass_dat_flags)) {
 	      // Isolated LRUD so don't try to parse line as a survey leg.
 	      return;
 	  }
@@ -5151,7 +5532,7 @@ data_normal(void)
 	  filepos fp;
 	  get_pos(&fp);
 	  LOC(Tape) = ftell(file.fh);
-	  VAL(Tape) = read_walls_distance(true, pcs->units[Q_LENGTH]);
+	  VAL(Tape) = read_walls_distance(true, pcs->units[Q_LENGTH], false);
 	  if (VAL(Tape) == HUGE_REAL) {
 	      // Walls expects 2 or more `-` for an omitted value in this
 	      // context, so a single `-` is an error.
@@ -5240,6 +5621,9 @@ data_normal(void)
 			  VAL(Comp) *= M_PI / 180.0 / pcs->units[Q_BEARING];
 			  break;
 			}
+			case ',':
+			  walls_comma_warning(f_decimal_point);
+			  break;
 		      }
 		  }
 	      }
@@ -5402,6 +5786,9 @@ data_normal(void)
 		      clin *= M_PI / 180.0 / pcs->units[Q_GRADIENT];
 		      break;
 		    }
+		    case ',':
+		      walls_comma_warning(f_decimal_point);
+		      // FALLTHRU
 		    default:
 		      if (pcs->f_clino_percent) {
 			  clin = atan(clin * 0.01) / pcs->units[Q_GRADIENT];
@@ -5505,7 +5892,7 @@ data_normal(void)
        case WallsSRVToDepth: {
 	  reading r = *ordering - WallsSRVFrDepth + FrDepth;
 	  LOC(r) = ftell(file.fh);
-	  real depth = read_walls_distance(true, pcs->units[Q_LENGTH]);
+	  real depth = read_walls_distance(true, pcs->units[Q_LENGTH], false);
 	  if (depth == HUGE_REAL) {
 	      depth = 0.0;
 	      if (ch == '-') {
@@ -5523,8 +5910,11 @@ data_normal(void)
 	  break;
        }
        case WallsSRVHeights: {
+	  filepos fp_ih;
+	  get_pos(&fp_ih);
 	  real instrument_height = read_walls_distance(true,
-						       pcs->units[Q_LENGTH]);
+						       pcs->units[Q_LENGTH],
+						       false);
 	  if (instrument_height == HUGE_REAL) {
 	      if (ch == '-') {
 		  instrument_height = 0.0;
@@ -5536,30 +5926,98 @@ data_normal(void)
 		  }
 	      }
 	  }
-	  if (instrument_height != HUGE_REAL) {
-	      real target_height = read_walls_distance(true,
-						       pcs->units[Q_LENGTH]);
-	      if (target_height == HUGE_REAL) {
-		  target_height = 0.0;
-		  if (ch == '-') {
-		      // Walls expects 2 or more - for an omitted value.
-		      if (nextch() != '-') {
-			  compile_diagnostic_token_show(DIAG_ERR, /*Expecting numeric field, found “%s”*/9);
-		      } else {
-			  while (nextch() == '-') { }
-		      }
+	  if (instrument_height == HUGE_REAL) break;
+	  int width_ih = ftell(file.fh) - fp_ih.offset;
+
+	  filepos fp_th;
+	  get_pos(&fp_th);
+	  real target_height = read_walls_distance(true, pcs->units[Q_LENGTH],
+						   false);
+	  if (target_height == HUGE_REAL) {
+	      target_height = 0.0;
+	      if (ch == '-') {
+		  // Walls expects 2 or more - for an omitted value.
+		  if (nextch() != '-') {
+		      compile_diagnostic_token_show(DIAG_ERR, /*Expecting numeric field, found “%s”*/9);
+		  } else {
+		      while (nextch() == '-') { }
 		  }
 	      }
-	      // FIXME: Ideally we'd make use of these, or at least warn if
-	      // they aren't equal...
-	      // FIXME: Tape tape_method into account too...
-	      (void)instrument_height;
-	      (void)target_height;
 	  }
+
+	  if (instrument_height == 0.0 && target_height == 0.0) {
+	      break;
+	  }
+
+	  if (p_walls_options->tape_method == WALLS_TAPE_IT) {
+	      // "If the taping method is instrument-to-target (the default
+	      // assumption), the effect of these heights is equivalent to
+	      // adding their difference (IH minus TH) to the computed
+	      // elevation of the TO station with respect to the FROM
+	      // station"
+	      VAL(ToDepth) += instrument_height - target_height;
+	      LOC(ToDepth) = fp_ih.offset;
+	      WID(ToDepth) = ftell(file.fh) - fp_ih.offset;
+	      break;
+	  }
+
+	  if (p_walls_options->tape_method == WALLS_TAPE_SS &&
+	      ctype == CTYPE_OMIT &&
+	      backctype == CTYPE_OMIT) {
+	      // Support TAPE=SS ORDER=DAV (or another order including V)
+	      // where readings either have clinos or depths.  (This handles
+	      // the depths with no clino case; the clino with no depths is
+	      // handled by the "both zero" check above.)
+	      style = STYLE_DIVING;
+	      LOC(FrDepth) = fp_ih.offset;
+	      VAL(FrDepth) = -instrument_height;
+	      WID(FrDepth) = width_ih;
+	      VAR(FrDepth) = var(Q_DEPTH);
+	      LOC(ToDepth) = fp_th.offset;
+	      VAL(ToDepth) = -target_height;
+	      WID(ToDepth) = ftell(file.fh) - fp_th.offset;
+	      VAR(ToDepth) = var(Q_DEPTH);
+	      break;
+	  }
+
+	  const char* order = "?";
+	  for (const sztok* p = walls_order_tab; p->sz; ++p) {
+	      if (p_walls_options->order_ct == p->tok) {
+		  order = p->sz;
+		  break;
+	      }
+	  }
+
+	  const char* tape_method = "?";
+	  for (const sztok* p = walls_tape_tab; p->sz; ++p) {
+	      if (p_walls_options->tape_method == p->tok) {
+		  tape_method = p->sz;
+		  break;
+	      }
+	  }
+
+	  // TRANSLATORS: "Walls" is David McKenzie's cave surveying package,
+	  // so should not be translated.
+	  compile_diagnostic(DIAG_WARN|DIAG_FROM(fp_ih),
+			     /*Instrument and target heights currently ignored with Walls option combination “TAPE=%s” and “ORDER=%s”*/581,
+			     tape_method, order);
 	  break;
        }
        case WallsSRVExtras:
 	  read_walls_extras(&compass_dat_flags);
+	  break;
+       case Note: {
+	  if (isOmit(ch)) {
+	      nextch();
+	      break;
+	  }
+	  string note = S_INIT;
+	  read_string(&note);
+	  s_free(&note);
+	  break;
+       }
+       case NoteAll:
+	  skipline();
 	  break;
        case Ignore:
 	  skipword(); break;
@@ -5627,7 +6085,7 @@ data_normal(void)
 	     if (implicit_splay) {
 		pcs->flags |= BIT(FLAGS_SPLAY);
 	     }
-	     switch (pcs->style) {
+	     switch (style) {
 	      case STYLE_NORMAL:
 		r = process_normal(fr, to, (first_stn == To) ^ fRev,
 				   ctype, backctype);
@@ -5765,16 +6223,24 @@ data_normal(void)
 		    VAR(Dz) = 1e-6;
 		}
 	     }
-	     switch (pcs->style) {
+	     switch (style) {
 	      case STYLE_NORMAL:
 		process_normal(fr, to, (first_stn == To) ^ fRev,
 			       ctype, backctype);
 		break;
-	      case STYLE_DIVING:
+	      case STYLE_DIVING: {
+		int saved_recorded_style = pcs->recorded_style;
+		// This is needed for e.g. Walls TAPE=SS ORDER=DAV with IH/TH
+		// and clino omitted.  It shouldn't cause problems for other
+		// cases, but it'd probably be better to pass recorded_style
+		// as a parameter.
+		pcs->recorded_style = STYLE_DIVING;
 		/* FIXME: Handle any clino readings */
 		process_diving(fr, to, (first_stn == To) ^ fRev,
 			       fDepthChange);
+		pcs->recorded_style = saved_recorded_style;
 		break;
+	      }
 	      case STYLE_CYLPOLAR:
 		process_cylpolar(fr, to, (first_stn == To) ^ fRev,
 				 fDepthChange);
@@ -5822,8 +6288,9 @@ data_passage(void)
 {
    prefix *stn = NULL;
    const reading *ordering;
+   VAL(Left) = VAL(Right) = VAL(Up) = VAL(Down) = -1;
 
-   for (ordering = pcs->ordering ; ; ordering++) {
+   for (ordering = pcs->ordering; ; ordering++) {
       skipblanks();
       switch (*ordering) {
        case Station:
@@ -5842,6 +6309,19 @@ data_passage(void)
 	 }
 	 break;
        }
+       case Note: {
+	  if (isOmit(ch)) {
+	      nextch();
+	      break;
+	  }
+	  string note = S_INIT;
+	  read_string(&note);
+	  s_free(&note);
+	  break;
+       }
+       case NoteAll:
+	  skipline();
+	  break;
        case Ignore:
 	 skipword(); break;
        case IgnoreAll:
@@ -5896,7 +6376,7 @@ data_nosurvey(void)
 
    again:
 
-   for (ordering = pcs->ordering ; ; ordering++) {
+   for (ordering = pcs->ordering; ; ordering++) {
       skipblanks();
       switch (*ordering) {
        case Fr:
@@ -5911,6 +6391,19 @@ data_nosurvey(void)
 	  fr = to;
 	  to = read_prefix(PFX_STATION);
 	  first_stn = To;
+	  break;
+       case Note: {
+	  if (isOmit(ch)) {
+	      nextch();
+	      break;
+	  }
+	  string note = S_INIT;
+	  read_string(&note);
+	  s_free(&note);
+	  break;
+       }
+       case NoteAll:
+	  skipline();
 	  break;
        case Ignore:
 	 skipword(); break;

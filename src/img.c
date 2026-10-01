@@ -34,7 +34,7 @@
 #include <time.h>
 
 #ifdef _WIN32
-# include <io.h> // For _commit().
+# include <io.h> /* For _commit(). */
 #endif
 
 #include "img.h"
@@ -42,7 +42,7 @@
 #if defined HAVE_STDINT_H || \
     (defined __STDC_VERSION__ && __STDC_VERSION__ >= 199901L) || \
     (defined __cplusplus && __cplusplus >= 201103L)
-// stdint.h was added in C99 and C++11.
+/* stdint.h was added in C99 and C++11. */
 # include <stdint.h>
 # define INT32_T int32_t
 # define UINT32_T uint32_t
@@ -83,7 +83,7 @@ static int my_snprintf(char *s, size_t size, const char *format, ...) {
 }
 #endif
 
-// strdup() is POSIX but not in any C/C++ standard (yet at least).
+/* strdup() is POSIX but not in any C/C++ standard (yet at least). */
 #ifdef HAVE_STRDUP
 # define STRDUP(STR) strdup(STR)
 #else
@@ -323,9 +323,10 @@ mktime_with_tz(struct tm * tm, const char * tz)
 	r = mktime(tm);
 	tm->tm_year = y;
 	if (r != (time_t)-1) {
-	    // The two magic numbers are the average number of seconds in a
-	    // year for a 400 year cycle and for a 4 year cycle (one which
-	    // includes a leap year).
+	    /* The two magic numbers are the average number of seconds in a
+	     * year for a 400 year cycle and for a 4 year cycle (one which
+	     * includes a leap year).
+	     */
 	    r -= y_offset * (time_t)(sizeof(time_t) > 4 ? 31556952 : 31557600);
 	}
     }
@@ -690,8 +691,9 @@ initialise_survey_filter(img *pimg, const char* survey)
 static int
 compass_plt_open(img *pimg, const char *survey)
 {
-    // Format documentation:
-    // https://www.fountainware.com/compass/HTML_Help/Compass_Viewer/plotfileformat.htm
+    /* Format documentation:
+     * https://www.fountainware.com/compass/HTML_Help/Compass_Viewer/plotfileformat.htm
+     */
     int utm_zone = 0;
     int datum = img_DATUM_UNKNOWN;
     long fpos;
@@ -1144,7 +1146,7 @@ cmap_xyz_open(img *pimg, const char *survey)
 	}
     }
 bad_cmap_date:
-    // The first line either has a survey name or some stock text.
+    /* The first line either has a survey name or some stock text. */
     if (strncmp(line, "  Cave Survey Data Processed by CMAP ",
 		LITLEN("  Cave Survey Data Processed by CMAP ")) != 0) {
 	if (len > 45) {
@@ -1185,6 +1187,91 @@ bad_cmap_date:
     free(line);
     pimg->start = ftell(pimg->fh);
     return 0;
+}
+
+static char *
+translate_proj4(char * cs, size_t cs_len)
+{
+    /* The PROJ4 strings we handle here all start `+`. */
+    if (cs[0] != '+') return cs;
+
+    char * p = cs + 1;
+    if (cs_len >= 12 && memcmp(p, "init=", 5) == 0) {
+	/* PROJ 5 and later don't handle +init=esri:<number> but that's what
+	 * cavern used to put in .3d files for coordinate systems specified
+	 * using ESRI codes.  We parse and convert the strings cavern used to
+	 * generate and convert to the form ESRI:<number> which is still
+	 * understood.
+	 *
+	 * PROJ 6 and later don't recognise +init=epsg:<number> by default and
+	 * don't apply datum shift terms in some cases, so we also convert these
+	 * to the form EPSG:<number>.
+	 */
+	p += 5;
+	if (p[4] == ':' && isdigit((unsigned char)p[5]) &&
+	    ((memcmp(p, "epsg", 4) == 0 || memcmp(p, "esri", 4) == 0))) {
+	    p += 6;
+	    while (isdigit((unsigned char)*p)) {
+		++p;
+	    }
+	    /* Allow +no_defs to be omitted as it seems to not actually do
+	     * anything with recent PROJ - cavern always included it, but other
+	     * software generating 3d files may not.
+	     */
+	    if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
+		int i;
+		cs += 6;
+		/* cs now point to e.g. "epsg:4326" or "esri:104305" so we
+		 * just need to uppercase the first 4 characters.
+		 */
+		for (i = 0; i < 4; ++i) {
+		    cs[i] = toupper(cs[i]);
+		}
+		*p = '\0';
+	    }
+	}
+    } else if (cs_len > 51 &&
+	       memcmp(p, "proj=utm +ellps=WGS84 +datum=WGS84 +units=m +zone=", 50) == 0) {
+	/* Convert UTM proj strings which cavern used to generate to their
+	 * corresponding EPSG:<number> codes.
+	 */
+	int n = 0;
+	p += 50;
+	while (isdigit((unsigned char)*p)) {
+	    n = n * 10 + (*p - '0');
+	    ++p;
+	}
+	if (strncmp(p, " +south", 7) == 0) {
+	    p += 7;
+	    n += 32700;
+	} else {
+	    n += 32600;
+	}
+	/* Allow +no_defs to be omitted as it seems to not actually do anything
+	 * with recent PROJ - cavern always included it, but other software
+	 * generating 3d files might not.
+	 */
+	if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
+	    /* There are at least 51 bytes (see memcmp above) which is ample for
+	     * EPSG: plus an integer.
+	     */
+	    SNPRINTF(cs, 51, "EPSG:%d", n);
+	}
+    } else if (cs_len >= 95 &&
+	       memcmp(p, "+proj=merc +lat_ts=0 +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +units=m +nadgrids=@null", 94) == 0) {
+	/* Convert S_MERC proj strings which cavern used to generate to their
+	 * corresponding EPSG:<number> codes.
+	 */
+	p += 94;
+	/* Allow +no_defs to be omitted as it seems to not actually do anything
+	 * with recent PROJ - cavern always included it, but other software
+	 * generating 3d files might not.
+	 */
+	if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
+	    strcpy(cs, "EPSG:3857");
+	}
+    }
+    return cs;
 }
 
 img *
@@ -1396,82 +1483,13 @@ v03d:
 	   size_t real_len = strlen(title);
 	   if (real_len != title_len) {
 	       char * cs = title + real_len + 1;
-	       real_len += strlen(cs) + 1;
-	       if (memcmp(cs, "+init=", 6) == 0) {
-		   /* PROJ 5 and later don't handle +init=esri:<number> but
-		    * that's what cavern used to put in .3d files for
-		    * coordinate systems specified using ESRI codes.  We parse
-		    * and convert the strings cavern used to generate and
-		    * convert to the form ESRI:<number> which is still
-		    * understood.
-		    *
-		    * PROJ 6 and later don't recognise +init=epsg:<number>
-		    * by default and don't apply datum shift terms in some
-		    * cases, so we also convert these to the form
-		    * EPSG:<number>.
-		    */
-		   char * p = cs + 6;
-		   if (p[4] == ':' && isdigit((unsigned char)p[5]) &&
-		       ((memcmp(p, "epsg", 4) == 0 || memcmp(p, "esri", 4) == 0))) {
-		       p = p + 6;
-		       while (isdigit((unsigned char)*p)) {
-			   ++p;
-		       }
-		       /* Allow +no_defs to be omitted as it seems to not
-			* actually do anything with recent PROJ - cavern always
-			* included it, but other software generating 3d files
-			* may not.
-			*/
-		       if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
-			   int i;
-			   cs = cs + 6;
-			   for (i = 0; i < 4; ++i) {
-			       cs[i] = toupper(cs[i]);
-			   }
-			   *p = '\0';
-		       }
-		   }
-	       } else if (memcmp(cs, "+proj=", 6) == 0) {
-		   /* Convert S_MERC and UTM proj strings which cavern used
-		    * to generate to their corresponding EPSG:<number> codes.
-		    */
-		   char * p = cs + 6;
-		   if (memcmp(p, "utm +ellps=WGS84 +datum=WGS84 +units=m +zone=", 45) == 0) {
-		       int n = 0;
-		       p += 45;
-		       while (isdigit((unsigned char)*p)) {
-			   n = n * 10 + (*p - '0');
-			   ++p;
-		       }
-		       if (memcmp(p, " +south", 7) == 0) {
-			   p += 7;
-			   n += 32700;
-		       } else {
-			   n += 32600;
-		       }
-		       /* Allow +no_defs to be omitted as it seems to not
-			* actually do anything with recent PROJ - cavern always
-			* included it, but other software generating 3d files
-			* might not.
-			*/
-		       if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
-			   /* There are at least 45 bytes (see memcmp above)
-			    * which is ample for EPSG: plus an integer.
-			    */
-			   SNPRINTF(cs, 45, "EPSG:%d", n);
-		       }
-		   } else if (memcmp(p, "merc +lat_ts=0 +lon_0=0 +k=1 +x_0=0 +y_0=0 +a=6378137 +b=6378137 +units=m +nadgrids=@null", 89) == 0) {
-		       p = p + 89;
-		       /* Allow +no_defs to be omitted as it seems to not
-			* actually do anything with recent PROJ - cavern always
-			* included it, but other software generating 3d files
-			* might not.
-			*/
-		       if (*p == '\0' || strcmp(p, " +no_defs") == 0) {
-			   strcpy(cs, "EPSG:3857");
-		       }
-		   }
-	       }
+	       size_t cs_len = strlen(cs);
+	       real_len += cs_len + 1;
+	       /* Translate some PROJ4 strings which older versions of
+		* cavern put in .3d files but which aren't handled by
+		* modern PROJ versions.
+		*/
+	       cs = translate_proj4(cs, cs_len);
 	       if (cs[0]) pimg->cs = STRDUP(cs);
 	   }
 
@@ -1639,7 +1657,7 @@ img_write_stream(FILE *stream, int (*close_func)(FILE*),
    img *pimg;
 
    if (stream == NULL) {
-      img_errno = IMG_FILENOTFOUND;
+      img_errno = IMG_CANTOPENOUT;
       return NULL;
    }
 
@@ -1660,6 +1678,7 @@ img_write_stream(FILE *stream, int (*close_func)(FILE*),
       img_errno = IMG_OUTOFMEMORY;
       return NULL;
    }
+   pimg->label = pimg->label_buf;
 
    pimg->data = NULL;
 
@@ -2912,22 +2931,23 @@ bad_plt_date:
 		   }
 		   q += bytes_used;
 
-		   // No cross-sections for surface data.
+		   /* No cross-sections for surface data. */
 		   if ((pimg->flags & img_SFLAG_UNDERGROUND)) {
 		       int have_xsect = 0;
 		       int i;
 		       for (i = 0; i < 4; ++i) {
-			   // The PLT format specification says 'Values less
-			   // than zero are considered to be missing or
-			   // “Passage.”' but Compass has an (apparently
-			   // undocumented) extra check here for compatibility
-			   // with data that was originally entered in Karst
-			   // which uses 999 instead.
-			   //
-			   // Larry Fish says the check Compass actually uses
-			   // when processing PLT files is:
-			   //
-			   // if (Left<0) or (Left>900)
+			   /* The PLT format specification says 'Values less
+			    * than zero are considered to be missing or
+			    * “Passage.”' but Compass has an (apparently
+			    * undocumented) extra check here for compatibility
+			    * with data that was originally entered in Karst
+			    * which uses 999 instead.
+			    *
+			    * Larry Fish says the check Compass actually uses
+			    * when processing PLT files is:
+			    *
+			    * if (Left<0) or (Left>900)
+			    */
 			   if (dim[i] < 0.0 || dim[i] > 900.0) {
 			       dim[i] = -1.0;
 			   } else {
@@ -3082,7 +3102,7 @@ out_of_memory_error:
 	 if (r < 0)
 	     goto out_of_memory_error;
 	 if (r > 0) {
-	     // We've already emitted img_LABEL for this station.
+	     /* We've already emitted img_LABEL for this station. */
 	     goto cmap_xyz_next_line;
 	 }
 	 read_xyz_station_coords(p, line);
@@ -3118,7 +3138,7 @@ out_of_memory_error:
 	    if (r < 0)
 		goto out_of_memory_error;
 	    if (r > 0) {
-		// We've already emitted img_LABEL for this station.
+		/* We've already emitted img_LABEL for this station. */
 		free(line);
 		pimg->label[0] = '\0';
 		pimg->flags = 0;
@@ -3136,7 +3156,7 @@ out_of_memory_error:
 	    if (r < 0)
 		goto out_of_memory_error;
 	    if (r > 0) {
-		// We've already emitted img_LABEL for this station.
+		/* We've already emitted img_LABEL for this station. */
 		free(line);
 		pimg->label = pimg->label_buf + strlen(pimg->label_buf);
 		pimg->flags = 0;
@@ -3154,7 +3174,7 @@ out_of_memory_error:
 	     goto out_of_memory_error;
 	 memcpy(pimg->label + 16, line, 70);
 	 if (r > 0) {
-	     // We've already emitted img_LABEL for this station.
+	     /* We've already emitted img_LABEL for this station. */
 	     free(line);
 	     pimg->label = pimg->label_buf + strlen(pimg->label_buf);
 	     pimg->flags = 0;
@@ -3686,7 +3706,7 @@ img_close(img *pimg)
 	 if (FERROR(pimg->fh)) result = 0;
 	 if (pimg->close_func) {
 #ifdef _WIN32
-	     // Untested attempt to address https://trac.survex.com/ticket/147
+	     /* Untested attempt to address https://trac.survex.com/ticket/147 */
 	     if (result && !pimg->fRead) _commit(fileno(pimg->fh));
 #endif
 	     if (pimg->close_func(pimg->fh))

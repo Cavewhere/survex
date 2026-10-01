@@ -108,7 +108,7 @@ cmdline_help(void)
 	    if (help->placeholder) {
 		fputs(help->placeholder, stdout);
 	    } else {
-		for (p = longopt; *p ; p++) {
+		for (p = longopt; *p; p++) {
 		    unsigned char ch = *p;
 		    PUTCHAR((ch == '-') ? '_' : toupper(ch));
 		}

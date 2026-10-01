@@ -1016,7 +1016,7 @@ void GfxCore::SimpleDrawNames()
     }
 }
 
-void GfxCore::DrawColourKey(int num_bands, const wxString & other)
+void GfxCore::DrawColourKey(int num_bands, const wxString& other, bool right_align)
 {
     auto f = GetDPIScaleFactor();
     int key_block_height = KEY_BLOCK_HEIGHT * f;
@@ -1027,16 +1027,21 @@ void GfxCore::DrawColourKey(int num_bands, const wxString & other)
 
     const int bottom = -total_block_height;
 
-    int size = 0;
-    if (!other.empty()) GetTextExtent(other, &size, NULL);
-    int band;
-    for (band = 0; band < num_bands; ++band) {
+    int widest_label = 0;
+    for (int band = 0; band < num_bands; ++band) {
 	int x;
 	GetTextExtent(key_legends[band], &x, NULL);
-	if (x > size) size = x;
+	key_legend_text_extents[band] = x;
+	if (x > widest_label) widest_label = x;
+    }
+    int width = widest_label;
+    if (!other.empty()) {
+	int x;
+	GetTextExtent(other, &x, NULL);
+	if (x > width) width = x;
     }
 
-    int left = -key_block_width - size;
+    int left = -key_block_width - width;
 
     key_lowerleft[m_ColourBy].x = left - KEY_EXTRA_LEFT_MARGIN * f;
     key_lowerleft[m_ColourBy].y = bottom;
@@ -1064,7 +1069,7 @@ void GfxCore::DrawColourKey(int num_bands, const wxString & other)
 			    key_block_width, key_block_height);
 	y += key_block_height;
     } else {
-	for (band = 0; band < num_bands - 1; ++band) {
+	for (int band = 0; band < num_bands - 1; ++band) {
 	    DrawShadedRectangle(GetPen(band), GetPen(band + 1), left, y,
 				key_block_width, key_block_height);
 	    y += key_block_height;
@@ -1096,8 +1101,13 @@ void GfxCore::DrawColourKey(int num_bands, const wxString & other)
 	y += key_block_height / 2;
 	DrawIndicatorText(left, y, key_legends[0]);
     } else {
-	for (band = 0; band < num_bands; ++band) {
-	    DrawIndicatorText(left, y, key_legends[band]);
+	for (int band = 0; band < num_bands; ++band) {
+	    int x = left;
+	    if (right_align) {
+		// Right align the labels (except other).
+		x += widest_label - key_legend_text_extents[band];
+	    }
+	    DrawIndicatorText(x, y, key_legends[band]);
 	    y += key_block_height;
 	}
     }
@@ -1159,7 +1169,9 @@ void GfxCore::DrawDateKey()
 	other = wmsg(/*Undated*/221);
     }
 
-    DrawColourKey(num_bands, other);
+    // Left align dates as that looks better (they're the same number of characters
+    // but the digits aren't all the same number of pixels wide).
+    DrawColourKey(num_bands, other, false);
 }
 
 void GfxCore::DrawErrorKey()
@@ -1168,10 +1180,22 @@ void GfxCore::DrawErrorKey()
     if (HasErrorInformation()) {
 	// Use fixed colours for each error factor so it's directly visually
 	// comparable between surveys.
+	// TRANSLATORS: This is describing the number of Standard Deviations,
+	// e.g. 3σ for 3 standard deviations.  It's used in aven for the key
+	// when colouring by error.
+	//
+	// If there should be a space between the number and this, include
+	// one in the translation.
+	wxString units = wmsg(/*σ*/584);
 	num_bands = GetNumColourBands();
 	for (int band = 0; band < num_bands; ++band) {
-	    double E = MAX_ERROR * band / (num_bands - 1);
-	    key_legends[band].Printf(wxT("%.2f"), E);
+	    if (MAX_ERROR == num_bands - 1) {
+		int E = MAX_ERROR * band / (num_bands - 1);
+		key_legends[band].Printf(wxT("%d%s"), E, units);
+	    } else {
+		double E = MAX_ERROR * band / (num_bands - 1);
+		key_legends[band].Printf(wxT("%.2f%s"), E, units);
+	    }
 	}
     } else {
 	num_bands = 0;
@@ -1418,6 +1442,8 @@ void GfxCore::DrawScaleBar()
 
 bool GfxCore::CheckHitTestGrid(const wxPoint& point, bool centre)
 {
+    if (!m_HaveData) return false;
+
     if (Animating()) return false;
 
     if (point.x < 0 || point.x >= GetXSize() ||

@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Survex test suite - cavern tests
-# Copyright (C) 1999-2025 Olly Betts
+# Copyright (C) 1999-2026 Olly Betts
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -61,6 +61,7 @@ TESTS_=
  jsonexport\
  kmlexport kmlexportanon\
  pltexport\
+ shplexport\
  svgexport"
 
 : ${TESTS=${*:-"singlefix singlereffix oneleg midpoint lollipop fixedlollipop\
@@ -92,12 +93,13 @@ TESTS_=
  cmd_title cmd_titlebad cmd_dummy cmd_infer cmd_date cmd_datebad cmd_datebad2\
  cartes diving cylpolar normal normal_bad normignall nosurv cmd_flags\
  bad_cmd_flags plumb unusedstation exportnakedbegin oldestyle bugdz\
- baddatacylpolar baddatanosurv badnewline badquantities\
+ baddatacylpolar baddatanormal baddatanosurv badnewline badquantities\
  imgoffbyone infereqtopofil 3sdfixbug\
  omitclino back back2 bad_back\
  notentranceorexport inferunknown inferexports bad_units_factor\
  bad_units_qlist\
  percent_gradient dotinsurvey leandroclino lowsd revdir gettokennullderef\
+ complexhanging inventedhanging\
  nosurveyhanging nosurveyhanging2\
  cmd_solve_nothing cmd_solve_nothing_implicit\
  cmd_cartesian cmd_cartesian_bad\
@@ -105,17 +107,26 @@ TESTS_=
  cmd_declination_conv cmd_declination_conv_proj_bug\
  lech level 2fixbug dot17 3dcorner\
  unconnected-bug\
+ stationnotes\
  backread.dat corrections.dat depthguage.dat flags.dat karstcompat.dat\
  lrud.dat nomeasure.dat noteam.dat\
  badmak.mak\
  fixfeet.mak utm.mak\
  clptest.dat clptest.clp\
  walls.srv\
- badomit.srv badopts.srv badreadings.srv\
+ baddate.srv badomit.srv badopts.srv\
  unknowndirective.srv\
  wallsbaddatum.wpj\
+ wallscylpolar.wpj\
  wallsdecl.wpj\
- wallsdiving.srv\
+ wallsdiving.wpj\
+ wallsfix.wpj\
+ wallsfsbs.wpj\
+ wallsfsbsclino.wpj\
+ wallshtie.wpj\
+ wallsihth.wpj\
+ wallsprefix.wpj\
+ wallsbadreadings.wpj\
  passage hanging_lrud equatenosuchstn surveytypo\
  skipafterbadomit passagebad badreadingdotplus badcalibrate calibrate_clino\
  badunits badbegin anonstn anonstnbad anonstnrev doubleinc reenterlots\
@@ -198,6 +209,8 @@ for file in $TESTS ; do
   # json : Convert to JSON with survexport and compare with <testcase_name>.json
   # kml : Convert to KML with survexport and compare with <testcase_name>.kml
   # plt : Convert to PLT with survexport and compare with <testcase_name>.plt
+  # shp : Convert to SHP with survexport, convert to geojsonl with gdal, and
+  #       compare with <testcase_name>.geojsonl
   # svg : Convert to SVG with survexport and compare with <testcase_name>.svg
   pos=
 
@@ -221,20 +234,16 @@ for file in $TESTS ; do
       # case).  They all have the same settings.
       pos=fail
       ;;
-    wallsbaddatum.wpj)
-      # .wpj files can't start with a comment.
-      pos=fail
-      warn=0
-      err=1
-      ;;
-    *.wpj)
-      # .wpj files can't start with a comment.
-      pos=dump
-      warn=0
-      ;;
     *)
       survexportopts=
-      read header < "$realfile"
+      case $file in
+	*.wpj)
+	  # The first line of .wpj is a fixed format magic comment so we put
+	  # testcase settings in the second line.
+	  { read dummy; read header; } < "$realfile" ;;
+	*)
+	  read header < "$realfile" ;;
+      esac
       set dummy $header
       while shift && [ -n "$1" ] ; do
 	case $1 in
@@ -252,10 +261,10 @@ for file in $TESTS ; do
   basefile=$srcdir/$file
   case $file in
   *.*)
-    input="./$file"
+    input=$file
     basefile=`echo "$basefile"|sed 's/\.[^.]*$//'` ;;
   *)
-    input="./$file.svx" ;;
+    input=$file.svx ;;
   esac
   outfile=$basefile.out
   outfile2=$basefile.altout
@@ -354,7 +363,7 @@ for file in $TESTS ; do
       exit 1
     fi
     ;;
-  dxf|gpx|hpgl|json|kml|plt|svg)
+  dxf|gpx|hpgl|json|kml|plt|shp|svg)
     # $pos gives us the file extension here.
     expectedfile=$basefile.$pos
     tmpfile=tmp.$pos
@@ -396,9 +405,28 @@ for file in $TESTS ; do
 	sed 's,<time>[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z</time>,<time>REDACTED</time>,;s,survex [0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*,survex REDACTED,' < "$tmpfile" > tmp.tmp
 	mv tmp.tmp "$tmpfile"
 	;;
+      shp)
+	expectedfile=$basefile.geojsonl
+	if `which gdal >/dev/null 2>/dev/null` ; then
+	  gdal vector convert --overwrite --quiet "$tmpfile" tmp.0.geojsonl
+	  tmpfile=tmp.geojsonl
+	elif `which ogr2ogr >/dev/null 2>/dev/null` ; then
+	  ogr2ogr -overwrite -q tmp.0.geojsonl "$tmpfile"
+	  tmpfile=tmp.geojsonl
+	else
+	  echo >&2 'Skipping testcase: need gdal or ogr2ogr command'
+	  tmpfile=
+	fi
+	if test -n "$tmpfile" ; then
+	  # Normalises whitespace in output by stripping spaces.  NB This
+	  # may need making more sophisticated if a new testcase requires
+	  # spaces in quoted strings.
+	  sed 's/ //g' < tmp.0.geojsonl > "$tmpfile"
+	fi
+	;;
     esac
 
-    if ! $QUIET_DIFF "$expectedfile" "$tmpfile" ; then
+    if test -n "$tmpfile" && ! $QUIET_DIFF "$expectedfile" "$tmpfile" ; then
       test -z "$VERBOSE" || $DIFF "$expectedfile" "$tmpfile"
       exit 1
     fi

@@ -259,6 +259,7 @@ private:
 
     // The legends for each entry in the colour key.
     wxString key_legends[NUM_COLOUR_BANDS];
+    int key_legend_text_extents[NUM_COLOUR_BANDS];
 
     wxPoint key_lowerleft[COLOUR_BY_LIMIT_];
 
@@ -318,7 +319,7 @@ private:
     void FirstShow();
 
     void DrawScaleBar();
-    void DrawColourKey(int num_bands, const wxString & other);
+    void DrawColourKey(int num_bands, const wxString& other, bool right_align = true);
     void DrawDepthKey();
     void DrawDateKey();
     void DrawErrorKey();

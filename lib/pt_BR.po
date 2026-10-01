@@ -2092,6 +2092,18 @@ msgstr "Valores em mais de uma linha sem NEWLINE"
 msgid "Reading “%s” must occur before NEWLINE"
 msgstr "Valor “%s” deve estar antes do NEWLINE"
 
+#. TRANSLATORS: The first %s is replaced by the problematic reading.
+#. The second %s is replaced a reading which consumes the rest of the
+#. current line.  An example bad command and the resulting error:
+#.
+#. *data nosurvey ignoreall station
+#. x.svx:1: Reading “station” not allowed after reading “ignoreall”
+#: ../src/commands.c:1679
+#: n:540
+#, c-format
+msgid "Reading “%s” not allowed after reading “%s”"
+msgstr ""
+
 #. TRANSLATORS: e.g.
 #.
 #. *data normal from to tape newline compass clino
@@ -3777,6 +3789,32 @@ msgstr ""
 #: ../src/datain.c:4453
 #: n:508
 msgid "Parsing as “to” station but may be isolated LRUD with missing closing delimiter"
+msgstr ""
+
+#. TRANSLATORS: Warning issued about a dubious case in survey data in Walls
+#. format (.srv).  Real world example:
+#.
+#. GB1        GB2        5,00    0       30
+#.
+#. In Europe a comma is customarily used for the decimal point, and the
+#. user intended this to be a leg of length 5, compass 0, clino 30.
+#. However Walls treats comma like a space so this is equivalent to:
+#.
+#. GB1        GB2        5 00    0       30
+#.
+#. Walls quietly parses this as length 5, compass 00, clino 0 and (optional
+#. field) instrument height 30.
+#: ../src/datain.c:1820
+#: n:539
+msgid "Interpreting “,” as separating readings but may be intended as a decimal point"
+msgstr ""
+
+#. TRANSLATORS: "Walls" is David McKenzie's cave surveying package,
+#. so should not be translated.
+#: ../src/datain.c:5748
+#: n:581
+#, c-format
+msgid "Instrument and target heights currently ignored with Walls option combination TAPE=%s ORDER=%s"
 msgstr ""
 
 #: ../src/gdalexport.cc:47

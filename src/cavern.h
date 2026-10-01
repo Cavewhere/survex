@@ -1,6 +1,6 @@
 /* cavern.h
  * SURVEX Cave surveying software - header file
- * Copyright (C) 1991-2025 Olly Betts
+ * Copyright (C) 1991-2026 Olly Betts
  * Copyright (C) 2004 Simeon Warner
  *
  * This program is free software; you can redistribute it and/or modify
@@ -60,6 +60,7 @@ typedef double real; /* so we can change the precision used easily */
 #define SPECIAL_PLUS		0x0400
 #define SPECIAL_OPEN		0x0800
 #define SPECIAL_CLOSE		0x1000
+#define SPECIAL_DQUOTE_		0x2000
 
 extern char *fnm_output_base;
 extern bool fnm_output_base_is_dir;
@@ -147,7 +148,6 @@ typedef enum {
    SFLAGS_SURFACE = 0, SFLAGS_UNDERGROUND, SFLAGS_ENTRANCE, SFLAGS_EXPORTED,
    SFLAGS_FIXED, SFLAGS_ANON, SFLAGS_WALL,
    /* These values don't need to match img.h, but mustn't clash. */
-   SFLAGS_HANGING = 9,
    SFLAGS_USED = 10, // Warn unused fixed point if unset but SFLAGS_FIXED set.
    SFLAGS_SOLVED = 11,
    SFLAGS_SUSPECTTYPO = 12,
@@ -184,13 +184,16 @@ typedef enum {
     * Fr must be the first reading after this comment!
     */
    Fr, To, Station, Depth, DepthChange, Count, Dir,
-   Newline, IgnoreAllAndNewLine, Ignore, IgnoreAll,
+   Note, NoteAll,
+   Newline, Ignore, IgnoreAll,
    /* IgnoreAll must be the last reading before this comment!
     *
-    * Readings after this comment are only used in datain.c
-    * so can have enum values >= 32 because we only use a
-    * bitmask for those readings used in commands.c.
+    * Readings after this comment are not used in the bitmasks in commands.c
+    * which are used to detect repeated or missing readings so can have enum
+    * values >= 32.
     */
+   IgnoreAllAndNewLine,
+
    CompassDATFr, CompassDATTo,
    CompassDATComp, CompassDATClino, CompassDATBackComp, CompassDATBackClino,
    CompassDATLeft, CompassDATRight, CompassDATUp, CompassDATDown,
@@ -265,13 +268,14 @@ typedef struct Meta_data {
 /* stuff stored for both forward & reverse legs */
 typedef struct {
    struct Node *to;
-   // Reverse leg number (0, 1 or 2)
+   // Reverse leg number (0, 1 or 2) - this is the index of the corresponding
+   // reverse leg back from `to`.
    unsigned char reverse;
-   // These are "internal" flag bits:
-   // bit 4: FLAG_FAKE (an equate or leg inside an sdfix
-   // bit 5: FLAG_ARTICULATION (i.e. carries no error)
-   // bit 6: FLAG_REPLACEMENTLEG (by reduction rules)
-   // bit 7: FLAG_DATAHERE (i.e. this is a forward leg)
+   // These are "internal" flag bits (details where defined below):
+   // bit 4: FLAG_FAKE
+   // bit 5: FLAG_ARTICULATION
+   // bit 6: FLAG_REPLACEMENTLEG
+   // bit 7: FLAG_DATAHERE
    unsigned char bits;
    /* flags - e.g. FLAGS_SURFACE, FLAGS_DUPLICATE.
     * only used if (FLAG_DATAHERE & !(FLAG_REPLACEMENTLEG|FLAG_FAKE))
@@ -281,11 +285,17 @@ typedef struct {
    unsigned char flags;
 } linkcommon;
 
+// Set for the forward direction of the leg (which has the leg data).
 #define FLAG_DATAHERE 0x80
+// Set if this leg was created by a network reduction replacement.
+// Set for both forward and reverse legs.
 #define FLAG_REPLACEMENTLEG 0x40
+// Set if this leg is an articulating leg (i.e. carries no error).
+// Set for both forward and reverse legs.
 #define FLAG_ARTICULATION 0x20
+// Set if this leg is an equate or the leg used to implement a `*fix`
+// with SDs.  Only set for the forward leg currently.
 #define FLAG_FAKE 0x10 /* an equate or leg inside an sdfix */
-#define MASK_REVERSEDIRN 0x03
 
 /* forward leg - deltas & vars stored here */
 typedef struct Link {
@@ -458,7 +468,7 @@ extern bool fSuppress; /* only output 3d file */
 #define isSign(c)   (pcs->Translate[(c)] & (SPECIAL_PLUS | SPECIAL_MINUS))
 #define isData(c)   (pcs->Translate[(c)] & (SPECIAL_OMIT | SPECIAL_ROOT|\
    SPECIAL_SEPARATOR | SPECIAL_NAMES | SPECIAL_DECIMAL | SPECIAL_PLUS |\
-   SPECIAL_MINUS))
+   SPECIAL_MINUS | SPECIAL_DQUOTE_))
 
 typedef struct nosurveylink {
    node *fr, *to;

@@ -1,0 +1,9 @@
+;WALLS Project File
+; pos=dump warn=23 dummycrprotection=
+.BOOK	Prefix Test Project
+.NAME	PREFIX
+.STATUS	3
+.SURVEY	prefix test
+.NAME	w_prefix
+.STATUS	8
+.ENDBOOK

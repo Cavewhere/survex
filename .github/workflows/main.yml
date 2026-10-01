@@ -36,6 +36,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install \
+            gdal-bin \
             gettext \
             libwxgtk3.2-dev \
             libavcodec-dev \
@@ -81,6 +82,41 @@ jobs:
         retention-days: 1
         if-no-files-found: error
 
+  # Job with asan+ubsan enabled.  The clang versions of the sanitisers support
+  # some extra checks so we use them in preference here.
+  sanitisers:
+    runs-on: 'ubuntu-26.04'
+    needs: makedist
+    steps:
+    - name: Install CCache
+      uses: hendrikmuhs/ccache-action@v1.2.21
+      with:
+        key: ${{ github.job }}
+    - name: Fetch distribution
+      uses: actions/download-artifact@v8
+    - name: Unpack distribution
+      run: |
+        tar --strip-components=1 -xf survex-*.tar.gz
+    - name: Install package dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install \
+            clang-20 \
+            gdal-bin \
+            libwxgtk3.2-dev \
+            libavcodec-dev \
+            libavformat-dev \
+            libgdal-dev \
+            libproj-dev \
+            libswscale-dev
+    - name: configure
+      run: ./configure CC='ccache clang-20' CXX='ccache clang++-20' CFLAGS='-g -O2 -Werror -fsanitize=address,undefined,float-divide-by-zero -fsanitize-address-use-after-scope -fsanitize-recover=all -fno-omit-frame-pointer' CXXFLAGS='-g -O2 -Werror -fsanitize=address,undefined,float-divide-by-zero -fsanitize-address-use-after-scope -fsanitize-recover=all -fno-omit-frame-pointer' LIBS=-lm
+    - name: make
+      run: make -j2
+    - name: Run tests
+      run: |
+        make check MSGFMT=: VERBOSE=1
+
   valgrind:
     runs-on: 'ubuntu-24.04'
     needs: makedist
@@ -98,6 +134,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install \
+            gdal-bin \
             libwxgtk3.2-dev \
             libavcodec-dev \
             libavformat-dev \
@@ -130,6 +167,7 @@ jobs:
         apt-get install -y \
             gcc \
             g++ \
+            gdal-bin \
             make \
             pkg-config \
             libwxgtk3.2-dev \
@@ -202,6 +240,7 @@ jobs:
           ntldd:p
           gdal:p
           pkgconf:p
+          perl:p
         update: true # To get wxwidgets3.2-msw --rescomp fix
     - name: Install CCache
       uses: hendrikmuhs/ccache-action@v1.2.21

@@ -1,0 +1,90 @@
+In file included from wallsfsbs.wpj:10:
+w_fsbs.srv:5:27: warning: COMPASS reading and BACKCOMPASS reading disagree by 5.1dg
+ :S1   A1        20        359/184.1              2/-7.1
+                           ^~~~~~~~~
+w_fsbs.srv:5:50: warning: CLINO reading and BACKCLINO reading disagree by 5.1dg
+ :S1   A1        20        359/184.1              2/-7.1
+                                                  ^~~~~~
+w_fsbs.srv:6:26: warning: COMPASS reading and BACKCOMPASS reading disagree by 5.1dg
+ A1   A2        20        359/173.9              2/3.1
+                          ^~~~~~~~~
+w_fsbs.srv:6:49: warning: CLINO reading and BACKCLINO reading disagree by 5.1dg
+ A1   A2        20        359/173.9              2/3.1
+                                                 ^~~~~
+w_fsbs.srv:12:31: warning: COMPASS reading and BACKCOMPASS reading disagree by 6.1dg
+ :S1       S2        30        100/286.1              /-16  ;no forward inclination
+                               ^~~~~~~~~
+w_fsbs.srv:13:31: warning: COMPASS reading and BACKCOMPASS reading disagree by 6.1dg
+ S2        S3        15.5      355/181.1              6/0
+                               ^~~~~~~~~
+w_fsbs.srv:13:54: warning: CLINO reading and BACKCLINO reading disagree by 6dg
+ S2        S3        15.5      355/181.1              6/0
+                                                      ^~~
+w_fsbs.srv:19:53: warning: CLINO reading and BACKCLINO reading disagree by 6.1dg
+ :S1       Z1        10       100/286                -12/18.1
+                                                     ^~~~~~~~
+w_fsbs.srv:34:12: warning: COMPASS reading and BACKCOMPASS reading disagree by 10dg
+ :a1 b2a 10 90/270 0
+            ^~~~~~
+w_fsbs.srv:37:12: warning: COMPASS reading and BACKCOMPASS reading disagree by 10dg
+ :a1 b3a 10 90/270 0
+            ^~~~~~
+w_fsbs.srv:41:12: warning: COMPASS reading and BACKCOMPASS reading disagree by 10dg
+ :a1 b4b 10 90/280 0
+            ^~~~~~
+w_fsbs.srv:52:12: warning: COMPASS reading and BACKCOMPASS reading disagree by 10dg
+ :a1 c2a 10 90/90 0
+            ^~~~~
+w_fsbs.srv:55:12: warning: COMPASS reading and BACKCOMPASS reading disagree by 10dg
+ :a1 c3a 10 90/90 0
+            ^~~~~
+w_fsbs.srv:60:12: warning: COMPASS reading and BACKCOMPASS reading disagree by 10dg
+ :a1 c4b 10 90/100 0
+            ^~~~~~
+w_fsbs.srv:69:19: warning: CLINO reading and BACKCLINO reading disagree by 5dg
+ :a1 d2a 10 90/270 -5/+5
+                   ^~~~~
+w_fsbs.srv:72:19: warning: CLINO reading and BACKCLINO reading disagree by 5dg
+ :a1 d3a 10 90/270 -5/+5
+                   ^~~~~
+w_fsbs.srv:76:19: warning: CLINO reading and BACKCLINO reading disagree by 5dg
+ :a1 d4b 10 90/270 -10/+5
+                   ^~~~~~
+w_fsbs.srv:83:19: warning: CLINO reading and BACKCLINO reading disagree by 5dg
+ :a1 e2a 10 90/270 +5/+5
+                   ^~~~~
+w_fsbs.srv:86:19: warning: CLINO reading and BACKCLINO reading disagree by 5dg
+ :a1 e3a 10 90/270 +5/+5
+                   ^~~~~
+w_fsbs.srv:90:19: warning: CLINO reading and BACKCLINO reading disagree by 5dg
+ :a1 e4b 10 90/270 0/+5
+                   ^~~~
+wallsfsbs.wpj:6: info: Declination: -4.8dg @ 2026-09-19, grid convergence: 0.6dg
+ .REF 4113317.333 587658.557 16 0.596 329 6 37 9 43.761 86 0 45.793 19 "NAD83"
+
+Removing trailing traverses...
+
+Concatenating traverses...
+
+Simplifying network...
+
+Calculating network...
+
+Calculating traverses...
+
+Calculating trailing traverses...
+
+Calculating statistics...
+
+Approximate full range of grid convergence: 0.6dg at a1 to 2.7dg at AA:S3
+Survey contains 38 survey stations, joined by 38 legs.
+There are 2 loops.
+Survey has 2 connected components.
+Total length of survey legs =  276.34m ( 276.34m adjusted)
+Total plan length of survey legs =  273.00m
+Total vertical length of survey legs =   30.19m
+Vertical range = 209.55m (from AA:S3 at 509.15m to VN:d3a at 299.60m)
+North-South range = 3512204.33m (from AC:c4a at 4112200.53m to AA:S2 at 599996.20m)
+East-West range = 3413328.59m (from AA:S2 at 4000028.59m to a1 at 586700.00m)
+
+There were 20 warning(s).

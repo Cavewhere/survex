@@ -103,6 +103,7 @@ unusedstation.svx exportnakedbegin.svx\
 oldestyle.svx\
 pos.pos v0.3d v0b.3d v1.3d v2.3d v3.3d\
 baddatacylpolar.svx baddatacylpolar.out\
+baddatanormal.svx baddatanormal.out\
 baddatanosurv.svx baddatanosurv.out\
 bugdz.svx bugdz.pos badnewline.svx\
 badquantities.svx imgoffbyone.svx imgoffbyone.pos\
@@ -133,13 +134,23 @@ folder.mak subdir/cave1a.dat subdir/cave1b.dat subdir/subsubdir/cave2.dat\
 utm.mak utm.out utm.dump\
 walls.srv walls.out walls.dump\
 wallsbaddatum.out wallsbaddatum.wpj\
-wallsdecl.wpj wallsdecl.srv wallsdecl.out wallsdecl.dump\
-wallsdiving.srv wallsdiving.dump wallsdiving.out\
+wallscylpolar.wpj wallscylpolar.dump wallscylpolar.out w_cylpol.srv\
+wallsdecl.wpj wallsdecl.out wallsdecl.dump w_decl.srv\
+wallsdiving.wpj wallsdiving.dump wallsdiving.out w_diving.srv\
+wallsfix.wpj wallsfix.dump wallsfix.out w_fix.srv\
+wallsfsbs.wpj wallsfsbs.dump wallsfsbs.out w_fsbs.srv\
+wallsfsbsclino.wpj wallsfsbsclino.out wallsfsbsclino.pos w_fsbsc.srv\
+wallshtie.wpj wallshtie.dump wallshtie.out w_htie.srv\
+wallsihth.wpj wallsihth.dump wallsihth.out w_ihth.srv\
+wallsprefix.wpj wallsprefix.dump wallsprefix.out w_prefix.srv\
+wallsbadreadings.srv wallsbadreadings.out wb_read.srv\
+baddate.srv baddate.out\
 badomit.srv badomit.out\
 badopts.srv badopts.out\
-badreadings.srv badreadings.out\
 unknowndirective.srv unknowndirective.out\
 dot17.svx dot17.pos 3dcorner.svx 3dcorner.pos\
+complexhanging.svx complexhanging.out\
+inventedhanging.svx inventedhanging.out\
 nosurveyhanging.svx nosurveyhanging.out\
 nosurveyhanging2.svx nosurveyhanging2.dump nosurveyhanging2.out\
 cmd_solve_hanging.svx passage.svx hanging_lrud.svx\
@@ -176,8 +187,8 @@ csbad.altout csbad.out csbad.svx\
 csbadsdfix.altout csbadsdfix.out csbadsdfix.svx\
 csfeet.out csfeet.pos csfeet.svx\
 cslonglat.out cslonglat.svx\
-csprj.out csprj.pos csprj.prj csprj.svx\
-csprj2.out csprj2.pos csprj2.prj csprj2.svx\
+csprj.out csprj.dump csprj.prj csprj.svx\
+csprj2.out csprj2.dump csprj2.prj csprj2.svx csprj6318.json\
 csprjbad.out csprjbad.svx csprjbom.prj\
 omitfixaroundsolve.out omitfixaroundsolve.svx\
 repeatreading.svx repeatreading.out repeatreading.pos\
@@ -192,6 +203,7 @@ tabinhighlight.out tabinhighlight.svx\
 legacytokens.out legacytokens.svx\
 component_count_bug.svx component_count_bug.out\
 component_count_bug2.svx component_count_bug2.out\
+stationnotes.svx stationnotes.out stationnotes.pos\
 3dexport.dump 3dexport.svx\
 dxffullcoords.dxf dxffullcoords.svx\
 dxfsurfequate.svx dxfsurfequate.dxf\
@@ -202,6 +214,7 @@ jsonexport.json jsonexport.svx\
 kmlexport.kml kmlexport.svx\
 kmlexportanon.kml kmlexportanon.svx\
 pltexport.plt pltexport.svx\
+shplexport.geojsonl shplexport.svx\
 svgexport.svg svgexport.svx
 
 EXTRA_DIST +=\

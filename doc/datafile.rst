@@ -439,6 +439,8 @@ COPYRIGHT
 Syntax
    ``*copyright <year> <text>``
    ``*copyright <year1>-<year2> <text>``
+   ``*copyright <year> <text> <licence>``
+   ``*copyright <year1>-<year2> <text> <licence>``
 
 Example
    ::
@@ -453,19 +455,39 @@ Example
 
        *copyright 1976-2024 "CUCC Expo"
 
+   ::
+
+       ; Escaping quotes like this is supported by Survex >= 1.4.23
+       *copyright 1999 "Mike ""the animal"" Richardson"
+
+   ::
+
+       ; Specifying licensing information is supported by Survex >= 1.4.23.
+       *copyright 1976-2024 "CUCC Expo" GPLv2+
+
+   ::
+
+       ; Licensing information needs quotes if it contains a space (or a
+       ; comment character).
+       *copyright 2026 "Creative Commons Caving Club" "CC BY-SA"
+
 Validity
    valid at the start of a ``*begin``/``*end`` block.
 
 Description
-   ``*copyright`` allows the copyright information to be recorded in a way that
-   can be automatically collated.
+   ``*copyright`` allows copyright and licensing information to be recorded in
+   a way that can be automatically collated.
 
    The date can be specified as a single year or a range of years.  Two digit
    years are not allowed and the end of the range can not be before the start.
 
    The text is expected to identify the copyright holder - typically it will be
    the name of a person or group.  Unless it is a single word you should put
-   double quotes around it.
+   double quotes around it.  Since Survex 1.4.23, you can double the quote
+   character to include it in the string (see example above).
+
+   Survex 1.4.23 added support for an optional additional string to specify
+   licensing information.
 
    Prior to Survex 1.4.17 there weren't any checks of the syntax.  Essentially
    ``*copyright`` used to be treated like a named comment line.
@@ -664,7 +686,7 @@ Example
 
    ::
 
-       *data normal station ignoreall newline compass tape clino
+       *data normal station noteall newline compass tape clino
 
 Description
    ``<style>``
@@ -907,9 +929,9 @@ Description
          new ``*data`` command with no arguments.
 
          Simple example of how to use this data style (note the use of
-         ignoreall to allow a free-form text description to be given)::
+         ``noteall`` to allow a free-form text description to be given)::
 
-             *data passage station left right up down ignoreall
+             *data passage station left right up down noteall
              1  0.1 2.3 8.0 1.4  Sticking out point on left wall
              2  0.0 1.9 9.0 0.5  Point on left wall
              3  1.0 0.7 9.0 0.8  Highest point of boulder
@@ -922,7 +944,7 @@ Description
 
          For example here the main passage is 1-2-3 and a side passage is 2-4::
 
-             *data passage station left right up down ignoreall
+             *data passage station left right up down noteall
              1  0.1 2.3 8.0 1.4  Sticking out point on left wall
              2  0.0 1.9 9.0 0.5  Point on left wall opposite side passage
              3  1.0 0.7 9.0 0.8  Highest point of boulder
@@ -933,13 +955,55 @@ Description
              2  0.3 0.2 9.0 0.5
              4  0.0 0.5 6.5 1.5  Fossil on left wall
 
-   ``IGNORE`` skips a field (it may be used any number of times), and
-   ``IGNOREALL`` may be used last to ignore the rest of the data line.
+         Survex 1.4.22 and later allow any (or even all) of the dimensions to
+         be omitted from the passage data style, which is equivalent to
+         omitting that dimension from each station.  For example, in a maze
+         cave you might use splays to locate the walls and only record up and
+         down dimensions at each station::
+
+             *data passage station up down
+             a 0.7 1.4
+             b 1.2 1.0
+
+         Omitting all dimensions allows using this style to record a
+         description of each survey station::
+
+             *data passage station noteall
+             1  Sticking out point on left wall
+             2  Point on left wall opposite side passage
+             3  Highest point of boulder
 
    ``LENGTH`` is a synonym for ``TAPE``; ``BEARING`` for ``COMPASS``;
    ``GRADIENT`` for ``CLINO``; ``COUNT`` for ``COUNTER``.
 
    The units of each quantity may be set with the ``*units`` command.
+
+   ``IGNORE`` skips a field (it may be used any number of times), and
+   ``IGNOREALL`` may be used last to ignore the rest of the data line.
+
+   Survex 1.4.22 added support for ``NOTE`` and ``NOTEALL`` readings.
+
+   ``NOTE`` accepts a double-quoted string which describes the station
+   (the value doesn't need to be quoted if it is a single word).  Since Survex
+   1.4.23, you can double the quote character to include it in the string.
+   An omit character (``-`` by default) can be use to indicate there's no note,
+   which has the same effect as an empty string (``""``); if you actually want
+   to specify a note that's exactly ``-`` then use quotes, i.e. ``"-"``).
+
+   ``NOTEALL`` is an alternative to ``NOTE``, which instead takes the rest of
+   the line as the text describing the station.  Leading and trailing blanks
+   are not included in the note text.  At most one ``NOTE`` or ``NOTEALL``
+   can be used in a specified style.
+
+   Since the note describes a station, it can be use when ``STATION`` can be
+   (so you can't put station notes in non-interleaved data, because it's not
+   clear whether the note is for ``FROM`` or ``TO``).
+
+   Current the notes in ``NOTE`` and ``NOTEALL`` aren't processed further, but
+   the intention is a future version will carry them through so they can be
+   seen in Aven, etc.  So currently ``NOTEALL`` and ``IGNOREALL`` both actually
+   ignore the rest of the line - use ``NOTEALL`` when the text describes the
+   station and ``IGNOREALL`` in other situations.
 
 See Also
    ``*units``
@@ -1388,6 +1452,9 @@ Description
    difference if you use the deprecated ``*prefix`` command.
 
    If the filename contains spaces, it must be enclosed in double quotes.
+   Since Survex 1.4.23, you can double the quote character to include it in the
+   string (though we recommend avoiding creating filenames containing a quote
+   as they are more awkward to handle with command line tools).
 
    An included file which does not have a complete path is resolved relative to
    the directory which the parent file is in (just as relative HTML links do).
@@ -1504,8 +1571,10 @@ Description
    particular instrument.  It's usually in double quotes, but the quotes can be
    omitted if it's a single word (strictly speaking, if it does not contain any
    of the characters set as ``BLANK`` which are space, tab and comma by
-   default).  In the unlikely event of it being a single word which is a
-   valid instrument type, you'll also need to put double quotes around it.
+   default).  Since Survex 1.4.23, you can double the quote character to
+   include it in the string.  In the unlikely event of it being a single word
+   which is a valid instrument type, you'll also need to put double quotes
+   around it.
 
    The syntax of ``*instrument`` commands has been defined for a very long
    time, but prior to Survex 1.4.19 there weren't any checks of the syntax.
@@ -1568,9 +1637,12 @@ Validity
 
 Description
    ``*ref`` allows you to specify a reference.  If the reference contains
-   spaces, you must enclose it in double quotes.  Survex doesn't try to
-   interpret the reference in any way, so it's up to you how you use it - for
-   example it could specify where the original survey notes can be found.
+   spaces, you must enclose it in double quotes.  Since Survex 1.4.23, you can
+   double the quote character to include it in the string.
+
+   Survex doesn't try to interpret the reference in any way, so it's up to you
+   how you use it - for example it could specify where the original survey
+   notes can be found.
 
    ``*ref`` was added in Survex 1.2.23.
 
@@ -1783,6 +1855,8 @@ Example
        *team Wookey assistant
        ; Role not recorded
        *team "Olly Betts"
+       ; Escaping quotes like this is supported by Survex >= 1.4.23
+       *team "Mike ""the animal"" Richardson"
 
 Validity
    valid at the start of a ``*begin``/``*end`` block.
@@ -1790,7 +1864,9 @@ Validity
 Description
    ``*team`` specifies the people involved in a survey and optionally what role
    or roles they filled during that trip. Unless the person is only identified
-   by one name you need to put double quotes around their name.
+   by one name you need to put double quotes around their name.  Since Survex
+   1.4.23, you can double the quote character to include it in the string (see
+   example above).
 
    The syntax of ``*team`` commands has been defined for a very long time, but
    prior to Survex 1.4.17 there weren't any checks of the syntax.  Essentially
@@ -1867,11 +1943,19 @@ Example
 
        *title "Mission Impossible"
 
+   ::
+
+       ; Escaping quotes like this is supported by Survex >= 1.4.23
+       *title """Endless"" rift big pitch"
+
 Description
    ``*title`` allows you to set a descriptive title for a survey.  If the title
-   contains spaces, you need to enclose it in double quotes ("").  If there is
-   no ``*title`` command, the title defaults to the survey name given in the
-   ``*begin`` command.
+   contains spaces, you need to enclose it in double quotes ("").  Since Survex
+   1.4.23, you can double the quote character to include it in the title (see
+   example above).
+
+   If there is no ``*title`` command, the title defaults to the survey name
+   given in the ``*begin`` command.
 
 TRUNCATE
 --------
