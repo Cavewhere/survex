@@ -2,147 +2,484 @@
 David McKenzie's Walls
 ======================
 
+Survex can read Walls unprocessed survey data files and project files (``.SRV``
+and ``.WPJ`` files).  The first release with any support was Survex 1.4.9, but
+the support has evolved and improved since then.  Survex 1.4.24 improved
+support significantly so we strongly advise using 1.4.24 or newer, and this
+chapter will assume you are.  If you really want to know when support for
+something was added, see the NEWS file.
+
+Survex 1.4.23 added support for reading Walls ``.LST`` reports as processed
+survey data.  ``.LST`` is intended as a text report format, but contains enough
+information to usefully read as processed survey data, and doing so means
+tools such as ``diffpos`` can be used to compare the same dataset processed
+by Walls and by Survex.  See the section below for details of ``.LST`` support.
+
+David's final release was Walls "Version 2, Build 2016-11-18" in 2016.  We
+do still keep an eye on compatibility with this release, but the focus is
+primarily on `recent releases made by Andy Edwards
+<https://github.com/wallscavesurvey/walls/releases/>`_, which are a much
+better option for anyone using Walls (whether or not they are interested
+in Survex).  These newer releases are particular advised if you are processing
+survey data from 2010 or later as David's final release uses IGRF 12, which was
+released in late 2015, is only intended to support dates up to the end of 2019,
+and is only definitive up to the end of 2009 - for dates in 2010-2019 it is
+predictive based on observations before this period.
+
+---------------------------
+Walls .WPJ and .SRV support
+---------------------------
+
 Survex 1.4.9 and later can read Walls unprocessed survey data (``.SRV``
-and ``.WPJ`` files).  Walls is no longer being developed, so the focus of
-support for Walls formats is primarily to help people with existing Walls data
-to migrate.
+and ``.WPJ`` files).  When we started to add support, Walls was no longer being
+developed, so the initial focus was to help people with existing Walls data to
+migrate.  Walls development has since restarted, so ongoing interoperation is
+now also an aim.
 
 We've mostly implemented this support based on Walls documentation, but
-unfortunately the documentation of the SRV format is sometimes incomplete or
-incorrect, while the WPJ format seems to be largely undocumented.  Sadly
-David is no longer around to ask, but we can at least test actual behaviour
-of ``Walls32.exe`` on example data.
+unfortunately the documentation of the SRV format is often incomplete and
+sometimes incorrect, while the WPJ format seems to be largely undocumented.
+Sadly David is no longer around to ask, but we can at least test actual
+behaviour of ``Walls32.exe`` on example data.
 
-As of 1.4.10, some large Walls datasets can be successfully processed
-(e.g. Mammoth Cave, the Thailand dataset from https://cave-registry.org.uk/,
-the Tatra Cave Registry from
-https://github.com/dlubom/Jaskiniowy-Kataster-Tatr-Zachodnich
-and Big Bat Cave).  Behaviour is not identical and station positions after
-loop closure will inevitably be different, but large or apparently systematic
-errors are worth reporting.  An easy way to compare is to export a Shapefile
-from ``Walls32.exe`` and overlay it in ``aven``.  The way to export is a bit
-hidden - after processing select the `Segments` tab, make sure the whole
-project is selected, and click the `Details / Rpts...` button which is towards
-the upper right.  Click the `Shapefile...` button in the new dialog box, and
-select what you want to output (e.g. `Vectors`).  Due to limitations in the
-Shapefile format each `Shape Type` selected here exports a separate Shapefile.
-To overlay a Shapefile in ``aven`` use `File->Overlay Geodata...`.
+As of 1.4.24, some large Walls datasets can be successfully processed:
 
-See below for a list of known limitations.  We've mostly prioritised what
-to implement based on testing with real-world datasets so commonly used
-features are likely to be handled while more obscure features may not be.
+- Mammoth Cave
+- the Thailand dataset from https://www.cave-registry.org.uk/svn/Thailand/
+- the Tatra Cave Registry from https://github.com/dlubom/Jaskiniowy-Kataster-Tatr-Zachodnich
+- the Slovenian Cave Survey from https://github.com/anzeabram/SiCS
+- Big Bat Cave
 
-- Survex reports warnings in some suspect situations which Walls
-  quietly accepts.  In general this seems helpful and they do highlight
-  what look like genuine problems in existing datasets, but if there are
-  particular instances which are noisy and not useful, let us know.
+.. FIXME: Link Thailand to https://cave-registry.org.uk/ once that's updated.
 
-  Some of these warnings use the same wording as errors - most of these
-  probably ought to be an error except Walls quietly accepts them so we
-  don't want to fail processing because of them.
+Behaviour is not 100% identical and station positions after loop closure will
+inevitably be slightly different, but we encourage processing your Walls
+dataset with both Walls and Survex and comparing the result.  Please report
+significant or apparently systematic errors, or anything that seems suspect.
+If you can provide some data demonstrating the problem, that's really helpful.
 
-  In some cases a warning can trigger when there's not a problem.  It's
-  good practice to keep a dataset free from warnings so that a new warning
-  doesn't get overlooked.  Here are suggestions for suppressing particular
-  warnings (which also work in Walls):
+We suggest a couple of ways to compare the results:
 
-  + Survex warns about ``#FIX`` directives where the station is not ever
-    used anywhere, for example::
+- You can export a ``.LST`` report with the results of processing from Walls,
+  and then compare it to the ``.3d`` file from processing the same dataset
+  using::
 
-      unusedfix.srv:3: warning: Unused fixed point “unused”
+    diffpos SURVEY.LST SURVEY.3d
 
-    This is intended to help spot typos in the station name, which would
-    otherwise go unnoticed if the survey station which was meant to be fixed is
-    connected to another fixed station.
+  This will report stations which are only present in one file, or whose
+  position differs by more than a specifiable threshold along any axis.
+  The default threshold is 0.01m (about 0.4 inches).  For example, to
+  report stations whose positions are different by more than 0.5m::
 
-    However it's also reasonable to record fixes for stations which don't
-    have survey connected to them.  For example, they may be permanent
-    survey benchmarks, or entrances to caves that haven't been surveyed yet.
+    diffpos SURVEY.LST SURVEY.3d 0.5
 
-    Assuming the station name is not mistyped, you can suppress the warning
-    by adding a dummy "use" - ``#NOTE``, ``#FLAG`` or isolated LRUD all
-    count as a "use":
+  ``diffpos`` doesn't compare connectivity, but that's unlikely to differ
+  between Survex and Walls output.
 
-    ::
+  The way to export ``.LST`` from Walls is a bit hidden - after processing
+  select the `Segments` tab, make sure the whole project is selected, and click
+  the `Details / Rpts...` button which is towards the upper right.  Click the
+  `Coordinates...` button in the new dialog box.  If you want to include legs
+  select `Connected vectors with file references`.
 
-      #NOTE ABC123 /unused
-      #FIX ABC123 123456 987654 1234
+- A more visual way to compare is to export a Shapefile from ``Walls32.exe``
+  and overlay it in ``aven``.
 
-    Or you could use ``#FLAG`` instead, which has the bonus of allowing
-    highlighting of such stations in Walls.  If it's an unsurveyed entrance
-    we suggest adding a flag containing the word `entrance` (which will also
-    result in Survex's "entrance" flag being set for the station), for
-    example:
+  The way to export from Walls is a bit hidden - after processing select the
+  `Segments` tab, make sure the whole project is selected, and click the
+  `Details / Rpts...` button which is towards the upper right.  Click the
+  `Shapefile...` button in the new dialog box, and select what you want to
+  output (e.g. `Vectors`).  Due to limitations in the Shapefile format each
+  `Shape Type` selected here exports a separate Shapefile.
 
-    ::
+  To overlay a Shapefile in ``aven`` use `File->Overlay Geodata...`.
 
-      #FLAG ABC123 /unexplored entrance
-      #FIX ABC123 123456 987654 1234
+Things you should know
+======================
 
-    Otherwise you could just flag it as "unused":
+We've mostly prioritised what to implement based on testing with real-world
+datasets.  Features which are commonly used are very likely to be handled
+while more obscure features may not be.  This section details differences,
+limitations, and other things which we think anyone using this support should
+be aware of.
 
-    ::
+Please let us know if there are things listed here (or in the next section)
+which are problematic for your use to help prioritise efforts.
 
-      #FLAG ABC123 /unused fix
-      #FIX ABC123 123456 987654 1234
+- Survex reports warnings in some suspect situations which Walls quietly
+  accepts.  This is intended to be helpful, and we've had positive feedback
+  from users that they have highlight genuine hidden problems in existing
+  datasets.  Some of these warnings would ideally be errors, but we've made
+  them warnings on the principle that we shouldn't fail to process a dataset
+  which Walls successfully processes.  Hopefully over time more error checks
+  will get added to Walls and we can upgrade our warnings to errors.
 
-    However, using ``#FLAG`` might be undesirable if you have a default flag
-    which you expect to be applied to these stations.
+  A guiding principle is that warnings need to be actionable, and in particular
+  it should be possible to keep a dataset free from warnings (if users expect
+  there to be warnings, it's all too easy to miss when a change introduces a
+  new warning, but it's often easiest to address a new warning right away while
+  everything is fresh in your mind).  The fix is obvious in some cases, but
+  see the section discussing specific warnings below if you encounter a warning
+  and are unsure what to do about it.
 
-    Isolated LRUD is another way (a dummy facing direction is needed to
-    prevent Walls from warning):
+- The ``LRUD=`` option is parsed and checked for validity, but LRUD data is
+  currently ignored.  Work is in progress on this.
 
-    ::
+- Not all combinations of ``TAPE=``, ``ORDER=`` and use of instrument and/or
+  target heights are supported.  You will get a warning if you use an
+  unsupported combination.
 
-      #FIX ABC123 123456 987654 1234
-      ABC123 <--,--,--,--,0> ; Suppress Survex unused fix warning
+  + ``TAPE=IT`` (Walls default) is fully supported.   ``TAPE=IT`` with
+    ``ORDER=DA`` or ``ORDER=AD`` is marked as style "cylpolar" in the
+    ``.3d`` file (which is what Survex calls a "flat-tape" style survey).
 
-    All these approaches work since Survex 1.4.23.  ``#NOTE`` and ``#FIX``
-    fully count since Survex 1.4.21 - before this they only worked if the
-    ``#FIX`` came first, and didn't work for ``#FLAG`` without any flags.)
+  + ``TAPE=SS`` is supported except for legs which have **both** a clino
+    (and/or backclino) reading **and** instrument and/or target heights.
+    The Walls manual says to enter underwater data using ``TAPE=SS`` and
+    ``ORDER=DA``/``ORDER=AD``, so any ``TAPE=SS`` legs without a clino are
+    marked as style "diving" in the ``.3d`` file.
+
+  + ``TAPE=IS`` and ``TAPE=ST`` are not currently supported.
+
+  Uses of unsupported combinations are warned about, and handled by ignoring
+  the heights, so the instrument and target are effectively assumed to be on
+  their respective stations.
+
+  None of the unsupported combinations seem to be used in practice (apart from
+  some uses of ``TAPE=SS`` with both clino and heights in the Mammoth dataset,
+  which turned out to all be erroneous on further investigation).
 
 - Walls only runs on Microsoft Windows, where filenames are case-insensitive
   and you may find the case of filenames in the ``.PRJ`` file doesn't match
   the actual case of the filename on disk.  If processing a Walls dataset on a
-  platform where filenames are case-sensitive this can cause problems.
+  platform such as Linux where filenames are case-sensitive this can cause
+  problems.
 
-  This same issue can affect native Survex datasets too, and the same
-  workaround is used when opening ``.SRV`` files: if the file isn't found
-  cavern will try a few variations of the case.  First it will try all lower
-  case, then all lower case except with the first character of the leafname
-  in upper case, and finally all upper case.
+  This same issue can affect people using different platforms and collaborating
+  on native Survex datasets too, and the same workaround is used when opening
+  ``.SRV`` files: if the file isn't found ``cavern`` will try a few variations
+  of the case for the leafname.  First it will try all lower case, then all
+  lower case except with the first character of the leafname in upper case, and
+  finally all upper case.
 
-  If the filename on disk has mixed case (aside from the initial character)
-  and the ``.PRJ`` file doesn't specify it with this case then this workaround
-  won't help.
+  Walls always seems to write ``.PRJ`` files with the names of ``.SRV`` files
+  in upper case, so if the filename on disk has mixed case (aside from the
+  initial character) then this workaround won't help.
 
-  One specific trick the workaround enables which is worth noting is that you
-  can unpack a ZIP archive using ``unzip -L`` which will unpack all the
-  filenames in lower case and then ``cavern`` should successfully process it
-  thanks to the "try lowercase" part of the workaround.
+  A useful trick is to put the data in a ZIP archive and then unzip it on
+  Linux using ``unzip -L`` which will unpack all the filenames in lower case.
+  Then ``cavern`` should successfully process it thanks to the "try lowercase"
+  part of the workaround.
 
-- Both Walls and Survex support calculating magnetic declinations based on
-  location and survey date.  However David's last Walls release was "Version
-  2, Build 2016-11-18" in 2016 which uses IGRF 12 (released in late 2015 and
-  the current model at the time).  This model is only intended to support dates
-  up to the end of 2019, and is only definitive up to the end of 2009 - for
-  dates in 2010-2019 it is predictive based on observations before this period.
+- ``#FIX`` - at present Survex does not support horizontal-only or
+  vertical only fixes.  These are currently given an SD of 1000m in
+  that direction instead, but that is not the same as completely
+  decoupling the fix in that direction.
 
-  A new version of the IGRF model is released every 5 years, and Survex has
-  been updated each time so is using a model multiple versions newer than
-  Walls.  For dates up to the end of 2009 any differences in calculated
-  declinations should be tiny, but for 2010-2019 Survex is using a definitive
-  model, while for dates after 2020 Survex is (at the time of writing in 2026)
-  using a predictive model while Walls is using a model outside of its interval
-  of validity.  For any dates after 2009 you'll likely see Walls and Survex
-  calculate different declinations - Survex's should be more reliable.
+- Variance overrides on survey legs are mostly supported, with the following
+  limitations:
 
-  If you have survey data from 2010 or later you may need to take this into
-  account if you are comparing the processed output from Walls with that from
-  Survex to check that Survex is interpreting the data in the same way as
-  Walls.  Andy Edwards has made `a build of Walls updated to use IGRF14
-  <https://github.com/wallscavesurvey/walls/releases/tag/v2.2>`_ which may
-  be of interest if you are in this situation.
+  + An SD of 0 is currently treated as 1mm (approximately 0.04 inches).
+  + Floating a leg horizontally, vertically, or both (with ``?``) uses an SD of
+    1000m in the floated direction(s) instead of using an actually infinite
+    SD.
+  + Floating the traverse containing a leg (with ``*``) currently just floats
+    that leg (so it's the same as ``?``).
+
+- ``UV=``, ``UVH=`` and ``UVV=`` are supported with the following limitations:
+
+  + A factor of ``0`` is currently replaced by ``0.000001``.
+  + A factor of more than ``9999`` is replaced by ``9999``.
+
+- Walls supports up to 3 prefix levels, which we map into Survex's hierarchical
+  prefixes.  One difference is that Walls allows an empty prefix but Survex
+  does not.  Leading empty prefix levels are handled by just omitting them
+  (as Walls does when showing prefixed station names) so this mismatch can only
+  affect projects which use more than one prefix level - in practice only very
+  large projects seem to do do.
+
+  To handle this case, Survex replaces such empty prefix levels with a single
+  space - a Walls prefix can't contain a space, so this can't collide.  For
+  example, ``PEP::1`` in Walls becomes ``PEP: :1`` in Survex; it can even
+  happen twice in the same name - e.g. ``X:::1`` becomes ``X: : :1``.
+
+  If you are processing output from Survex then simply stripping any spaces
+  from station names should undo this and make them match Walls (unless you
+  have stations with empty names - in that case you'll need to first check for
+  ``:empty name`` at the end of the name and replace with ``:`` if present,
+  and then strip any remaining spaces, so e.g. ``X: : :empty name`` becomes
+  ``X:::``).
+
+- Walls ``#SEGMENT`` directives often contain a set of Compass "shot flags".
+  The likely origin of this is that Walls creates such ``#SEGMENT`` directives
+  when you import data from Compass.  If a ``#SEGMENT`` value consists only of
+  letters from the set ``CLPSX`` with an optional leading ``/`` or ``\\`` then
+  we map it to Survex leg flags like so:
+
+  + ``C`` in Compass causes legs it is set on to not be affected by loop
+    closure, but setting Compass flags in the Walls ``#SEGMENT`` is just a
+    user-level convention so Walls won't do anything in response to ``C``, so
+    Survex ignores it too.
+  + ``L`` is mapped to Survex's "duplicate" flag
+  + ``P`` is mapped to Survex's "surface" flag
+  + ``S`` is mapped to Survex's "splay" flag
+  + ``X`` in Compass completely excludes the leg from processing, but setting
+    Compass flags in the Walls ``#SEGMENT`` is just a user-level convention
+    so Walls won't do anything in response to ``X``.  It seems in practice that
+    ``X`` is sometimes used in Walls datasets to flag data to just exclude from
+    the surveyed length, so we treat it as an alias for ``L`` and map it to
+    Survex's "duplicate" flag.
+
+  Other values of ``#SEGMENT`` are ignored, as is ``#SEGMENT`` on a ``#FIX``
+  directive line (since mapped Compass flags apply to legs and not to a fixed
+  point).
+
+- Walls ``FLAG`` values are arbitrary text strings.  We try to infer
+  appropriate Survex station flags by checking for certain key words in that
+  text and otherwise ignore ``FLAG`` values.
+
+  Currently we map the word ``ENTRANCE`` (in any case) to the corresponding
+  Survex station flag.
+
+- If a station is used with an explicit Walls prefix (e.g. ``PEP:A123`` or
+  ``:ZZ9ZA``) then it will will be flagged as "exported" in the ``.3d`` file,
+  which can then be used by programs reading that file.  For example, ``aven``
+  has an option to show blue blobs on stations flagged "exported" (and they
+  will get their name shown in preference when station names overlap and we
+  pick which to show).
+
+- The inheritance of settings in WPJ files is not documented and so has been
+  reversed engineered.  Please report if you find any differences.
+
+Known differences and limitations which are unlikely to matter in practice
+==========================================================================
+
+- ``TYPEAB=`` and ``TYPEVB=`` are implemented by mapping the backsight
+  tolerances to compass and clino SDs such that only mismatches above the
+  tolerances are warned about.  The default compass and clino SDs are set to
+  match the default Walls tolerance of 5°.  Survex takes these SDs into
+  account when closing loops, so a reading with a higher backsight tolerance
+  will be trusted less, which seems appropriate.
+
+  Less helpful is that this means that the default compass and clino SDs for
+  Walls data are higher than the defaults for native data, so if you close a
+  loop containing both data from Walls and data from ``.svx`` (or Compass
+  ``.dat``), the Walls compass and clino readings will be trusted less.
+
+  The ``X`` flag (which means only use foresights but still check backsights)
+  is currently ignored (with a warning) so foresights and backsights are always
+  averaged.  We are not aware of any uses of ``X`` in real-world data.
+
+- Walls uses ``:`` as a separator between prefix levels and between any prefix
+  and the station name.  Survex takes into account which
+  characters are allowed in Walls station names when picking the separator to
+  use in the ``.3d`` file - for a pure Walls dataset, it will pick ``:``, so
+  Walls station names shown by ``aven`` and other tools should match the names
+  as shown in Walls.  If you have a dataset which mixes data in Walls format
+  with Survex and/or Compass data, then it's possible ``:`` is used in a Survex
+  or Compass station name - if so a different separator will be chosen.
+
+- ``#SYMBOL`` directives are quietly ignored.  In Walls they specify a symbol
+  shape and colour to use for a named flag, which doesn't usefully map into
+  Survex where we avoid mixing presentation information with the raw data.
+
+  The Walls manual notes *Since it's now easy to accomplished [sic] this
+  interactively via the Flag and Marker Symbols dialog, you may choose not to
+  use #Symbol directives at all*.  They aren't used in any of the Walls
+  datasets we've seen.
+
+- We don't currently support all the datum names which Walls does because we
+  haven't managed to find an EPSG code for any UTM zones in some of these
+  datums.  This probably means they're not actually in current use.
+
+- ``#NOTE`` is parsed and the station name is marked as "used" (which
+  suppresses the unused fixed point warning) but the note text is
+  currently ignored (as in native ``.svx`` data, since the ``.3d``
+  format doesn't currently contain station notes).
+
+- The Walls documentation specifies that the ``SAVE`` and ``RESTORE`` options
+  should be processed before other options, and experimentation shows that
+  this applies to ``RESET`` as well.  Andy Edwards reports some other options
+  are processed out-of-order (which is undocumented).  Currently Survex just
+  processes all options in the order specified, which makes no difference to
+  any real-world data we've seen.
+
+- The ``GRID=`` option currently gives an "Ignoring unsupported Walls option"
+  warning, and is skipped.  If your Walls data specifies a UTM zone then Survex
+  will automatically correct for grid convergence.
+
+- Walls seems to allow ``\\`` in place of ``/`` in some places (e.g.
+  ``#FLAG``).  We aim to support this too, but it doesn't seem to be documented
+  so may not currently be supported in the correct places.
+
+- Walls prefixes are mapped to Survex prefixes, with a corner case we don't
+  currently attempt to address.  If you have stations with full names ``:::X1``
+  and ``::X1:A1``, then omitting leading empty prefixes (as Walls normally does
+  and which Survex follows) these becomes ``X1`` and ``X1:A1``.  This means
+  that ``X1`` names both a station and a survey in Survex, which is not
+  allowed (Survex naming works like your computer's filing system in this
+  regard - you can't have a folder and a file with the same full name).
+
+  Survex tools won't explicitly error if they see such data, but for example
+  aven's survey tree view can't correctly show a name as both.
+
+  We haven't yet found a good solution to this.  It's probably very rare in
+  practice, so renaming needs to be restricted to cases where there's actually
+  a collision.
+
+- Walls allows a station with an explicit prefix to have an empty name,
+  e.g. ``PEP:``.  The Walls documentation doesn't mention this, though it
+  also doesn't explicitly say the name can't be empty.  This quirk seems
+  unlikely to be intentionally used and Survex doesn't allow an empty station
+  name, so we issue a warning and use the name ``empty name``, so ``PEP:`` in
+  Walls becomes ``PEP:empty name`` in Survex.  (Since ``empty name`` contains
+  a space it can't collide with a real Walls station name which can't contain
+  a space.)
+
+- The two UPS zones for the polar regions (specified as UTM zone
+  values of -61 and 61 in Walls) are supported with datum WGS84, but
+  we do not have any real data to test this support with.
+
+- Walls allows quoting of tokens in ``#UNITS``, for example
+
+  ::
+
+    #units "typevb" = "n"
+
+  Survex handles this, but this feature does not seem to be documented so there
+  may well be cases which are not handled the same.  Please report any you find.
+
+- The Walls documentation mentions a ``NOTE=`` option, but doesn't
+  document what it does, and testing with Walls32.exe it doesn't
+  seem to actually be supported!
+
+- Walls explicitly documents that `Unprefixed names [...] must not contain any
+  colons, semicolons, commas, pound signs (#), or embedded tabs or spaces.` but
+  it actually allows ``#`` in station names (though it can't be used as the
+  first character of the from station name as that will be interpreted as a
+  directive.
+
+- Walls gives an error if an unprefixed station name is more than 8 characters
+  long but Survex does not enforce this restriction.
+
+- Walls documents `The total length of the three prefix components combined,
+  including any embedded colon separators, is 127 characters` but Survex does
+  not enforce any limit.
+
+Warnings and what to do about them
+==================================
+
+Survex reports warnings in some suspect situations which Walls
+quietly accepts.  In general this seems helpful and they do highlight
+what look like genuine problems in existing datasets, but if there are
+particular instances which are noisy and not useful, let us know.
+
+Some of these warnings use the same wording as errors - most of these
+probably ought to be an error except Walls quietly accepts them so we
+don't want to fail processing because of them.
+
+In some cases a warning can trigger when there's not a problem.  It's
+good practice to keep a dataset free from warnings so that a new warning
+doesn't get overlooked.  Here are suggestions for suppressing particular
+warnings (which also work in Walls):
+
+- Survex warns about Walls features that it doesn't currently implement.
+  In general it's hard to fix these by changing your data (though in some
+  cases you might not be intending to use the feature - for example, the
+  Mammoth dataset had some surveys using ``TAPE=SS`` with clinos as well as
+  heights, but on closer inspection all of these were incorrect use).
+  In this case the warning is "actionable" by telling us.
+
+- Survex warns about ``#FIX`` directives where the station is not ever
+  used anywhere, for example::
+
+    unusedfix.srv:3: warning: Unused fixed point “unused”
+
+  This is intended to help catch a typo in the station name in the ``#FIX``
+  directive, which would otherwise go unnoticed if the survey station which was
+  meant to be fixed is connected to another fixed station.
+
+  However it's also reasonable to record fixes for stations which don't
+  have survey connected to them.  For example, they may be permanent
+  survey benchmarks, or entrances to caves that haven't been surveyed yet.
+
+  Assuming the station name is not mistyped, you can suppress the warning
+  by adding a dummy "use" - ``#NOTE``, ``#FLAG`` or isolated LRUD all
+  "use" a station.
+
+  For example, here ``#NOTE`` is used to suppress the warning:
+
+  ::
+
+    #NOTE ABC123 /unused
+    #FIX ABC123 123456 987654 1234
+
+  Or you could use ``#FLAG`` instead, which has the bonus of allowing
+  highlighting of such stations in Walls.  If it's an unsurveyed entrance
+  we suggest adding a flag containing the word `entrance` (which will also
+  result in Survex's "entrance" flag being set for the station), for
+  example:
+
+  ::
+
+    #FLAG ABC123 /unexplored entrance
+    #FIX ABC123 123456 987654 1234
+
+  Otherwise you could just flag it as "unused":
+
+  ::
+
+    #FLAG ABC123 /unused fix
+    #FIX ABC123 123456 987654 1234
+
+  However, using ``#FLAG`` might be undesirable if you have a default flag
+  which you expect to be applied to these stations.
+
+  Isolated LRUD is another way (a dummy facing direction is needed to
+  prevent Walls from warning):
+
+  ::
+
+    #FIX ABC123 123456 987654 1234
+    ABC123 <--,--,--,--,0> ; Suppress Survex unused fix warning
+
+- Walls doesn't complain about dangling surveys, which tends to result in
+  larger Walls datasets having some hanging surveys.  A hanging survey used to
+  be an error in Survex but since 1.4.10 a hanging survey is warned about and
+  then ignored (for all supported survey data formats).
+
+  This warning may indicate a missing (or typo-ed) connecting leg or ``#FIX``,
+  in which case adding adding/fixing that is the solution.
+
+  However, you might also want to add data you've received, but where the
+  connection is currently missing but expected soon.  In this situation, we
+  suggest adding an estimated connection, or marking the data not to be
+  processed (either in the project tree, or by commenting out part of a survey
+  with ``#[`` and ``#]``), or just tolerating the warning for a short time.
+
+- Walls processes a missing ``.srv`` file without complaint (but does report an
+  error if it exists but isn't readable, for example due to file permissions).
+
+  There is an indication in the Walls UI (the icon is a blank page instead of a
+  page with writing), but we've seen surveys accidentally not included in a
+  real world dataset because the path wasn't set - this feature meant this was
+  missed until the dataset was processed with Survex.
+
+  Survex warns about missing files (and errors for unreadable files):
+
+  ::
+
+    wallsmissingsrv.wpj:7:7: warning: Couldn't open file "WX_MISS.srv"
+     .NAME WX_MISS
+           ^~~~~~~
+
+  If the file should exist, check that ``Name:`` is spelled correctly, and that
+  ``Path:`` is set suitably in the item's properties.
+
+  If the file is a place-holder to be filled in later, we suggest either
+  creating an empty file, or changing its ``Type`` to ``Other`` in the item's
+  properties (and then back to ``Survey file`` when you later actually create
+  it).
 
 - If an isolated LRUD (LRUD not on a leg, e.g. specified for the start or end
   station of a traverse) is missing its closing delimiter, Walls will parse
@@ -166,8 +503,8 @@ features are likely to be handled while more obscure features may not be.
     #note *8 - ; Suppress Survex warning that this looks like broken LRUD
     P25     *8 5 15 3.58
 
-  An alternative way to suppress this warning which works in Survex 1.4.23 and
-  later is to put LRUD with all readings omitted on the leg)::
+  An alternative way to suppress this warning is to put LRUD with all readings
+  omitted on the leg)::
 
     P25     *8 5 15 3.58   <--,--,--,-->
 
@@ -177,6 +514,8 @@ features are likely to be handled while more obscure features may not be.
   use::
 
     P25     <8 5 15 3.58   *--,--,--,--*
+
+  Walls 2.2.3 added a warning for this situation.
 
 - In Europe a comma is customarily used for the decimal point.  Walls ``.svy``
   format treats a comma (``,``) as separating fields and allows optional
@@ -194,235 +533,47 @@ features are likely to be handled while more obscure features may not be.
   So Walls quietly parses this as a leg with length ``5``, compass ``00``,
   clino ``0`` and (optional field) instrument height ``30``.
 
-  Survex 1.4.23 and later issue a warning about such cases, which is suppressed
-  if there's a decimal point in the component on either side of the comma.  If
-  you have data where this warning fires but the comma is meant to be separate
-  readings, you can workaround by changing the comma to a space, or adding a
-  ``.0`` to one of the readings adjacent to the comma.   Please also report
-  such cases and we'll try to adjust the warning conditions to avoid them.
+  Survex warns about such cases, unless there's a decimal point in the
+  component on either side of the comma.  If you have data where this warning
+  fires but the comma is meant to be separate readings, you can workaround by
+  changing the comma to a space, or adding a ``.0`` to one of the readings
+  adjacent to the comma.   Please also report such cases and we'll try to
+  adjust the warning conditions to avoid them.
 
-- Walls allows hanging surveys, apparently without any complaint, and
-  as a result large Walls datasets are likely to have hanging surveys.
-  A hanging survey used to be an error in Survex but since 1.4.10
-  a hanging survey is warned about and then ignored.
-
-- ``#FIX`` - currently Survex does not support horizontal-only or
-  vertical only fixes.  These are currently given an SD of 1000m in
-  that direction instead, but that is not the same as completely
-  decoupling the fix in that direction.
-
-- Variance overrides on survey legs are mostly supported, with the following
-  limitations:
-
-  + An SD of 0 is currently treated as 1mm (approximately 0.04 inches).
-  + Floating a leg both horizontally and vertically (with ``?``) replaces it
-    with a "nosurvey" leg, which is effectively the same provided both ends
-    of the leg are attached to fixed points.  Supported since Survex 1.4.23.
-  + Floating a leg either horizontally or vertically (with ``?``) uses an SD of
-    1000m in that direction instead of actually decoupling the connection.
-  + Floating the traverse containing a leg (with ``*``) currently just floats
-    that leg (so it's the same as ``?``).
-
-- Walls ``#SEGMENT`` is apparently in practice commonly set to a set of Compass
-  "shot flags", so if a ``#SEGMENT`` value consists only of letters from the
-  set ``CLPSX`` with an optional leading ``/`` or ``\\`` then we map it to
-  Survex flags like so (since Survex 1.4.10):
-
-  + ``C`` in Compass causes legs it is set on to not be affected by loop
-    closure, but setting Compass flags in the Walls ``#SEGMENT`` is just a
-    user-level convention so Walls won't do anything in response to ``C``, so
-    Survex ignores it too.
-  + ``L`` is mapped to Survex's "duplicate" flag
-  + ``P`` is mapped to Survex's "surface" flag
-  + ``S`` is mapped to Survex's "splay" flag
-  + ``X`` in Compass completely excludes the leg from processing, but setting
-    Compass flags in the Walls ``#SEGMENT`` is just a user-level convention
-    so Walls won't do anything in response to ``X``.  It seems in practice that
-    ``X`` is sometimes used in Walls datasets to flag data to just exclude from
-    the surveyed length, so we treat it as an alias for ``L`` and map it to
-    Survex's "duplicate" flag.
-
-  Other values of ``#SEGMENT`` are ignored.
-
-  ``#SEGMENT`` on a ``#FIX`` directive line is also ignored (since Survex
-  1.4.23), since mapped Compass flags apply to legs and not to a fixed point.
-
-- Walls ``FLAG`` values seem to be arbitrary text strings.  We try to
-  infer appropriate Survex station flags by checking for certain key
-  words in that text and otherwise ignore ``FLAG`` values.
-
-  Currently we map ``ENTRANCE`` to the corresponding Survex station flag;
-  Survex <= 1.4.20 also mapped ``FIX`` but we set that for a station used
-  in ``#FIX`` so inferring it based on ``FLAG`` values doesn't seem useful.
-
-- ``#NOTE`` is parsed and the station name is marked as "used" (which
-  suppresses the unused fixed point warning) but the note text is
-  currently ignored.
-
-- ``#SYMBOL`` directives are quietly ignored.  In Walls they specify a symbol
-  shape and colour to use for a named flag, which doesn't usefully map into
-  Survex.  The Walls manual notes *Since it's now easy to accomplished [sic]
-  this interactively via the Flag and Marker Symbols dialog, you may choose not
-  to use #Symbol directives at all* and they don't seem to be used much in
-  Walls datasets we've seen.
-
-- We don't currently support all the datum names which Walls does
-  because we haven't managed to find an EPSG code for any UTM zones
-  in some of these datums.  This probably means they're not actually
-  in current use.
-
-- We currently assume all two digit years are 19xx (Walls documents
-  it 'also accepts "some date formats common in the U.S. (``mm/dd/yy``,
-  ``mm-dd-yyyy``, etc.)' but doesn't say how it interprets ``yy``.
-
-- Walls checking of valid dates seems to assume all months have 31
-  days as it quietly accepts invalid dates such as ``2025-09-31``,
-  ``2024-02-30`` and ``2025-02-29``.  Survex warns about these cases.
-  Since 1.4.23, Survex issues an error for invalid dates which Walls
-  issues an error for, such as month < 1 or > 12, or day < 1 or > 31
-  (previously Survex only warned about these too).
-
-- The documentation specifies that the ``SAVE`` and ``RESTORE`` options
-  should be processed before other options.  Currently Survex just
-  processes all options in the order specified, which makes no
-  difference to any real-world data we've seen.  We need to test with
-  Walls32.exe to determine exactly how this works (and if ``RESET`` is
-  also special).
-
-- LRUD data is currently ignored.
-
-- Since Survex 1.4.21, the ``TAPE=`` option is checked for validity, and
-  the combination of ``TAPE=SS`` with ``ORDER=DA`` or ``ORDER=AD`` is mapped to
-  diving data, since the Walls manual says:
-
-    In the SRV data format, underwater vectors are defined by compass and tape
-    (CT) data lines in which the taping method is station-to-station (#UNITS
-    Order=DA Tape=SS) and the instrument/target "heights" are actually station
-    depths (expressed as positive values) below the water's surface.  In
-    effect, both instrument and target are treated as if they were at the
-    surface, where the inclination can be assumed zero.
-
-  Since Survex 1.4.23, ``TAPE=SS`` with ``ORDER=DAV`` and other orders
-  including ``V`` are mapped to diving data for legs where no readings are
-  given for the clino and backclino.
-
-  Since Survex 1.4.23, ``TAPE=IT`` (Walls default setting) with instrument
-  and/or target heights specified is corrected handled.  The particular
-  combination of ``TAPE=IT`` with ``ORDER=DA`` or ``ORDER=AD`` is mapped to
-  Survex's "cylpolar" data style.
-
-  ``TAPE=IS`` and ``TAPE=ST`` are not currently implemented, nor is ``TAPE=SS``
-  for legs with clino readings and instrument/target heights.  Since 1.4.23,
-  Survex warns when it encounters any such unsupported combinations which are
-  active on a leg which has a non-zero instrument or target height.  For such
-  legs, the heights are ignored so the instrument and target are effectively
-  assumed to be on their respective stations.
-
-  Survex < 1.4.21 just skipped over ``TAPE=`` entirely (so invalid values
-  were also quietly ignored).
-
-- ``TYPEAB=`` and ``TYPEVB=``: Since Survex 1.4.23, the backsight tolerances
-  are mapped to compass and clino SDs such that only mismatches above the
-  tolerance are warned about, with the default SDs set to match the default
-  Walls tolerance of 5°.  The ``X`` flag (which means only use foresights but
-  still check backsights) is currently ignored so foresights and backsights
-  are always averaged.
-
-- ``UV=``, ``UVH=`` and ``UVV=`` are supported since Survex 1.4.23.
-
-- The ``GRID=`` option currently gives an "Ignoring unsupported Walls option"
-  warning, and is skipped.  If your Walls data specifies a UTM zone then Survex
-  will automatically correct for grid convergence.
-
-- The ``INCH=`` option is supported since Survex 1.4.23.
-
-- Walls seems to allow ``\\`` in place of ``/`` in some places (e.g.
-  ``#FLAG``).  We aim to support this too, but it doesn't seem to be documented
-  so may not currently be supported in the correct places.
-
-- The inheritance of settings in WPJ files is probably not correctly
-  implemented currently.
-
-- The Walls documentation mentions a ``NOTE=`` option, but doesn't
-  document what it does, and testing with Walls32.exe it doesn't
-  seem to actually be supported!
-
-- The two UPS zones for the polar regions (specified as UTM zone
-  values of -61 and 61 in Walls) are supported with datum WGS84, but
-  we do not have any real data to test this support with.
-
-- Walls gives an error if an unprefixed station name is more than 8 characters
-  long but Survex does not enforce this restriction.
-
-- Walls documents `The total length of the three prefix components combined,
-  including any embedded colon separators, is 127 characters` but Survex does
-  not enforce any limit.
-
-- The option ``CASE=`` is documented as `CASE = Upper / Lower /
-  Mixed` but it seems actually any non-empty string is allowed and if it starts
-  with a character other than ``U`` or ``L`` then it's treated as ``Mixed``.
-  Handled since Survex 1.4.10.  Survex 1.4.23 and later emit a warning
-  if the value isn't one of ``UPPER``, ``LOWER``, ``MIXED``, ``U``, ``L`` or
-  ``M``.
-
-- Walls explicitly documents that `Unprefixed names [...] must not contain any
-  colons, semicolons, commas, pound signs (#), or embedded tabs or spaces.` but
-  it actually allows ``#`` in station names (though it can't be used as the
-  first character of the from station name as that will be interpreted as a
-  directive.  Since Survex 1.4.10.
-
-- Walls uses ``:`` as a separator between prefixes and between any prefix and
-  the station name.  Since Survex 1.4.21, cavern takes into account which
-  characters are allowed in Walls station names when picking the separator to
-  use in the ``.3d`` file - for a pure Walls dataset, it will pick ``:``, so
-  Walls station names shown by ``aven`` and other tools should match the names
-  as shown in Walls.  If you have a dataset which mixes data in Walls format
-  with Survex and/or Compass data, then it's possible ``:`` is used in a Survex
-  or Compass station name - if so a different separator will be chosen.  Before
-  Survex 1.4.21, ``.`` would be used as the ``.3d`` file separator for a pure
-  Walls dataset, even if it was used in station names.
+- A few Walls directives and options are not supported by Survex and give
+  warnings such as "Unknown command" or "Ignoring unsupported Walls option".
+  These are all obscure features which we've not seen any real-world uses
+  of, so we'd suggest first checking you are actually intending to use the
+  warned about feature.  If you are, please let us know, ideally with some
+  sample data showing how you're using it.
 
 - Walls ignores junk after the numeric argument in ``TYPEAB=``, ``TYPEVB=``,
-  ``UV=``, ``UVH=``, and ``UVV=``.  Survex warns and skips the junk.  Since
-  Survex 1.4.10.
+  ``UV=``, ``UVH=``, and ``UVV=``.  Survex warns and skips the junk.  To
+  resolve the warning, work out what was intended and fix the option value.
 
-- Walls allows the clino reading to be completely omitted with ``ORDER=DAV``
-  and ``ORDER=ADV`` on a "wall shot" (leg to or from an anonymous station).
-  Supported since Survex 1.4.10.
+- Options ``D=``, ``S=``, ``A=``, ``AB=``, ``V=``, ``VB=``, ``TYPEAB=`` and
+  ``TYPEVB=`` take a string argument which can have one or several specified
+  values.  Walls documents that these values can be abbreviated to just their
+  first letter, but in fact it only checks the first letter, so for example
+  ``D=FEAT`` is quietly accepted.  Survex warns when the value isn't one of
+  those documented or a single letter abbreviation or ``DEG`` for ``DEGREES``
+  (since that's commonly used), then handles as Walls does.  Fix this warning
+  by correcting the value.
 
-- If a station is used with an explicit Walls prefix (e.g. ``PEP:A123``)
-  then it will will be flagged as "exported" in the ``.3d`` file.  This
-  is currently applied even if the explicit prefix is empty (e.g. ``:A123``).
-  Since Survex 1.4.10.
-
-- Walls allows a station with an explicit prefix to have an empty name,
-  e.g. ``PEP:``.  The Walls documentation doesn't mention this, though it
-  also doesn't explicitly say the name can't be empty.  This quirk seems
-  unlikely to be intentionally used and Survex doesn't allow an empty station
-  name, so we issue a warning and use the name ``empty name`` (which has a
-  space in, so can't collide with a real Walls station name which can't contain
-  a space) - so ``PEP:`` in Walls becomes ``PEP:empty name`` in Survex.
-  Since Survex 1.4.10.
-
-- Explicit units on clino readings are supported since Survex 1.4.10.  Survex
-  1.4.20 improved support: ``P``/``p`` for percentage gradient is now
-  supported, and a bug fixed in the handling of explicit units when the default
-  has been set to percentage gradient.
-
-- Explicit ``degree:minute:second`` angle readings are supported since Survex
-  1.4.20.
-
-- Walls allows quoting of tokens in ``#UNITS``, for example
-
-  ::
-
-    #units "typevb" = "n"
-
-  This feature does not seem to be documented.  Supported since Survex 1.4.23.
+- The option ``CASE=`` is documented as `CASE = Upper / Lower /
+  Mixed`.  Only the first character of the value is actually checked (as with
+  several other options) but an additional quirk here is that any non-empty
+  value seems to be allowed and unexpected initial characters are treated as
+  ``Mixed``).  Survex warns if the value isn't one of ``UPPER``, ``LOWER``,
+  ``MIXED``, ``U``, ``L`` or ``M``, then handles it like Walls seems to.
+  To resolve this warning, determine what the intended setting was (or if
+  you're happy to assume that the actual behaviour is OK you can replace
+  a value starting ``U`` with ``UPPER``, a value starting ``L`` with
+  ``LOWER``, and any other value with ``MIXED``).
 
 - Walls doesn't issue an error for some directive lines which seem like they
   are invalid (at least there's no documented meaning), for example all of
-  these are quietly accepted:
+  these are quietly accepted by Walls and apparently just ignored:
 
   ::
 
@@ -433,15 +584,42 @@ features are likely to be handled while more obscure features may not be.
     #!,"
     #THANK,YOU
 
-  Survex 1.4.21 and later downgrades the "Unknown command" error to a warning
-  for these.  The complete pattern for what is accepted by Walls is hard to
-  reliably discern (it seems to be either empty directives or those with a
-  comma somewhere on the line after the invalid directive with no intervening
+  Survex issues "Unknown command" as a warning instead of an error for these.
+  The complete pattern for what is accepted by Walls is hard to reliably
+  discern (it seems to be either empty directives or those with a comma
+  somewhere on the line after the invalid directive with no intervening
   whitespace) so it's possible there are cases which are still errors should
   also be warnings - please report any you come across.
 
-If you find some Walls data which Survex doesn't handle or handles
-incorrectly, and it is not already noted above, please let us know.
-If you can provide some data demonstrating the problem, that's really
-helpful.  It's also useful to know if there are things listed above
-that are problematic to help prioritise efforts.
+  To fix these warnings, fix the bad directive.  It may be intended to be
+  a comment since ``#`` is often used as a comment character in other
+  contexts - if so, replace ``#`` with ``;`` (Walls actual comment character).
+
+------------------
+Walls .LST support
+------------------
+
+All Survex programs which can read a ``.3d`` file can transparently read a
+Walls ``.LST`` file instead.  This is intended as a report format, but we
+can usefully treat it as a processed survey data format.
+
+In detail:
+
+- Survey legs are handled (so for example, you can view a Walls-processed
+  centreline in ``aven`` by exporting it as a ``.LST`` file).  This requires
+  that *Connected vectors with file references* was selected in Walls when
+  creating the ``.LST`` file.
+- All stations are assumed to be underground and so flagged as ``UNDERGROUND``.
+- Fixed stations are flagged as ``FIXED``.
+- Georeferencing is handled for the same datum and UTM zone combinations that
+  are handled in Walls ``.WPJ`` files.  Other combinations in a ``.LST`` file
+  are quietly ignored, and the file loaded as if it wasn't georeferenced.
+  Please report unsupported combinations you would find useful.
+- If *Include only vectors or stations in current view frame* was selected
+  legs which cross to outside the exported area are flagged as ``DUPLICATE``
+  so they can be easily distinguished.
+- The ``.LST`` format uses ``<REF>`` as a fake station at ``(0,0,0)`` which
+  fixed points are connected to, but ``<REF>`` is actually a valid station
+  name in Walls.  It's unlikely this name would be chosen in real-world data,
+  but if it is, has no prefix, and is at coordinates ``(0,0,0))`` then it
+  will be assumed to be this fake station.

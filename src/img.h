@@ -9,6 +9,7 @@
  * - Compass Plot files (".plt" and ".plf")
  * - CMAP XYZ files (".sht", ".adj", ".una"; ".xyz" also recognised though
  *   it seems this is a misunderstanding)
+ * - Walls ".LST" files
  *
  * Writing Survex ".3d" image files is supported.
  *
@@ -31,6 +32,15 @@
 
 #ifndef IMG_H
 # define IMG_H
+
+/* We aim to keep this code compilable as C99 or C++98.  The C99 features we
+ * make use of are `//` comments, declarations after statements, and `for`
+ * loop initial declarations, so a C90 compiler which supports these as
+ * extensions will likely work too.
+ *
+ * If you find img doesn't work with a particular compiler you want to
+ * support, please let us know.
+ */
 
 /* Define IMG_API_VERSION if you want more recent versions of the img API.
  *
@@ -177,7 +187,7 @@ typedef struct {
    /* Version of file format.
     *
     * Positive values are .3d file format versions:
-    *   0 => 0.01 ascii
+    *   0 => 0.01 text
     *   1 => 0.01 binary,
     *   2 => byte actions and flags
     *   3 => prefixes for legs; compressed prefixes
@@ -192,6 +202,8 @@ typedef struct {
     *  IMG_VERSION_CMAP_STATION => CMAP XYZ file, station variant (.adj, .una)
     *  IMG_VERSION_COMPASS_PLT => Compass .plt (or .plf) file
     *  IMG_VERSION_SURVEX_POS => .pos file
+    *  IMG_VERSION_WALLS_LST => Walls .LST file (metric)
+    *  IMG_VERSION_WALLS_LST_FEET => Walls .LST file (feet)
     */
    int version;
    char *survey;
@@ -214,6 +226,8 @@ typedef struct {
  * the version member of the img struct.  These are not valid in
  * img_output_version.
  */
+#define IMG_VERSION_WALLS_LST_FEET	-6
+#define IMG_VERSION_WALLS_LST		-5
 #define IMG_VERSION_CMAP_SHOT		-4
 #define IMG_VERSION_CMAP_STATION	-3
 #define IMG_VERSION_COMPASS_PLT		-2
@@ -443,7 +457,7 @@ typedef enum {
  */
 img_errcode img_error(void);
 
-/* Datum codes returned by img_parse_compass_datum_string().
+/* Datum codes returned by img_parse_datum_string().
  *
  * We currently don't handle the following, which appear in the datum list
  * in Compass, but there don't seem to be any EPSG codes for UTM with any
@@ -477,13 +491,14 @@ typedef enum {
     img_DATUM_WGS84
 } img_datum;
 
-/* Parse a Compass datum string and return an img_datum code. */
-img_datum img_parse_compass_datum_string(const char *s, size_t len);
+/* Parse a Compass or Walls datum string and return an img_datum code. */
+img_datum img_parse_datum_string(const char *s, size_t len);
 
 /* Return a CRS string to pass to PROJ from an img_datum and UTM zone.
  *
  * utm_zone can be between -60 and -1 (Southern Hemisphere), or 1 and 60
- * (Northern Hemisphere).
+ * (Northern Hemisphere); 61 and -61 are interpreted as the Northern and
+ * Southern Polar UPS zones respectively (for compatibility with Walls).
  *
  * Where possible a string of the form "EPSG:1234" is returned.
  *
@@ -499,13 +514,18 @@ img_datum img_parse_compass_datum_string(const char *s, size_t len);
  * The returned value is allocated with malloc() and the caller is responsible
  * for calling free().
  */
-char *img_compass_utm_proj_str(img_datum datum, int utm_zone);
+char *img_utm_proj_str(img_datum datum, int utm_zone);
 
 /* Return EPSG code for geodetic CRS (i.e. long/lat) with datum img_datum.
  *
  * Returns -1 for img_DATUM_UNKNOWN.
  */
-int img_compass_longlat_epsg_code(img_datum datum);
+int img_longlat_epsg_code(img_datum datum);
+
+/* Macro aliases to match older versions of img: */
+#define img_parse_compass_datum_string(S, L) img_parse_datum_string(S, L)
+#define img_compass_utm_proj_str(D, Z) img_utm_proj_str(D, Z)
+#define img_compass_longlat_epsg_code(D) img_longlat_epsg_code(D)
 
 #ifdef __cplusplus
 }

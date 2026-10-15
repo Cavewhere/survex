@@ -3,7 +3,7 @@ dnl Process this file with autoconf to produce a configure script
 dnl Need autoconf 2.50 or later for AC_ARG_VAR.  2.59 has been around for
 dnl long enough, that we might as well just require that.
 AC_PREREQ(2.59)
-AC_INIT([survex], [1.4.22], [https://trac.survex.com/])
+AC_INIT([survex], [1.4.23], [https://trac.survex.com/])
 AM_INIT_AUTOMAKE([1.14 gnu -Wall -Wportability -Werror])
 RELEASE=1
 
@@ -118,6 +118,7 @@ case $host_cpu in
 	AC_MSG_RESULT([yes (configure with --disable-sse to disable)])
 	dnl We can unconditionally use -mtune=generic as it was added in GCC
 	dnl 4.2, and supported at least as far back as clang 3.0.
+	AM_CFLAGS="$AM_CFLAGS -mfpmath=sse -m$enable_sse -mtune=generic"
 	AM_CXXFLAGS="$AM_CXXFLAGS -mfpmath=sse -m$enable_sse -mtune=generic"
       else
 	AC_MSG_RESULT([don't know how to for compiler $CXX])

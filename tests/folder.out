@@ -1,0 +1,29 @@
+folder.mak:2:1: warning: ] with no matching [ in this file
+ ];
+ ^
+folder.mak:3:1: warning: [subfolder with no matching ] in this file
+
+Removing trailing traverses...
+
+Concatenating traverses...
+
+Simplifying network...
+
+Calculating network...
+
+Calculating traverses...
+
+Calculating trailing traverses...
+
+Calculating statistics...
+
+Survey contains 6 survey stations, joined by 5 shots.
+There are 0 loops.
+Total length of survey shots =    9.14m (   9.14m adjusted)
+Total plan length of survey shots =    9.14m
+Total vertical length of survey shots =    0.00m
+Vertical range = 0.00m (from cave1b.AA4 at 0.00m to cave1b.AA4 at 0.00m)
+North-South range = 3.05m (from cave2.AA2 at 0.00m to cave1b.AA4 at -3.05m)
+East-West range = 3.05m (from cave1b.AA3 at 3.05m to cave1a.AA1 at 0.00m)
+
+There were 2 warning(s).

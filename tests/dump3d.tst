@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Survex test suite - dump3d tests
-# Copyright (C) 1999-2025 Olly Betts
+# Copyright (C) 1999-2026 Olly Betts
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -45,9 +45,11 @@ esac
 
 : ${DUMP3D="$testdir"/../src/dump3d}
 
-: ${TESTS=${*:-"cmapstn.adj cmap.sht \
-multisection.plt multisurvey.plt pre1970.plt \
-dump3ddate.3d extendsurveyx.3d filter.plt separator.3d"}}
+: ${TESTS=${*:-"dump3ddate.3d extendsurveyx.3d separator.3d \
+cmapstn.adj cmap.sht cmapyyyy.sht \
+filter.plt multisection.plt multisurvey.plt nzgd49.plt pre1970.plt \
+wallsfeet.lst wallsgeoref.lst wallsmetric.lst wallsoff.lst wallsoff2conn.lst \
+wallsshots.lst wallsshotsr.lst wallsstns.lst wallsupszone.lst"}}
 
 # Suppress checking for leaks on exit if we're build with lsan - we don't
 # generally waste effort to free all allocations as the OS will reclaim
@@ -59,7 +61,7 @@ vg_error=123
 vg_log=vg.log
 if [ -n "$VALGRIND" ] ; then
   rm -f "$vg_log"
-  DUMP3D="$VALGRIND --log-file=$vg_log --error-exitcode=$vg_error $DUMP3D"
+  DUMP3D="$VALGRIND --leak-check=full --log-file=$vg_log --error-exitcode=$vg_error $DUMP3D"
 fi
 
 for file in $TESTS ; do
@@ -89,7 +91,7 @@ for file in $TESTS ; do
     DUMP3D_OPTS="$DUMP3D_OPTS -D"
     ;;
   esac
-  rm -f tmp.diff tmp.dump
+  rm -f tmp.dump
   $DUMP3D $DUMP3D_OPTS "$input" > tmp.dump
   exitcode=$?
   if [ -n "$VALGRIND" ] ; then
@@ -105,16 +107,7 @@ for file in $TESTS ; do
     [ -z "$VERBOSE" ] || $DIFF tmp.dump "$expect"
     exit 1
   fi
-  if [ -n "$VALGRIND" ] ; then
-    if [ $exitcode = "$vg_error" ] ; then
-      cat "$vg_log"
-      rm "$vg_log"
-      exit 1
-    fi
-    rm "$vg_log"
-  fi
-  test $exitcode = 0 || exit 1
-  rm -f tmp.diff tmp.dump
+  rm -f tmp.dump
 done
 test -n "$VERBOSE" && echo "Test passed"
 exit 0

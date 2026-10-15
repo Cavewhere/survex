@@ -1,71 +1,65 @@
-up to: f68680d2c3a3ab5f9f15decf68bc01183fffc15f
+up to: e2caa2203804a22aaad1f8759cb6cff661397c0d
 
+Changes in 1.4.24 (UNRELEASED):
 
+* cavern:
 
-    Improve parsing of Walls LRUD
-    Handle "to" starting "<" or "*" in the same way Walls does when there
-    is LRUD later in the line.
-    We currently skip over the LRUD readings, but now we check for a
-    comment character as we skip, so this now errors in both Walls and
-    Survex:
-      1 2 3 64 5 <1,2,3,4;>
+  + Walls quietly ignores a missing `.srv` file (but does report an error if it
+    exists but isn't readable).  There is an indication in the Walls UI (the
+    icon is a blank page instead of a page with writing), but we've seen
+    surveys not actually included into a real world dataset because the path
+    wasn't set and this feature meant it was missed until the dataset was
+    processed with Survex.
 
-manual:    Fix Walls example to match warning message shown
+    We'd run into this before and were issuing a warning instead of an error in
+    the case where the missing file was in a non-existent directory, but
+    testing a carefully constructed example .wpj in Walls32.exe shows any
+    missing file is handled this way, so now we issue a warning instead of
+    an error for any missing `.srv` file.
 
-Author: Philip Schuchardt <vpicaver@gmail.com>
-    cavern: Allow reading coordinate system from file
+  + Don't warn about Walls options `V=DEG` and similar.  Walls documents you
+    can abbreviate `DEGREES`, etc to just the first letter but is actually much
+    more lenient.  We added a warning use of undocumented values in such cases
+    in 1.4.23, but the use of `DEG` as an abbreviation for `DEGREES` is fairly
+    widespread in some Walls datasets and warning about it isn't going to catch
+    typos.  Fixes #166, reported by Joe Walko.
 
-    `*cs file FILENAME` reads the coordinate system description from a
-    separate file, so it can be a PROJ string, WKT or PROJJSON.  WKT and
+  + When Walls' `DECL=` is used to set an explicit declination value we now
+    correct for grid convergence (like we already do when the declination is
+    computed from the IGRF model).  See #140.
+
+  + Fix handling of Walls `.wpj` items with no `.STATUS` line.  It seems Walls
+    omits this line when the status value is zero, but we were handling it as
+    either -1 or the status of the preceding item.  This could lead to us
+    quietly failing to actually process such `.srv` files, or using incorrect
+    flags for them.  Fixes #167, reported by Joe Walko.
+
+* Manual:
+
+  + Walls chapter:
+
+    - Raise the recommended minimum Survex version for processing Walls data to
+      1.4.24.
+
+* Build system:
+
+  + Use rsvg-convert to convert SVG to PNG.  We were using inkscape, but that's
+    primary a GUI tool.  The PNGs produced by rsvg-convert preserve transparency,
+    which was the original motivation for moving to using inkscape.
+
+Changes in 1.4.23 (2026-10-13):
+
+* cavern:
+
+  + Add support for `*cs file FILENAME` which allows reading a coordinate
+    system definition from a specified file.  The definition can be anything
+    understood by PROJ, for example a PROJ string, WKT or PROJJSON.  WKT and
     PROJJSON are made up of double quoted strings written over several
     lines, which is awkward to write in a .svx file, and they can express
     datums a PROJ string can't, such as NAD83(2011), ETRS89 and GDA2020.
-    It also means a .prj file such as those which accompany ESRI
-    shapefiles can be used directly, so a survey can be georeferenced to
-    match GIS data you already have.
-
-    The filename is resolved relative to the directory of the file the
-    *cs is in, a .prj extension is tried if the name as given isn't found,
-    and the lines of the file are joined with a space since the coordinate
-    system is stored in the .3d file as a single line.
-
-    There's no UTF-8 BOM skipping - PROJ rejects a BOM and so does GDAL's
-    .prj reader.
-
-    Fixes #150
-
-
-
-
-
-
-
-
-    cavern: Handle quoted values in Walls options
-    Reported by Andy Edwards.
-
-
-    cavern: Fix parse loop on invalid Walls .srv
-
-    If we found an empty token in Walls options, we reported an error
-    but didn't advance the parse position so we'd report the same error
-    again and again until we hit the limit on the number of errors.
-
-    The handling of some of these invalid cases doesn't currently match
-    Walls, but at least we no longer repeat the same error.
-
-    Problem found by an example from Andy Edwards of strange syntax
-    which Walls quietly accepts.
-
-
-
-
-
-
-
-Changes in 1.4.23 (UNRELEASED):
-
-* cavern:
+    It also means a .prj file such as those which accompany Shapefiles can be
+    used directly, so a survey can be georeferenced to match GIS data you
+    already have.  Patch from Philip Schuchardt.  Fixes #150.
 
   + Allow escaping " in quoted strings in .svx files by doubling it.
 
@@ -87,20 +81,102 @@ Changes in 1.4.23 (UNRELEASED):
     correct, but the location shown within the line was the first character of
     the token after the SD value.
 
+  + Improve when we warn for compass readings on plumbed legs.  We already
+    suppressed the warning for some cases, but now we take the simple approach
+    of not warning for an explicit compass or backcompass value of either 0° or
+    180° on an inferred plumb.  The fix applies to all data formats, but was
+    motivated by some unhelpful warnings in some real-world Walls datasets,
+    reported by Joe Walko in #158.
+
+  + Enable SSE2 by default on 32-bit x86 for C code (in 1.4.16 we enabled it
+    but unintentionally only for C++ code).
+
+  + Passage dimensions (LRUD) in Compass DAT data are now turned into Survex
+    `*data passage` tubes.  Currently each tube continues while the "to"
+    station of one leg matches the "from" station of the next.  This results
+    in the tube for the main passage having a one leg gap if the survey
+    diverted up a side passage and then returned to the main passage, but is
+    at least better than completely ignoring LRUD data.  Longer term I think
+    mapping LRUD to splay shots offers a better approach to passage modelling,
+    but mapping to passage tubes is more helpful until aven supports rendering
+    3D passages based on splays.
+
+  + The folder structure in Compass MAK files is now handled correctly.  We
+    We were incorrectly handling the folders as filing system directories,
+    but testing in Compass shows they're actually independent of the filing
+    system.
+
+  + Fixed an infinite parse loop if a Compass MAK folder was closed when none
+    was open.  We now warn and advance past it.
+
+  + Warn about any Compass MAK folders which are unclosed when we reach the
+    end of the file.
+
+  + Compass doesn't complain about invalid units for a fixed point in a .MAK
+    file, so this is now a warning instead of an error in Survex.
+
+  + Compass doesn't complain if you fix an already fixed station at different
+    coordinates, so this is now a warning instead of an error in Survex.
+
+  + A comment right after a station name in a Compass MAK file is now handled
+    correctly (previously the `/` was incorrectly treated as a station name
+    character in this context).
+
+  + Walls `INCH=` option is now supported.
+
+  + Walls `TAPE=SS` with `ORDER=DAV` (and other orders including `V`) is now
+    better supported by mapping legs with clinos omitted and `IH`/`TH` given to
+    diving data.  Addresses case noted in #164 by Joe Walko.
+
+  + Walls `TYPEAB=` and `INCAB=` now work together correctly.  They are both
+    implemented by setting the zero error on the backcompass and previously
+    setting one would effectively reset the other.  Fixes #161, reported by Joe
+    Walko.
+
   + Walls `TYPEAB=` and `TYPEVB=` tolerances are now mapped to compass and
     clino SDs such that backsight mismatches are warned about for the same
     cases which Walls warns about.  Fixes #158, reported by Joe Walko.
 
-  + Walls `INCH=` option is now supported.
+  + Warn that `,X` in Walls options `TYPEAB=` or `TYPEVB=` is ignored as
+    unsupported.
+
+  + Walls `RESET` option would lead to a segmentation fault if used in a
+    `#UNITS` directive in a `.srv` file.
+
+  + Walls `UV=`, `UVH=` and `UVV=` options are now supported.
+
+  + Walls `LRUD=` options are now parsed and the current settings are tracked
+    internally.  LRUD readings are still ignored, but we hope to support
+    parsing them in the future.  Walls handling of LRUD seems to be especially
+    quirky, so this will need careful testing.
 
   + Support Walls instrument and/or target heights with `TAPE=IT`.  Fixes the
     most important cases of #160, reported by Joe Walko.
 
+  + Walls `#segment` on a `#fix` directive line is now handled.
+
   + Warn about unsupported values of Walls `TAPE=` option with non-zero
     heights.  Addresses the remaining cases of #160, reported by Joe Walko.
 
+  + Warn when a station name is referenced in a Walls `#flag` or `#note`
+    directives, but never otherwise used.  Previously we only warned in
+    instances of these which resulted in the Survex "entrance" and/or
+    "exported" flags being set, and those warnings confusingly referred to
+    "*entrance" and "*export" commands.
+
+  + Improve diagnostics for bad Walls quadrant bearings.
+
+  + We now emit an error for Walls distances with explicit units of inches
+    if the value is >= 12, which matches Walls behaviour.
+
   + We now warn "Ignoring unsupported Walls option" instead of "Unknown
     command" for Walls `GRID=` option.
+
+  + Empty Walls prefix levels are now replaced by a space rather than being
+    squashed away, since squashing can result in conflating different stations
+    (e.g. `X::1` was squashed to `X:1`).  Survex doesn't allow a prefix level
+    to be empty, so we now map `X::1` to `X: :1`.  Walls doesn't allow a space
+    in a prefix name so this can't collide.  Fixes #163, reported by Joe Walko.
 
   + Warn about suspicious use of `,` in Walls data.  In Europe a comma is
     customarily used for the decimal point.  Walls ``.svy`` format treats a
@@ -146,12 +222,68 @@ Changes in 1.4.23 (UNRELEASED):
   + Walls emits an error for a `#NOTE` where the note is empty, so we now do
     as well.
 
+  + Warn about unhandled year values for Walls `#date` in mm/dd/yyyy format.
+    Survex currently only handles dates from 1900 to 2078 inclusive so we
+    should warn about years outside this range.  We already did for Walls
+    `#date` in some cases, but this warning was missing for dates in mm/dd/yyyy
+    format.
+
+  + Fix parse loop on invalid Walls `.srv`.  If we found an empty token in
+    Walls options, we reported an error but didn't advance the parse position
+    so we'd report the same error over and over until we hit the limit on the
+    number of errors.  Problem found by an example from Andy Edwards of strange
+    syntax which Walls quietly accepts.
+
+  + Handle undocumented syntax of quoted values in Walls options.  Reported by
+    Andy Edwards.
+
+  + Adjust parsing of Walls LRUD data when the "to" station name starts with
+    "<" or "*" and there is LRUD data later in the line, to match how Walls
+    handles this.
+
+  + We still don't actually parse Walls LRUD readings, but now we check for a
+    comment character as we skip, so this now errors in both Walls and Survex:
+
+      1 2 3 64 5 <1,2,3,4;>
+
+  + For many options in `#units` Walls documents that the value can be
+    abbreviated to just the first letter, but actually it only checks the
+    first letter.  Survex now warns for all of these when the value given
+    is not the full documented value nor just its first letter.  Applies to
+    options `D=`, `A=`, `AB=`, `V=`, `VB=`, `S=`, `TYPEAB=` and `TYPEVB=`.
+
+  + A Walls variance override such as `(?)` on a leg was being mapped to a
+    "nosurvey" leg in Survex, but that works differently if this leg is the
+    only connection for some data - a "nosurvey" leg doesn't actually
+    connect the data but a floated Walls leg still does.  We now handle
+    this case by setting large SDs, which is how we handle the case of a
+    leg floated only horizontally `(?,)` or only vertically `(,?)`.  Fixes
+    #157, reported by Joe Walko.
+
+  + A Walls `#fix` floated iwth `(?)` or similar was being ignored by Survex
+    but Walls interpretation is that this still fixes the station but is
+    dominated if it is connected to another fixed point (which isn't floating).
+    We now fix with large SDs, which is how we handle the case of a `#fix`
+    floated only horizontally `(?,)` or only vertically `(,?)`.
+
 * aven:
 
   + Work around macOS 27 bug when the user's locale uses `,` as the decimal
     point.
 
   + Fix failing `m_Scale != 0.0` assertion seem on macOS 27.
+
+  + Right-align numeric values in colour key.
+
+  + Label error key as being in `σ` to make it clearer that it's a number of
+    Standard Deviations.  The numbers are now shown as integers if the labels
+    are 0, 1, 2, 3, etc, which is the case in currently aven.  Inspired by a
+    question from Wookey.
+
+  + Show key to press to toggle debug modes back off, which is helpful if a
+    user accidentally hits one of the F-keys which turns on a debug mode; even
+    if they guess they need to press the same key again to turn it off, they
+    may not know which key that was.  Highlighted by Eric C. Landgraf.
 
 * aven/survexport:
 
@@ -170,9 +302,55 @@ Changes in 1.4.23 (UNRELEASED):
 
 * INSTALL: Document that GDAL is now used to export geodata too.
 
-* Manual: Note Tatra Cave Registry in Walls docs
+* Manual:
+
+  + Improve docs for *truncate.  Add Walls station name limit, and note that
+    `*truncate` is only useful for software which truncates a name longer than
+    its limit, not for software which gives an error for an overlong name.
+    (Walls definitely gives an error; I'm not sure what the other software
+    mentioned here actually does.)
+
+  + Note that the "cylpolar" data style is sometimes called "flat taping" or
+    "delta height" so that people searching for how to handle these can more
+    easily find it.
+
+  + Walls chapter:
+
+    - This chapter has had a major structural overhaul to address points
+      raised by Joe Walko.  Fixes #159.
+
+    - This chapter has been simplified and made easier to follow by stating up
+      front that we strongly advise users to use 1.4.23 or newer and then
+      assuming they are for the rest of the chapter.  Users wanting to know how
+      support has evolved are now directed to the NEWS file.
+
+    - Add Tatra Cave Registry and SiCS datasets as additional examples that
+      successfully process.
+
+    - Adjust a Walls example of a warning so the context of the warning matches
+      the `.srv` content shown.
+
+    - Reword section on inferring "exported" flag.  I was unsure if inferring
+      "exported" made sense for an explicit empty prefix but Joe Walko confirms
+      it does.  See #159.
+
+    - Testing with Walls32.exe confirms that 2 digit years in `#date` are
+      always handled as 19xx.
+
+    - Adjust text about Compass shot flags in `#segment`.  Thanks to Joe Walko
+      for providing background on where this convention comes from.
+
+    - Improve section on comparing results of processing with Survex and Walls.
 
 * img library:
+
+  + C99/C++98 is now a documented requirement.  We've previously aimed to keep
+    img compilable as C90, but `//` comments and declarations after statements
+    keep creeping in and nobody has complained.  Both C99 and C++98 are more
+    than a quarter of a century old so we think this should not be a
+    problematic requirement, and making them the baseline allows for some code
+    quality improvements.  If you're embedding img and find it doesn't work
+    with a particular compiler you want to support, please let us know.
 
   + Failing to open a file for writing now gives error code `IMG_CANTOPENOUT`
     instead of `IMG_FILENOTFOUND`.  Bug introduced in Survex 1.2.35 - before
@@ -187,7 +365,73 @@ Changes in 1.4.23 (UNRELEASED):
   + Fix possible out-of-bounds read when handling the coordinate system in v8
     .3d files.  Patch from Philip Schuchardt.  Fixes #154.
 
+  + Avoid reading uninitialised buffer.  If asked to open a file <= 20 bytes
+    which didn't have a recognised extension, we'd test for a magic string
+    against a partly uninitialised buffer.  This is undefined behaviour, though
+    at the more harmless end.
+
+  + Compass .PLT dimension order is LUDR but we were interpreting it as LRUD.
+
+  + Compass .PLT handling now understands some less commonly used datums.
+
+  + The datum string parsing now also handles the datum names which Walls
+    uses.  These are mostly the same as those Compass uses, but some are
+    spelled differently (e.g. `Hu-Tzu-Shan` instead of `Hu Tzu Shan`;
+    `NAD83` instead of `North American 1983`).  Walls convention of using
+    UTM zone numbers 61 and -61 to mean the Northern and Southern UPS zones
+    (used in the polar regions north of north of 60°N and south of 60°S) is now
+    supported with datum WGS 84.
+
+    To reflect that they're no longer specific to Compass, these functions
+    have been renamed:
+
+     img_parse_compass_datum_string(S, L) -> img_parse_datum_string(S, L)
+     img_compass_utm_proj_str(D, Z) -> img_utm_proj_str(D, Z)
+     img_compass_longlat_epsg_code(D) -> img_longlat_epsg_code(D)
+
+    Macros are defined in img.h so that code using the old names will work
+    without changes.
+
+  + Add support for reading Walls .LST files.  Currently title, date,
+    datum, UTM/UPS zone, fixed points, station names and station positions are
+    handled.  Depending on the Walls options chosen when creating the file, a
+    .LST may include connections between stations - if so these are read as
+    legs.  Thanks to Eric C. Landgraf for testing and feedback.
+
+  + Fix parsing of longer CMAP date strings.
+
+  + Fix memory leaks reading CMAP files.
+
   + Eliminate `//` comments for C90 compatibility.
+
+* Test suite:
+
+  + Actually run cmd_solve_hanging.svx testcase.  It needed updating because
+    dangling surveys are now a warning rather than an error, but was OK aside
+    from that.
+
+  + Add test coverage for measuring back instruments forwards in `.svx` data.
+
+  + Convert all Compass .mak and .dat testdata to CR+LF line endings.
+
+  + Adjust testcase fixfeet.mak so it processes with Compass.
+
+  + Add test coverage for Walls `#flag` entrance handling.
+
+  + Convert all Walls .wpj and .srv testdata to CR+LF line endings.
+
+  + Restructure some Walls tests to use .wpj, and limit the basename of
+    the `.srv` files to 8 characters.  This makes it much easier to process
+    them in Walls32.exe to compare results.
+
+  + Test Walls `typevb=C` (without a number).
+
+  + Store test parameters in `.wpj` testcase files.  For `.svx` and `.srv`
+    testcases we put these in a comment in the first line.  The first line of
+    a `.wpj` file has to be a magic comment with a fixed value, but we can
+    put the parameters in our own comment as a second line and Walls can still
+    read and process the file.  Loading the `.wpj` into Walls32.exe and saving
+    it strips our comment, but that seems a minor problem.
 
 * Portability:
 

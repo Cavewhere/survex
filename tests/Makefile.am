@@ -129,10 +129,10 @@ depthguage.dat depthguage.dump\
 karstcompat.dat karstcompat.dump\
 flags.dat flags.dump flags.out lrud.dat lrud.out lrud.pos\
 nomeasure.dat nomeasure.out nomeasure.pos noteam.dat noteam.out noteam.pos\
-badmak.mak badmak.out\
+badmak.mak badmak.dump badmak.out\
 fixfeet.mak fixfeet.pos\
 linkfix.mak linkfix.pos linkfixa.dat linkfixb.dat\
-folder.mak subdir/cave1a.dat subdir/cave1b.dat subdir/subsubdir/cave2.dat\
+folder.mak folder.dump folder.out subdir/cave1a.dat subdir/cave1b.dat subdir/subsubdir/cave2.dat\
 utm.mak utm.out utm.dump\
 walls.srv walls.out walls.dump\
 wallsbaddatum.out wallsbaddatum.wpj\
@@ -144,8 +144,13 @@ wallsfsbs.wpj wallsfsbs.dump wallsfsbs.out w_fsbs.srv\
 wallsfsbsclino.wpj wallsfsbsclino.out wallsfsbsclino.pos w_fsbsc.srv\
 wallshtie.wpj wallshtie.dump wallshtie.out w_htie.srv\
 wallsihth.wpj wallsihth.dump wallsihth.out w_ihth.srv\
+wallsmissingsrv.wpj wallsmissingsrv.altout wallsmissingsrv.out\
+wallsplumb.wpj wallsplumb.dump wallsplumb.out w_plumb.srv\
 wallsprefix.wpj wallsprefix.dump wallsprefix.out w_prefix.srv\
-wallsbadreadings.srv wallsbadreadings.out wb_read.srv\
+wallsups.wpj wallsups.dump wallsups.out wallsups.srv\
+wallsvariance.wpj wallsvariance.dump wallsvariance.out w_varian.srv\
+wallsbadoptions.wpj wallsbadoptions.out wb_opts.srv\
+wallsbadreadings.wpj wallsbadreadings.out wb_read.srv\
 baddate.srv baddate.out\
 badomit.srv badomit.out\
 badopts.srv badopts.out\
@@ -155,7 +160,8 @@ complexhanging.svx complexhanging.out\
 inventedhanging.svx inventedhanging.out\
 nosurveyhanging.svx nosurveyhanging.out\
 nosurveyhanging2.svx nosurveyhanging2.dump nosurveyhanging2.out\
-cmd_solve_hanging.svx passage.svx hanging_lrud.svx\
+passage.svx hanging_lrud.svx\
+cmd_solve_hanging.svx cmd_solve_hanging.dump cmd_solve_hanging.out\
 cmd_solve_nothing.svx\
 cmd_solve_nothing_implicit.svx cmd_solve_nothing_implicit.out\
 cmd_date.dump cmd_date.svx cmd_date.out\
@@ -224,12 +230,23 @@ imgtest_simple.svx\
 imgtest_survey.svx
 
 EXTRA_DIST +=\
-cmapstn.adj cmapstn.dump\
-cmap.sht cmap.dump\
 dump3ddate.3d dump3ddate.dump\
 extendsurveyx.3d extendsurveyx.dump\
-filter.plt filter.dump\
 separator.3d separator.dump\
+cmapstn.adj cmapstn.dump\
+cmap.sht cmap.dump\
+cmapyyyy.sht cmapyyyy.dump\
+wallsgeoref.lst wallsgeoref.dump\
+wallsfeet.lst wallsfeet.dump\
+wallsmetric.lst wallsmetric.dump\
+wallsoff.lst wallsoff.dump\
+wallsoff2conn.lst wallsoff2conn.dump\
+wallsshots.lst wallsshots.dump\
+wallsshotsr.lst wallsshotsr.dump\
+wallsstns.lst wallsstns.dump\
+wallsupszone.lst wallsupszone.dump\
+filter.plt filter.dump\
+nzgd49.plt nzgd49.dump\
 multisection.plt multisection.dump\
 multisurvey.plt multisurvey.dump\
 pre1970.plt pre1970.dump

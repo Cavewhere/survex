@@ -20,6 +20,7 @@
 
 #include <config.h>
 
+#include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
 
@@ -52,6 +53,8 @@
 # include <proj_experimental.h>
 #endif
 
+static real get_convergence(void);
+static int process_lrud(prefix *stn);
 static int process_nosurvey(prefix *fr, prefix *to, bool fToFirst);
 
 #define EPSILON (REAL_EPSILON * 1000)
@@ -74,6 +77,14 @@ static int process_nosurvey(prefix *fr, prefix *to, bool fToFirst);
  * well outside the valid range.
  */
 #define is_compass_NaN(x) (fabs(x) > (999.0 - 360.0))
+
+// Are Compass PLT LRUD measurements for the "To" station?
+static bool compass_lrud_on_to;
+
+// "To" for the previous leg, or NULL.
+//
+// Used to decide when to start a new passage tube for Compass PLT LRUD.
+static prefix * compass_lrud_previous_to;
 
 static int
 read_compass_date_as_days_since_1900(void)
@@ -848,10 +859,16 @@ data_file_compass_dat_or_clp(bool is_clp)
 
     pcs->style = STYLE_NORMAL;
     pcs->units[Q_LENGTH] = METRES_PER_FOOT;
+    pcs->units[Q_LEFT] = METRES_PER_FOOT;
+    pcs->units[Q_RIGHT] = METRES_PER_FOOT;
+    pcs->units[Q_UP] = METRES_PER_FOOT;
+    pcs->units[Q_DOWN] = METRES_PER_FOOT;
+
     pcs->infer = BIT(INFER_EQUATES) |
 		 BIT(INFER_EQUATES_SELF_OK) |
 		 BIT(INFER_EXPORTS) |
 		 BIT(INFER_PLUMBS);
+
     /* We need to update separator_map so we don't pick a separator character
      * which occurs in a station name.  However Compass DAT allows everything
      * >= ASCII char 33 except 127 in station names so if we just added all
@@ -928,6 +945,7 @@ data_file_compass_dat_or_clp(bool is_clp)
 	}
 	get_token();
 	pcs->ordering = compass_order;
+	compass_lrud_on_to = false;
 	// "FORMAT" is optional.
 	if (S_EQ(&token, "FORMAT") && check_colon()) {
 	    /* This documents the format in the original survey notebook - we
@@ -949,7 +967,13 @@ data_file_compass_dat_or_clp(bool is_clp)
 		    /* We have backsights for compass and clino */
 		    pcs->ordering = compass_order_backsights;
 		}
+		if (token_len >= 13) {
+		    // 'F' for From, 'T' for To.
+		    char lrud_type = s_str(&token)[token_len >= 15 ? 14 : 12];
+		    compass_lrud_on_to = (lrud_type == 'T');
+		}
 	    }
+
 	    get_token();
 	}
 
@@ -987,6 +1011,7 @@ data_file_compass_dat_or_clp(bool is_clp)
 	process_eol();
 	/* BLANK LINE */
 	process_eol();
+	compass_lrud_previous_to = NULL;
 	while (ch != EOF) {
 	    if (ch == '\x0c') {
 		nextch();
@@ -1113,9 +1138,9 @@ data_file_compass_mak(void)
     initialise_common_compass_settings();
     settings *volatile pcs_mak = pcs;
     short *t = pcs->Translate;
-    // In a Compass MAK file a station name can't contain these three
+    // In a Compass MAK file a station name can't contain these four
     // characters due to how the syntax works.
-    t['['] = t[','] = t[';'] = 0;
+    t['['] = t[','] = t[';'] = t['/'] = 0;
 
     if (setjmp(jbSkipLine)) {
 	// Recover from errors in nested functions by longjmp() to here.
@@ -1130,11 +1155,12 @@ data_file_compass_mak(void)
     int base_utm_zone = 0;
     unsigned int base_line = 0;
     long base_lpos = 0;
-    string path = S_INIT;
-    s_donate(&path, path_from_fnm(file.filename));
+    char* path = path_from_fnm(file.filename);
     struct mak_folder {
 	struct mak_folder *next;
-	int len;
+	char* name;
+	int line;
+	int column;
     } *folder_stack = NULL;
     // The surveys read from this MAK so far, most recent first.
     struct mak_survey {
@@ -1170,8 +1196,7 @@ data_file_compass_mak(void)
 		  s_truncate(&dat_fnm, trim_len);
 		  if (base_utm_zone) {
 		      // Process the previous @ command using the datum from &.
-		      char *proj_str = img_compass_utm_proj_str(datum,
-								base_utm_zone);
+		      char *proj_str = img_utm_proj_str(datum, base_utm_zone);
 		      if (proj_str) {
 			  // Temporarily reset line and lpos so dec_context and
 			  // dec_line refer to the @ command.
@@ -1202,14 +1227,14 @@ data_file_compass_mak(void)
 		  push_survey_settings(dat_survey);
 
 		  char *dat_filename;
-		  FILE *dat_fh = fopen_portable(s_str(&path), s_str(&dat_fnm),
+		  FILE *dat_fh = fopen_portable(path, s_str(&dat_fnm),
 						EXT_SVX_DATA, "rb",
 						&dat_filename);
 		  if (dat_fh) {
 		      fclose(dat_fh);
 		      free(dat_filename);
 		      ch_store = ch;
-		      data_file(s_str(&path), s_str(&dat_fnm));
+		      data_file(path, s_str(&dat_fnm));
 		      ch = ch_store;
 		      dat_read = true;
 		  } else {
@@ -1224,10 +1249,11 @@ data_file_compass_mak(void)
 	      s_free(&dat_fnm);
 	      while (ch != ';' && ch != EOF) {
 		  nextch_mak();
-		  filepos fp_name;
-		  get_pos(&fp_name);
+		  long name_offset = ftell(file.fh);
 		  prefix *name = read_prefix(PFX_STATION|PFX_OPT);
 		  if (name) {
+		      filepos fp_name_end;
+		      get_pos(&fp_name_end);
 		      update_separator_map_for_foreign_name(prefix_ident(name));
 		      skipblanks_mak();
 		      if (ch == '[') {
@@ -1248,7 +1274,8 @@ data_file_compass_mak(void)
 			  } else if (ch == 'M' || ch == 'm') {
 			      nextch_mak();
 			  } else {
-			      compile_diagnostic(DIAG_ERR|DIAG_COL, /*Expecting “%s” or “%s”*/103, "F", "M");
+			      // Compass doesn't complain about this, so make it a warning.
+			      compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting “%s” or “%s”*/103, "F", "M");
 			  }
 			  while (!isdigit(ch) && ch != '+' && ch != '-' &&
 				 ch != '.' && ch != ']' && ch != EOF) {
@@ -1271,18 +1298,22 @@ data_file_compass_mak(void)
 			      coords[2] *= METRES_PER_FOOT;
 			  }
 			  int fix_result = dat_read ?
-			      fix_station(name, coords, fp_name.offset) : 0;
+			      fix_station(name, coords, name_offset) : 0;
 			  if (fix_result) {
 			      filepos fp;
 			      get_pos(&fp);
-			      set_pos(&fp_name);
+			      set_pos(&fp_name_end);
+			      int name_len = fp_name_end.offset - name_offset;
 			      if (fix_result < 0) {
-				  compile_diagnostic(DIAG_ERR|DIAG_WORD, /*Station already fixed or equated to a fixed point*/46);
+				  // Compass quietly allows this so make it a warning not an error.
+				  compile_diagnostic(DIAG_WARN|DIAG_WIDTH(name_len),
+						     /*Station already fixed or equated to a fixed point*/46);
 			      } else {
-				  compile_diagnostic(DIAG_WARN|DIAG_WORD, /*Station already fixed at the same coordinates*/55);
+				  compile_diagnostic(DIAG_WARN|DIAG_WIDTH(name_len),
+						     /*Station already fixed at the same coordinates*/55);
 			      }
-			      set_pos(&fp);
 			      compile_diagnostic_pfx(DIAG_INFO, name, /*Previously fixed or equated here*/493);
+			      set_pos(&fp);
 			  }
 			  while (ch != ']' && ch != EOF) nextch_mak();
 			  if (ch == ']') {
@@ -1340,7 +1371,7 @@ update_proj_str:
 	    pcs->input_convergence = HUGE_REAL;
 	    if (datum && utm_zone && abs(utm_zone) <= 60) {
 		/* Set up coordinate system. */
-		char *proj_str = img_compass_utm_proj_str(datum, utm_zone);
+		char *proj_str = img_utm_proj_str(datum, utm_zone);
 		if (proj_str) {
 		    pcs->proj_str = proj_str;
 		    if (!proj_str_out) {
@@ -1364,39 +1395,52 @@ update_proj_str:
 		  nextch_handling_eol();
 	      }
 	      if (ch == ';') nextch_mak();
-	      datum = img_parse_compass_datum_string(s_str(&p), datum_len);
+	      datum = img_parse_datum_string(s_str(&p), datum_len);
 	      s_free(&p);
 	      goto update_proj_str;
 	  }
 	  case '[': {
-	      // Enter subdirectory.
+	      // Enter folder.
 	      struct mak_folder *p = folder_stack;
 	      folder_stack = osnew(struct mak_folder);
 	      folder_stack->next = p;
-	      folder_stack->len = s_len(&path);
-	      if (!s_empty(&path))
-		  s_appendch(&path, FNM_SEP_LEV);
+	      folder_stack->line = file.line;
+	      folder_stack->column = ftell(file.fh) - file.lpos;
+	      string name = S_INIT;
+	      s_clear(&name);
 	      nextch_mak();
 	      while (ch != ';' && !isEol(ch)) {
-		  if (ch == '\\') {
-		      ch = FNM_SEP_LEV;
-		  }
-		  s_appendch(&path, (char)ch);
+		  s_appendch(&name, (char)ch);
 		  nextch_mak();
 	      }
+	      folder_stack->name = s_steal(&name);
 	      if (ch == ';') nextch_mak();
 	      break;
 	  }
 	  case ']': {
-	      // Leave subdirectory.
-	      struct mak_folder *p = folder_stack;
+	      // Leave folder.
 	      if (folder_stack == NULL) {
-		  // FIXME: Error?  Check what Compass does.
-		  break;
+		  // Leaving a folder is something that it's useful to alert the
+		  // user about.
+		  //
+		  // https://www.fountainware.com/compass//HTML_Help/Project_Manager/format_folders.htm
+		  // does not actually seem to explicitly say that you can't
+		  // close a folder you haven't opened, and Compass quietly
+		  // allows it, so we make this a warning since we don't want to
+		  // fail to process files which Compass accepts without
+		  // complaint.
+
+		  /* TRANSLATORS: %s and %s are replaced with e.g. BEGIN and END
+		   * or END and BEGIN or #[ and #] or [ and ] or ] and [ */
+		  compile_diagnostic(DIAG_WARN|DIAG_COL,
+				      /*%s with no matching %s in this file*/23,
+				      "]", "[");
+	      } else {
+		  free(folder_stack->name);
+		  struct mak_folder *p = folder_stack;
+		  folder_stack = folder_stack->next;
+		  free(p);
 	      }
-	      s_truncate(&path, folder_stack->len);
-	      folder_stack = folder_stack->next;
-	      free(p);
 	      nextch_mak();
 	      if (ch == ';') nextch_mak();
 	      break;
@@ -1492,7 +1536,22 @@ update_proj_str:
     }
 
     while (folder_stack) {
-	// FIXME: Error?  Check what Compass does.
+	// https://www.fountainware.com/compass//HTML_Help/Project_Manager/format_folders.htm
+	// documents "every left angle bracket must eventually be matched with
+	// a right angle bracket", but Compass quietly accepts it so we make
+	// this a warning since we don't want to fail to process files which
+	// Compass accepts without complaint.
+	string open = S_INIT;
+	s_appendch(&open, '[');
+	s_append(&open, folder_stack->name);
+	/* TRANSLATORS: %s and %s are replaced with e.g. BEGIN and END
+	 * or END and BEGIN or #[ and #] or [ and ] or ] and [ */
+	warning_in_file_col(file.filename,
+			    folder_stack->line, folder_stack->column,
+			    /*%s with no matching %s in this file*/23,
+			    s_str(&open), "]");
+	s_free(&open);
+	free(folder_stack->name);
 	struct mak_folder *next = folder_stack->next;
 	free(folder_stack);
 	folder_stack = next;
@@ -1505,7 +1564,7 @@ update_proj_str:
     }
 
     pop_settings();
-    s_free(&path);
+    free(path);
 }
 
 // The current Walls reference point and CRS details.
@@ -1797,6 +1856,8 @@ static const sztok walls_tape_tab[] = {
     {NULL,	-1}
 };
 
+#define WALLS_LRUD(R1,R2,R3,R4) ((R1) | ((R2) << 8) | ((R3) << 16) | ((R4) << 24))
+
 // In #FLAG Walls seems to only document `/` but based on real-world use also
 // allows `\`.  FIXME: Are there other places that allow `\`?
 static inline bool isWallsSlash(int c) { return c == '/' || c == '\\'; }
@@ -1820,6 +1881,9 @@ typedef struct walls_options {
     // TYPEAB=C,... in effect?
     bool typeab_c;
 
+    // LRUD=T or LRUD=TB in effect?
+    bool lrud_on_to;
+
     // Flags to apply to stations in #FIX.
     int fix_station_flags;
 
@@ -1834,6 +1898,9 @@ typedef struct walls_options {
 
     // Current ORDER= setting for RECT data.
     int order_rect;
+
+    // Current LRUD= ordering.
+    int lrud_order;
 
     // Current INCH= setting (extra DZ for each leg, not inch the length unit).
     real inch;
@@ -1881,6 +1948,9 @@ static const walls_options walls_options_default = {
     // typeab_c
     false,
 
+    // lrud_on_to
+    false,
+
     // fix_station_flags
     0,
 
@@ -1895,6 +1965,9 @@ static const walls_options walls_options_default = {
 
     // order_rect
     WALLS_ORDER_CT(Dx, Dy, Dz) & ((1 << 24) - 1),
+
+    // lrud_order
+    WALLS_LRUD(Left, Right, Up, Down),
 
     // inch
     0.0,
@@ -2074,8 +2147,8 @@ walls_initialise_settings(void)
     pcs->Var[Q_GRADIENT] = angle_variance;
     pcs->Var[Q_BACKBEARING] = angle_variance;
     pcs->Var[Q_BACKGRADIENT] = angle_variance;
-    pcs->Var[Q_PLUMB] = angle_variance * 0.5;
-    pcs->Var[Q_LEVEL] = angle_variance * 0.5;
+    pcs->Var[Q_PLUMB] = angle_variance * 0.25;
+    pcs->Var[Q_LEVEL] = angle_variance * 0.25;
     pcs->Var[Q_DEPTH] = distance_variance;
 }
 
@@ -2225,17 +2298,42 @@ static real
 read_walls_distance(bool f_optional, real default_units, bool comma_ok)
 {
     bool f_decimal_point = false;
-    real distance;
     skipblanks();
-    if (ch == 'i' || ch == 'I') {
-	// Length specified in inches only, e.g. `i6` is 6 inches.
-	distance = 0.0;
-	goto inches_only;
+
+    filepos fp;
+    get_pos(&fp);
+    bool negative = (ch == '-');
+    if (ch == '-' || ch == '+') {
+	nextch();
     }
-    distance = read_number_or_int(f_optional, false, &f_decimal_point);
+    if (ch == 'i' || ch == 'I') {
+	// Length specified in inches only, e.g. `i6` is 6 inches.  The sign
+	// must come *before* the `i` (e.g. `-i6.5`).
+	get_token_legacy();
+	// Only one letter is allowed here.
+	if (s_str(&uctoken)[1] != '\0') {
+	    compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+			       /*Expecting “%s”*/103, "I");
+	    // Skip past rest of this field to try to reduce error avalanche.
+	    while (!isBlank(ch) && !isEol(ch)) nextch();
+	    return 0.0;
+	}
+	real inches = read_number(false, true);
+	if (inches >= 12.0) {
+	    // TRANSLATORS: Walls allows explicit units of inches with the
+	    // syntax i5.5 or -i6, but the number must be strictly < 12.
+	    set_pos(&fp);
+	    compile_diagnostic(DIAG_ERR|DIAG_WORD,
+			       /*Measurement in inches must be < 12*/545);
+	}
+	if (negative) inches = -inches;
+	return inches * (METRES_PER_FOOT / 12.0);
+    }
+    set_pos(&fp);
+
+    real distance = read_number_or_int(f_optional, false, &f_decimal_point);
     if (distance != HUGE_REAL) {
 	if (isalpha((unsigned char)ch)) {
-inches_only:
 	    get_token_legacy();
 	    // Only one letter is allowed here.
 	    if (s_str(&uctoken)[1] != '\0') goto bad_distance_units;
@@ -2659,8 +2757,16 @@ walls_parse_options(void)
 	    // "M", "METERS", "METRES", "F", "FEET" and even "FISH" are accepted,
 	    // but "X" gives an error.
 	    if (s_str(&uctoken)[0] == 'M') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "METERS")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "METERS");
+		}
 		pcs->units[Q_LENGTH] = 1.0;
 	    } else if (s_str(&uctoken)[0] == 'F') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "FEET")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "FEET");
+		}
 		pcs->units[Q_LENGTH] = METRES_PER_FOOT;
 	    } else {
 		filepos fp;
@@ -2672,17 +2778,34 @@ walls_parse_options(void)
 	    }
 	    break;
 	  case WALLS_UNITS_OPT_A:
+	  case WALLS_UNITS_OPT_AB: {
+	    q_quantity q =
+		(opt == WALLS_UNITS_OPT_A ? Q_BEARING : Q_BACKBEARING);
 	    walls_get_option_token();
 	    // It seems Walls only checks the initial letter.
 	    if (s_str(&uctoken)[0] == 'D') {
 		// Degrees.
-		pcs->units[Q_BEARING] = M_PI / 180.0;
+		if (s_str(&uctoken)[1] &&
+		    !S_EQ(&uctoken, "DEGREES") &&
+		    !S_EQ(&uctoken, "DEG")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "DEGREES");
+		}
+		pcs->units[q] = M_PI / 180.0;
 	    } else if (s_str(&uctoken)[0] == 'G') {
 		// Grads.
-		pcs->units[Q_BEARING] = M_PI / 200.0;
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "GRADS")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "GRADS");
+		}
+		pcs->units[q] = M_PI / 200.0;
 	    } else if (s_str(&uctoken)[0] == 'M') {
 		// Mils.
-		pcs->units[Q_BEARING] = M_PI / 3200.0;
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "MILS")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "MILS");
+		}
+		pcs->units[q] = M_PI / 3200.0;
 	    } else {
 		filepos fp;
 		get_pos(&fp);
@@ -2694,45 +2817,47 @@ walls_parse_options(void)
 		set_pos(&fp);
 	    }
 	    break;
-	  case WALLS_UNITS_OPT_AB:
-	    walls_get_option_token();
-	    // It seems Walls only checks the initial letter.
-	    if (s_str(&uctoken)[0] == 'D') {
-		// Degrees.
-		pcs->units[Q_BACKBEARING] = M_PI / 180.0;
-	    } else if (s_str(&uctoken)[0] == 'G') {
-		// Grads.
-		pcs->units[Q_BACKBEARING] = M_PI / 200.0;
-	    } else if (s_str(&uctoken)[0] == 'M') {
-		// Mils.
-		pcs->units[Q_BACKBEARING] = M_PI / 3200.0;
-	    } else {
-		filepos fp;
-		get_pos(&fp);
-		set_pos(&fp_option);
-		(void)nextch(); // Skip the `=`.
-		compile_diagnostic(DIAG_ERR|DIAG_COL,
-				   /*Expecting “%s”, “%s”, or “%s”*/188,
-				   "D", "G", "M");
-		set_pos(&fp);
-	    }
-	    break;
+	  }
 	  case WALLS_UNITS_OPT_V:
+	  case WALLS_UNITS_OPT_VB: {
+	    q_quantity q =
+		(opt == WALLS_UNITS_OPT_V ? Q_GRADIENT : Q_BACKGRADIENT);
+	    bool *clino_percent_ptr =
+		(opt == WALLS_UNITS_OPT_V ? &pcs->f_clino_percent
+		                          : &pcs->f_backclino_percent);
 	    walls_get_option_token();
-	    pcs->f_clino_percent = false;
+	    *clino_percent_ptr = false;
 	    // It seems Walls only checks the initial letter.
 	    if (s_str(&uctoken)[0] == 'D') {
 		// Degrees.
-		pcs->units[Q_GRADIENT] = M_PI / 180.0;
+		if (s_str(&uctoken)[1] &&
+		    !S_EQ(&uctoken, "DEGREES") &&
+		    !S_EQ(&uctoken, "DEG")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "DEGREES");
+		}
+		pcs->units[q] = M_PI / 180.0;
 	    } else if (s_str(&uctoken)[0] == 'G') {
 		// Grads.
-		pcs->units[Q_GRADIENT] = M_PI / 200.0;
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "GRADS")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "GRADS");
+		}
+		pcs->units[q] = M_PI / 200.0;
 	    } else if (s_str(&uctoken)[0] == 'M') {
 		// Mils.
-		pcs->units[Q_GRADIENT] = M_PI / 3200.0;
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "MILS")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "MILS");
+		}
+		pcs->units[q] = M_PI / 3200.0;
 	    } else if (s_str(&uctoken)[0] == 'P') {
-		pcs->units[Q_GRADIENT] = 0.01;
-		pcs->f_clino_percent = true;
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "PERCENT")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "PERCENT");
+		}
+		pcs->units[q] = 0.01;
+		*clino_percent_ptr = true;
 	    } else {
 		filepos fp;
 		get_pos(&fp);
@@ -2744,43 +2869,25 @@ walls_parse_options(void)
 		set_pos(&fp);
 	    }
 	    break;
-	  case WALLS_UNITS_OPT_VB:
-	    walls_get_option_token();
-	    pcs->f_backclino_percent = false;
-	    // It seems Walls only checks the initial letter.
-	    if (s_str(&uctoken)[0] == 'D') {
-		// Degrees.
-		pcs->units[Q_BACKGRADIENT] = M_PI / 180.0;
-	    } else if (s_str(&uctoken)[0] == 'G') {
-		// Grads.
-		pcs->units[Q_BACKGRADIENT] = M_PI / 200.0;
-	    } else if (s_str(&uctoken)[0] == 'M') {
-		// Mils.
-		pcs->units[Q_BACKGRADIENT] = M_PI / 3200.0;
-	    } else if (s_str(&uctoken)[0] == 'P') {
-		pcs->units[Q_BACKGRADIENT] = 0.01;
-		pcs->f_backclino_percent = true;
-	    } else {
-		filepos fp;
-		get_pos(&fp);
-		set_pos(&fp_option);
-		(void)nextch(); // Skip the `=`.
-		compile_diagnostic(DIAG_ERR|DIAG_COL,
-				   /*Expecting “%s”, “%s”, “%s”, or “%s”*/189,
-				   "D", "G", "M", "P");
-		set_pos(&fp);
-	    }
-	    break;
+	  }
 	  case WALLS_UNITS_OPT_S:
 	    walls_get_option_token();
 	    // From testing it seems Walls only checks the initial letter - e.g.
 	    // "M", "METERS", "METRES", "F", "FEET" and even "FISH" are accepted,
 	    // but "X" gives an error.
 	    if (s_str(&uctoken)[0] == 'M') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "METERS")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "METERS");
+		}
 		pcs->units[Q_DX] =
 		pcs->units[Q_DY] =
 		pcs->units[Q_DZ] = 1.0;
 	    } else if (s_str(&uctoken)[0] == 'F') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "FEET")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "FEET");
+		}
 		pcs->units[Q_DX] =
 		pcs->units[Q_DY] =
 		pcs->units[Q_DZ] = METRES_PER_FOOT;
@@ -2812,6 +2919,9 @@ walls_parse_options(void)
 	  }
 	  case WALLS_UNITS_OPT_DECL:
 	    pcs->z[Q_DECLINATION] = -read_walls_angle(M_PI / 180.0);
+	    if (proj_str_out) {
+		pcs->z[Q_DECLINATION] += get_convergence();
+	    }
 	    break;
 	  case WALLS_UNITS_OPT_INCA:
 	    pcs->z[Q_BEARING] = -read_walls_angle(pcs->units[Q_BEARING]);
@@ -2841,7 +2951,7 @@ walls_parse_options(void)
 	    set_pos(&fp_option);
 	    // TRANSLATORS: "Walls" is David McKenzie's cave surveying package,
 	    // so should not be translated.
-	    compile_diagnostic(DIAG_WARN|DIAG_QTOKEN, /*Ignoring unsupported Walls option “%s”*/582, s_str(&token));
+	    compile_diagnostic(DIAG_WARN|DIAG_QTOKEN, /*Ignoring unsupported Walls option “%s”*/542, s_str(&token));
 	    set_pos(&fp);
 	    (void)read_walls_angle(M_PI / 180.0);
 	    break;
@@ -2917,14 +3027,94 @@ walls_parse_options(void)
 	    break;
 	  }
 	  case WALLS_UNITS_OPT_LRUD: {
-	    // Value is F, T, FB, TB or one of those followed by eg. :UDRL (no
-	    // spaces around :).  Default is F:LRUD.
-	    //
-	    // We currently ignore LRUD, so can also ignore the settings for
-	    // it.
-	    string val = S_INIT;
-	    read_string(&val);
-	    s_free(&val);
+	    // Value is `F`, `T`, `FB`, `TB` or one of those followed by `:`
+	    // and some permutation of `LRUD` (e.g. `TB:LUDR`).  No spaces
+	    // are allowed around the `:`.  Default is F:LRUD.
+	    static const sztok lrud_tab[] = {
+	         {"F",	0},
+	         {"FB",	0},
+	         {"T",	1},
+	         {"TB",	1},
+	         {NULL,	-1}
+	    };
+	    get_token();
+	    int lrud_setting = match_tok(lrud_tab, TABSIZE(lrud_tab));
+	    if (lrud_setting < 0) {
+		compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+				   /*Expecting “%s”, “%s”, “%s”, or “%s”*/189,
+				   "F", "FB", "T", "TB");
+	    } else {
+		p_walls_options->lrud_on_to = (lrud_setting != 0);
+	    }
+
+	    if (ch == ':') {
+		char lrud_togo[] = "LRUD";
+		nextch();
+		int lrud_order = 0;
+		while (lrud_togo[0]) {
+		    if (isalpha((unsigned char)ch)) {
+			char ch_upper = toupper((unsigned char)ch);
+			char *q = strchr(lrud_togo, ch_upper);
+			if (q) {
+			    memmove(q, q + 1, strlen(q));
+			    nextch();
+			    reading r = Left;
+			    if (ch_upper != 'L') {
+				// Maps 'R'->Right, 'U'->Up, 'D'->Down.
+				static_assert(Down - ('R' & 11) == Right,
+					      "Right value not as expected");
+				static_assert(Down - ('U' & 11) == Up,
+					      "Up value not as expected");
+				static_assert(Down - ('D' & 11) == Down,
+					      "Down value not as expected");
+				r = (reading)(Down - (ch_upper & 11));
+			    }
+			    lrud_order = (lrud_order >> 8) | ((int)r << 24);
+			    continue;
+			}
+		    }
+
+		    switch (strlen(lrud_togo)) {
+		      case 4:
+			compile_diagnostic(DIAG_ERR|DIAG_COL,
+					   /*Expecting “%s”, “%s”, “%s”, or “%s”*/189,
+					   "L", "R", "U", "D");
+			break;
+		      case 3: {
+			char arg0[2] = { lrud_togo[0], '\0' };
+			char arg1[2] = { lrud_togo[1], '\0' };
+			compile_diagnostic(DIAG_ERR|DIAG_COL,
+					   /*Expecting “%s”, “%s”, or “%s”*/188,
+					   arg0, arg1, lrud_togo + 2);
+			break;
+		      }
+		      case 2: {
+			char arg0[2] = { lrud_togo[0], '\0' };
+			compile_diagnostic(DIAG_ERR|DIAG_COL,
+					   /*Expecting “%s” or “%s”*/103,
+					   arg0, lrud_togo + 1);
+			break;
+		      }
+		      case 1:
+			compile_diagnostic(DIAG_ERR|DIAG_COL,
+					   /*Expecting “%s”*/497, lrud_togo);
+			break;
+		    }
+		    // Skip the rest of the token to avoid reporting multiple
+		    // errors for one problem.
+		    get_token_no_blanks();
+		    break;
+		}
+
+		if (isBlank(ch) || isEol(ch) || isComm(ch)) {
+		    p_walls_options->lrud_order = lrud_order;
+		    break;
+		}
+
+		compile_diagnostic(DIAG_ERR|DIAG_COL,
+				   /*Expecting “%s”*/497, "");
+		get_token_no_blanks();
+	    }
 	    break;
 	  }
 	  case WALLS_UNITS_OPT_TAPE: {
@@ -2944,11 +3134,19 @@ walls_parse_options(void)
 	  case WALLS_UNITS_OPT_TYPEAB:
 	    walls_get_option_token();
 	    if (s_str(&uctoken)[0] == 'N') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "NORMAL")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "NORMAL");
+		}
 		if (p_walls_options->typeab_c) {
 		    p_walls_options->typeab_c = false;
 		    update_backcomp_calibration = true;
 		}
 	    } else if (s_str(&uctoken)[0] == 'C') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "CORRECTED")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "CORRECTED");
+		}
 		if (!p_walls_options->typeab_c) {
 		    p_walls_options->typeab_c = true;
 		    update_backcomp_calibration = true;
@@ -2977,8 +3175,10 @@ walls_parse_options(void)
 		if (ch == ',') {
 		    nextch();
 		    if (toupper(ch) == 'X') {
+			// FIXME: `X` means only use foresight (but check
+			// backsight), but we've not seen any real-world uses).
+			compile_diagnostic(DIAG_WARN|DIAG_COL, /*Ignoring unsupported Walls option “%s”*/542, "X");
 			nextch();
-			// FIXME: Only use foresight (but check backsight).
 		    }
 		}
 	    }
@@ -2986,8 +3186,16 @@ walls_parse_options(void)
 	  case WALLS_UNITS_OPT_TYPEVB:
 	    walls_get_option_token();
 	    if (s_str(&uctoken)[0] == 'N') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "NORMAL")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "NORMAL");
+		}
 		pcs->sc[Q_BACKGRADIENT] = 1.0;
 	    } else if (s_str(&uctoken)[0] == 'C') {
+		if (s_str(&uctoken)[1] && !S_EQ(&uctoken, "CORRECTED")) {
+		    compile_diagnostic(DIAG_WARN|DIAG_TOKEN,
+				       /*Expecting “%s”*/497, "CORRECTED");
+		}
 		pcs->sc[Q_BACKGRADIENT] = -1.0;
 	    } else {
 		filepos fp;
@@ -3012,8 +3220,10 @@ walls_parse_options(void)
 		if (ch == ',') {
 		    nextch();
 		    if (toupper(ch) == 'X') {
+			// FIXME: `X` means only use foresight (but check
+			// backsight), but we've not seen any real-world uses).
+			compile_diagnostic(DIAG_WARN|DIAG_COL, /*Ignoring unsupported Walls option “%s”*/542, "X");
 			nextch();
-			// FIXME: Only use foresight (but check backsight).
 		    }
 		}
 	    }
@@ -3026,11 +3236,23 @@ walls_parse_options(void)
 	    filepos fp_arg;
 	    get_pos(&fp_arg);
 	    real scale_factor = read_numeric(false);
+	    if (scale_factor == 0) {
+		// Survex doesn't currently support zero variance, so map to a
+		// very small factor for now.
+		scale_factor = 0.000001;
+	    } else if (scale_factor > 9999.0) {
+		// Cap the scale factor for now as very large scale factors can
+		// cause assertion failures due slightly non-symmetric
+		// covariance matrices.
+		//
+		// FIXME: Map to infinite variances once we support those.
+		scale_factor = 9999.0;
+	    }
 	    if (scale_factor < 0) {
 		set_pos(&fp_arg);
 		// TRANSLATORS: "Walls" is David McKenzie's cave surveying package,
 		// so should not be translated.
-		compile_diagnostic(DIAG_ERR|DIAG_NUM, /*Value can not be negative*/583);
+		compile_diagnostic(DIAG_ERR|DIAG_NUM, /*Value can not be negative*/543);
 	    } else if (opt == WALLS_UNITS_OPT_UV) {
 		p_walls_options->uvh = scale_factor;
 		p_walls_options->uvv = scale_factor;
@@ -3071,7 +3293,8 @@ walls_parse_options(void)
 	    walls_reset();
 	    break;
 	  case WALLS_UNITS_OPT_RESTORE: {
-	    // FIXME: Should this be processed before other arguments?
+	    // FIXME: This should be processed before other arguments (not
+	    // documented as such, but experimentation shows it is).
 	    if (!p_walls_options->explicit) {
 		/* TRANSLATORS: %s is replaced with e.g. BEGIN or .BOOK or #[ */
 		compile_diagnostic(DIAG_ERR|DIAG_QTOKEN, /*No matching %s*/192, "SAVE");
@@ -3183,7 +3406,7 @@ next_line:
 	    }
 	    if (depth) {
 		/* TRANSLATORS: %s and %s are replaced with e.g. BEGIN and END
-		 * or END and BEGIN or #[ and #] */
+		 * or END and BEGIN or #[ and #] or [ and ] or ] and [ */
 		error_in_file(file.filename, start_lineno,
 			      /*%s with no matching %s in this file*/23,
 			      "#[", "#]");
@@ -3310,7 +3533,7 @@ next_line:
 		// Walls seems to ignore anything after the date so make this a
 		// warning not an error so we can process existing Walls
 		// datasets (e.g. the Mammoth dataset reportedly has `#Date
-		// 1978-07-01\`.
+		// 1978-07-01\`).
 		compile_diagnostic(DIAG_WARN|DIAG_SKIP|DIAG_TAIL,
 				   /*End of line not blank*/15);
 	    }
@@ -3388,7 +3611,7 @@ next_line:
 		//
 		// Walls handling of `#` is subtle here - e.g. `#15` is
 		// part of the note; `#s`/`#seg`/`#segment` ends the
-		// note and set the segment; `#` followed by another
+		// note and sets the segment; `#` followed by another
 		// letter (note: blanks are allowed in between) gives the
 		// weirdly confused error "Use only #SEG on vector lines".
 		//
@@ -3414,7 +3637,7 @@ next_line:
 		// set by .REF in the wpj.
 		if (walls_ref.img_datum_code > 0 && proj_str_out) {
 		    int epsg_code =
-			img_compass_longlat_epsg_code(walls_ref.img_datum_code);
+			img_longlat_epsg_code(walls_ref.img_datum_code);
 		    char proj_longlat[32];
 		    snprintf(proj_longlat, sizeof(proj_longlat),
 			     "EPSG:%d", epsg_code);
@@ -3486,11 +3709,6 @@ next_line:
 		    compile_diagnostic_pfx(DIAG_INFO, name, /*Previously fixed or equated here*/493);
 		    set_pos(&fp);
 		}
-		break;
-	    }
-
-	    if (var_xy == HUGE_REAL && var_z == HUGE_REAL) {
-		// We've been asked to not fix horizontally or vertically!
 		break;
 	    }
 
@@ -3577,7 +3795,7 @@ read_flagged_stations:
 						  false, NULL);
 		name->sflags |= station_flags;
 		// Suppress "unused fixed point" warnings for stations in #flag.
-		name->sflags |= BIT(SFLAGS_USED);
+                name->sflags |= BIT(SFLAGS_USED) | BIT(SFLAGS_WALLS_FLAG);
 
 		skipblanks();
 	    }
@@ -3611,7 +3829,7 @@ read_flagged_stations:
 	    // note.
 	    prefix *name = read_walls_station(p_walls_options->prefix,
 					      false, NULL);
-	    name->sflags |= BIT(SFLAGS_USED);
+	    name->sflags |= BIT(SFLAGS_USED) | BIT(SFLAGS_WALLS_NOTE);
 	    skipblanks();
 	    if (isComm(ch) || isEol(ch)) {
 		// Walls gives an error for an empty note.
@@ -3792,7 +4010,7 @@ data_file_walls_wpj(void)
 	process_eol();
     }
 
-    int status = -1;
+    int status = 0;
     long name_lpos = -1;
     unsigned name_lineno = 0;
     filepos fp_name;
@@ -3874,13 +4092,24 @@ process_entry:
 		   p_walls_options->prefix[2] ? p_walls_options->prefix[2] : "");
 #endif
 	    char *filename;
+	    const char* ext = "srv";
 	    FILE *fh = fopen_portable(s_str(&p_walls_options->path),
-				      s_str(&name), "srv", "rb", &filename);
-	    if (fh == NULL)
+				      s_str(&name), ext, "rb", &filename);
+	    if (fh == NULL && errno == ENOENT) {
+		ext = "SRV";
 		fh = fopen_portable(s_str(&p_walls_options->path),
-				    s_str(&name), "SRV", "rb", &filename);
+				    s_str(&name), ext, "rb", &filename);
+		if (errno == ENOENT) {
+		    // If neither exist, report the warning for `.srv` (but if
+		    // the `.srv` doesn't exist and the `.SRV` is not readable
+		    // report the error for the `.SRV` as Walls will error in
+		    // that case).
+		    ext = "srv";
+		}
+	    }
 
 	    if (fh == NULL) {
+		bool not_found = (errno == ENOENT);
 		// Report the diagnostic at the location of the ".NAME".
 		unsigned save_line = file.line;
 		long save_lpos = file.lpos;
@@ -3896,14 +4125,18 @@ process_entry:
 		string full_file = S_INIT;
 		s_appends(&full_file, &p_walls_options->path);
 		s_appends(&full_file, &name);
-		s_append(&full_file, ".SRV");
-		if (!fDirectory(s_str(&p_walls_options->path))) {
-		    // Walls appears to quietly ignore file if the
-		    // directory does not exist, but it seems worth
-		    // warning about at least.
+		s_appendch(&full_file, '.');
+		s_append(&full_file, ext);
+		if (not_found) {
+		    // Walls quietly ignores a `.srv` file if it doesn't exist
+		    // (but does report an error if it exists but isn't
+		    // readable).
 		    //
-		    // FIXME: This should take case into account like
-		    // opening the file does.
+		    // There is an indication in the UI (the icon is a blank
+		    // page instead of a page with writing), but we've seen
+		    // surveys not actually included into a real world dataset
+		    // because the path wasn't set and this feature meant it
+		    // was missed until the dataset was processed with Survex.
 		    compile_diagnostic(DIAG_WARN|DIAG_TAIL, /*Couldn’t open file “%s”*/1, s_str(&full_file));
 		} else {
 		    compile_diagnostic(DIAG_ERR|DIAG_TAIL, /*Couldn’t open file “%s”*/1, s_str(&full_file));
@@ -3954,7 +4187,7 @@ process_entry:
 	    }
 
 srv_not_found:
-	    status = -1;
+	    status = 0;
 	    s_clear(&name);
 	    //s_clear(&path);
 	    walls_ref.x = walls_ref.y = walls_ref.z = HUGE_VAL;
@@ -3975,6 +4208,9 @@ detached_or_not_srv:
 	    break;
 	  case WALLS_WPJ_CMD_SURVEY:
 	    push_walls_options(); // FIXME: Eliminate redundant push and pop inside data_file_walls_srv()
+	    // Walls omits `.STATUS` if its value would be zero, so set that as
+	    // the default for each `.SURVEY`.
+	    status = 0;
 	    in_survey = true;
 	    skipline();
 	    break;
@@ -4050,34 +4286,20 @@ detached_or_not_srv:
 	    get_pos(&fp);
 	    string datum_str = S_INIT;
 	    read_string(&datum_str);
-	    int datum = img_parse_compass_datum_string(s_str(&datum_str),
-						       s_len(&datum_str));
+	    int datum = img_parse_datum_string(s_str(&datum_str),
+					       s_len(&datum_str));
 	    if (datum == 0) {
-		// Walls has different name strings to Compass for some datums.
-		if (S_EQ(&datum_str, "NAD27 CONUS")) {
-		    // FIXME Assuming this is right.  Walls seems to have 6
-		    // variant NAD27 datums, not sure what's going on.
-		    datum = img_DATUM_NAD27;
-		} else if (S_EQ(&datum_str, "NAD83")) {
-		    datum = img_DATUM_NAD83;
-		} else if (S_EQ(&datum_str, "Geodetic Datum `49")) {
-		    datum = img_DATUM_NZGD49;
-		} else if (S_EQ(&datum_str, "Hu-Tzu-Shan")) {
-		    datum = img_DATUM_HUTZUSHAN1950;
-		} else {
-		    compile_diagnostic(DIAG_ERR|DIAG_FROM(fp),
-				       /*Datum “%s” not supported*/503,
-				       s_str(&datum_str));
-		    // Set a datum to avoid causing problems converting
-		    // coordinates.
-		    datum = img_DATUM_WGS84;
-		}
+		compile_diagnostic(DIAG_ERR|DIAG_FROM(fp),
+				   /*Datum “%s” not supported*/503,
+				   s_str(&datum_str));
+		// Set a datum to avoid causing problems converting
+		// coordinates.
+		datum = img_DATUM_WGS84;
 	    }
 	    s_free(&datum_str);
 
-	    if (datum && walls_ref.zone && abs(walls_ref.zone) <= 60) {
-		char *proj_str = img_compass_utm_proj_str(datum,
-							  walls_ref.zone);
+	    if (datum && walls_ref.zone && abs(walls_ref.zone) <= 61) {
+		char *proj_str = img_utm_proj_str(datum, walls_ref.zone);
 		set_declination_location(walls_ref.x, walls_ref.y, walls_ref.z,
 					 proj_str, NULL);
 		if (!pcs->proj_str) {
@@ -4088,19 +4310,6 @@ detached_or_not_srv:
 		    pcs->input_convergence = HUGE_REAL;
 		} else {
 		    free(proj_str);
-		}
-	    } else if (datum == img_DATUM_WGS84 && abs(walls_ref.zone) == 61) {
-		// Polar UPS zones.
-		const char *proj_str =
-		    (walls_ref.zone > 0 ? "EPSG:5041" : "EPSG:5042");
-		set_declination_location(walls_ref.x, walls_ref.y, walls_ref.z,
-					 proj_str, NULL);
-		if (!pcs->proj_str) {
-		    pcs->proj_str = osstrdup(proj_str);
-		    if (!proj_str_out) {
-			proj_str_out = osstrdup(proj_str);
-		    }
-		    pcs->input_convergence = HUGE_REAL;
 		}
 	    }
 
@@ -4201,7 +4410,7 @@ data_file_survex(void)
 
     if (pcs->begin_lineno) {
 	/* TRANSLATORS: %s and %s are replaced with e.g. BEGIN and END
-	 * or END and BEGIN or #[ and #] */
+	 * or END and BEGIN or #[ and #] or [ and ] or ] and [ */
 	error_in_file(file.filename, pcs->begin_lineno,
 		      /*%s with no matching %s in this file*/23,
 		      "BEGIN", "END");
@@ -5213,11 +5422,8 @@ read_walls_extras(unsigned long* p_compass_dat_flags)
 	    if (var_z == 0.0) var_z = 1e-6;
 	    // FIXME: We don't currently support legs which only connect in
 	    // some dimensions so give them a high variance for now.
-	    if (var_xy == HUGE_REAL && var_z != HUGE_REAL) {
-		var_xy = 1e6;
-	    } else if (var_z == HUGE_REAL && var_xy != HUGE_REAL) {
-		var_z = 1e6;
-	    }
+	    if (var_xy == HUGE_REAL) var_xy = 1e6;
+	    if (var_z == HUGE_REAL) var_z = 1e6;
 	    VAR(Dx) = var_xy;
 	    VAR(Dy) = var_xy;
 	    VAR(Dz) = var_z;
@@ -5446,14 +5652,6 @@ data_cartesian(void)
 	 /* fall through */
        case End:
 	 if (!fMulti) {
-	     if (VAR(Dx) == HUGE_REAL &&
-		 VAR(Dy) == HUGE_REAL &&
-		 VAR(Dz) == HUGE_REAL) {
-		 // Walls variance override of `(?)` or equivalent turns the leg
-		 // into a "nosurvey" leg.
-		 (void)process_nosurvey(fr, to, (first_stn == To));
-		 return;
-	     }
 	     int implicit_splay = TSTBIT(pcs->flags, FLAGS_IMPLICIT_SPLAY);
 	     pcs->flags &= ~(BIT(FLAGS_ANON_ONE_END) | BIT(FLAGS_IMPLICIT_SPLAY));
 	     int save_flags = pcs->flags;
@@ -5759,13 +5957,19 @@ data_normal(void)
        }
        case CompassDATLeft: case CompassDATRight:
        case CompassDATUp: case CompassDATDown: {
-	  /* FIXME: need to actually make use of these entries! */
 	  reading actual = Left + (*ordering - CompassDATLeft);
 	  read_reading(actual, false);
 	  if (VAL(actual) < 0) VAL(actual) = HUGE_REAL;
 	  break;
        }
        case CompassDATFlags:
+	  if (compass_lrud_previous_to != fr) start_passage();
+	  if (compass_lrud_on_to) {
+	      process_lrud(to);
+	  } else {
+	      process_lrud(fr);
+	  }
+	  compass_lrud_previous_to = to;
 	  if (ch == '#') {
 	     filepos fp;
 	     get_pos(&fp);
@@ -5891,11 +6095,17 @@ data_normal(void)
 					  VAL(Comp) -= seconds / (60.0 * 60.0);
 				      }
 				  } else {
-				      compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+				      get_word_no_blanks();
+				      compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+							 /*Expecting numeric field, found “%s”*/9,
+							 s_str(&token));
 				  }
 			      }
 			  } else {
-			      compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+			      get_word_no_blanks();
+			      compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+						 /*Expecting numeric field, found “%s”*/9,
+						 s_str(&token));
 			  }
 			  VAL(Comp) *= M_PI / 180.0 / pcs->units[Q_BEARING];
 			  break;
@@ -5968,11 +6178,17 @@ data_normal(void)
 					  VAL(BackComp) -= seconds / (60.0 * 60.0);
 				      }
 				  } else {
-				      compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+				      get_word_no_blanks();
+				      compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+							 /*Expecting numeric field, found “%s”*/9,
+							 s_str(&token));
 				  }
 			      }
 			  } else {
-			      compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+			      get_word_no_blanks();
+			      compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+						 /*Expecting numeric field, found “%s”*/9,
+						 s_str(&token));
 			  }
 			  VAL(BackComp) *= M_PI / 180.0 / pcs->units[Q_BACKBEARING];
 			  break;
@@ -6056,11 +6272,17 @@ data_normal(void)
 				      clin -= seconds / (60.0 * 60.0);
 				  }
 			      } else {
-				  compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+				  get_word_no_blanks();
+				  compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+						     /*Expecting numeric field, found “%s”*/9,
+						     s_str(&token));
 			      }
 			  }
 		      } else {
-			  compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+			  get_word_no_blanks();
+			  compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+					     /*Expecting numeric field, found “%s”*/9,
+					     s_str(&token));
 		      }
 		      clin *= M_PI / 180.0 / pcs->units[Q_GRADIENT];
 		      break;
@@ -6140,11 +6362,17 @@ data_normal(void)
 				      backclin -= seconds / (60.0 * 60.0);
 				  }
 			      } else {
-				  compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+				  get_word_no_blanks();
+				  compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+						     /*Expecting numeric field, found “%s”*/9,
+						     s_str(&token));
 			      }
 			  }
 		      } else {
-			  compile_diagnostic(DIAG_WARN|DIAG_COL, /*Expecting numeric field, found “%s”*/9, "");
+			  get_word_no_blanks();
+			  compile_diagnostic(DIAG_ERR|DIAG_TOKEN,
+					     /*Expecting numeric field, found “%s”*/9,
+					     s_str(&token));
 		      }
 		      backclin *= M_PI / 180.0 / pcs->units[Q_BACKGRADIENT];
 		      break;
@@ -6278,7 +6506,7 @@ data_normal(void)
 	  // TRANSLATORS: "Walls" is David McKenzie's cave surveying package,
 	  // so should not be translated.
 	  compile_diagnostic(DIAG_WARN|DIAG_FROM(fp_ih),
-			     /*Instrument and target heights currently ignored with Walls option combination “TAPE=%s” and “ORDER=%s”*/581,
+			     /*Instrument and target heights currently ignored with Walls option combination “TAPE=%s” and “ORDER=%s”*/541,
 			     tape_method, order);
 	  break;
        }
@@ -6425,14 +6653,6 @@ data_normal(void)
 		process_eol();
 		return;
 	     }
-	     if (VAR(Dx) == HUGE_REAL &&
-		 VAR(Dy) == HUGE_REAL &&
-		 VAR(Dz) == HUGE_REAL) {
-		 // Walls variance override of `(?)` or equivalent turns the leg
-		 // into a "nosurvey" leg.
-		 (void)process_nosurvey(fr, to, (first_stn == To));
-		 return;
-	     }
 	     if (fRev) {
 		prefix *t = fr;
 		fr = to;
@@ -6449,7 +6669,8 @@ data_normal(void)
 	     if (TSTBIT(pcs->infer, INFER_EQUATES) &&
 		 (VAL(Tape) == (real)0.0 || VAL(Tape) == HUGE_REAL) &&
 		 (VAL(BackTape) == (real)0.0 || VAL(BackTape) == HUGE_REAL) &&
-		 VAL(FrDepth) == VAL(ToDepth)) {
+		 VAL(FrDepth) == VAL(ToDepth) &&
+		 VAR(Dx) < 1e6 && VAR(Dy) < 1e6 && VAR(Dz) < 1e6) {
 		if (!TSTBIT(pcs->infer, INFER_EQUATES_SELF_OK) || fr != to)
 		   process_equate(fr, to);
 		process_eol();

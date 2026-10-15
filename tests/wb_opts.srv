@@ -1,0 +1,13 @@
+; Test cases where options in `#units` trigger warnings or errors.
+#units lrud=BT:lrurd
+#units lrud=TB:lrur
+#units lrud=Q:QQQQ
+#units lrud=T:lludr
+#units lrud=F:lrru
+#units lrud=Fb:lrdd
+#units LRUD=F:LRUDU
+
+#units D=MOTORS A=DEGREEZ AB=GRADE V=PERHAPS VB=GRIDS S=FEAT
+#units TYPEAB=NORMEL,3,X TYPEVB=CORECTED,5
+; "DEG" is commonly used in real-world data so we don't warn about it.
+#units A=DEG AB=DEG V=DEG VB=DEG

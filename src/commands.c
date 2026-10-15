@@ -135,20 +135,22 @@ static void
 default_grade(settings *s)
 {
    /* Values correspond to those in bcra5.svx */
-   s->Var[Q_POS] = (real)sqrd(0.05);
-   s->Var[Q_LENGTH] = (real)sqrd(0.05);
-   s->Var[Q_BACKLENGTH] = (real)sqrd(0.05);
-   s->Var[Q_COUNT] = (real)sqrd(0.05);
-   s->Var[Q_DX] = s->Var[Q_DY] = s->Var[Q_DZ] = (real)sqrd(0.05);
-   s->Var[Q_BEARING] = (real)sqrd(rad(0.5));
-   s->Var[Q_GRADIENT] = (real)sqrd(rad(0.5));
-   s->Var[Q_BACKBEARING] = (real)sqrd(rad(0.5));
-   s->Var[Q_BACKGRADIENT] = (real)sqrd(rad(0.5));
+   real angle_variance = sqrd(rad(0.5));
+   real distance_variance = sqrd(0.05);
+   s->Var[Q_POS] = distance_variance;;
+   s->Var[Q_LENGTH] = distance_variance;;
+   s->Var[Q_BACKLENGTH] = distance_variance;;
+   s->Var[Q_COUNT] = distance_variance;;
+   s->Var[Q_DX] = s->Var[Q_DY] = s->Var[Q_DZ] = distance_variance;;
+   s->Var[Q_BEARING] = angle_variance;;
+   s->Var[Q_GRADIENT] = angle_variance;;
+   s->Var[Q_BACKBEARING] = angle_variance;;
+   s->Var[Q_BACKGRADIENT] = angle_variance;;
    /* SD of plumbed legs (0.25 degrees?) */
-   s->Var[Q_PLUMB] = (real)sqrd(rad(0.25));
+   s->Var[Q_PLUMB] = angle_variance * 0.25;;
    /* SD of level legs (0.25 degrees?) */
-   s->Var[Q_LEVEL] = (real)sqrd(rad(0.25));
-   s->Var[Q_DEPTH] = (real)sqrd(0.05);
+   s->Var[Q_LEVEL] = angle_variance * 0.25;;
+   s->Var[Q_DEPTH] = distance_variance;;
 }
 
 static void
@@ -441,14 +443,20 @@ get_token_no_blanks(void)
 void
 get_word(void)
 {
-   s_clear(&token);
    skipblanks();
+   get_word_no_blanks();
+}
+
+void
+get_word_no_blanks(void)
+{
+   s_clear(&token);
    while (!isBlank(ch) && !isComm(ch) && !isEol(ch)) {
       s_appendch(&token, ch);
       nextch();
    }
 #if 0
-   printf("get_word() got “%s”\n", s_str(&token));
+   printf("get_word_no_blanks() got “%s”\n", s_str(&token));
 #endif
 }
 
@@ -1062,7 +1070,7 @@ cmd_end(void)
 	 compile_diagnostic(DIAG_ERR|DIAG_SKIP, /*No matching %s*/192, "BEGIN");
       } else {
 	 /* TRANSLATORS: %s and %s are replaced with e.g. BEGIN and END
-	  * or END and BEGIN or #[ and #] */
+	  * or END and BEGIN or #[ and #] or [ and ] or ] and [ */
 	 compile_diagnostic(DIAG_ERR|DIAG_SKIP,
 			    /*%s with no matching %s in this file*/23, "END", "BEGIN");
       }
@@ -1548,6 +1556,16 @@ cmd_export(void)
    } while (!isEol(ch) && !isComm(ch));
 }
 
+void
+start_passage(void)
+{
+    lrudlist * new_psg = osnew(lrudlist);
+    new_psg->tube = NULL;
+    new_psg->next = model;
+    model = new_psg;
+    next_lrud = &(new_psg->tube);
+}
+
 static void
 cmd_data(void)
 {
@@ -1980,13 +1998,8 @@ cmd_data(void)
    free(style_name);
 
 reinit_style:
-   if (style == STYLE_PASSAGE) {
-      lrudlist * new_psg = osnew(lrudlist);
-      new_psg->tube = NULL;
-      new_psg->next = model;
-      model = new_psg;
-      next_lrud = &(new_psg->tube);
-   }
+   if (style == STYLE_PASSAGE)
+       start_passage();
 }
 
 static void
@@ -2556,7 +2569,7 @@ read_cs_from_file(const char *fnm, const filepos *fp)
 {
    char *pth = path_from_fnm(file.filename);
    char *fnm_used = NULL;
-   FILE *fh = fopen_portable(pth, fnm, EXT_PRJ, "rb", &fnm_used);
+   FILE *fh = fopen_portable(pth, fnm, NULL, "rb", &fnm_used);
    free(pth);
    if (fh == NULL) {
       set_pos(fp);

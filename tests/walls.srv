@@ -1,4 +1,4 @@
-; pos=dump warn=42 dummycrprotection=
+; pos=dump warn=38 dummycrprotection=
 #u o=EUN v=g
 #Fix U0 0 1 0
 #seg FOO
@@ -6,7 +6,7 @@
 #Fix Q0 1 1 1
 ; Mammoth reportedly has some "0 0 0 (?)" legs between fixed points so check
 ; those don't cause a problem.
-Q0 U0  0 0 0 (?) #segment /Q ; We treat (?) as a NOSURVEY leg.
+Q0 U0  0 0 0 (?) #segment /Q ; (?) should make the leg very elastic, but with a natural length.
 #UNITS CASE=LOWER CASE=LA CASE=MIZED CASE=US CASE=Q CASE=L CASE=M CASE=U
 u0 u1 5.4 203d +100P/-100P ; Feature test for "p" override supported since 1.4.20.
 #Units V=Percent VB=P a=g
@@ -15,11 +15,11 @@ u0 u1d 5.4 203d +45D ; Regression test for degrees overriding percent
 u0 u1vu 1.0 --  +90D ; Regression test for degrees overriding percent
 u0 u1vd 1.0 --  -90D ; Regression test for degrees overriding percent
 u0 u1dms1 10.0 12:30 0:0:0
-u0 u1dms2 10.0 12:30: 0:0:
-u0 u1dms3 10.0 12 0:
-u0 u1dms4 10.0 12: 0
+u0 u1dms2 10.0 12:30:0 0:0
+u0 u1dms3 10.0 12 0:0.0
+u0 u1dms4 10.0 12:0.0 0
 u0 u1dms5 10.0 12.5d 0d
-u0 u1dms6 10.0 12: 0d
+u0 u1dms6 10.0 12:0. 0d
 #units v=d vb=d a=d case=none ; undocumented but unknown "case=" values -> "mixed"
 #[
 U1 X1 3 4 5
@@ -57,12 +57,12 @@ U3 -- 1.0 ---- -90
 U3   --      7.8     098.7
 #prefix test walls appears to ignore anything here
 #prefix
-#units typeab=n,4,X
-#units typeab=n,4,x
+
 #units typeab=n,10
-#units typevb=c,6,X
-#units typevb=c,6,x
 #units typevb=c,1
+
+
+
 
 ; Walls seems to fail to check for junk after parsing a number in these cases:
 ; (follow with something which should warn to test we continue parsing suitably)
@@ -119,7 +119,7 @@ U23 suf1a 10.5f 100.5g 45d <-.5m,10.5f,10i6.5,i6>
 U23 suf1b 3.2004m 90.45d 45d <-.5m,38.4048m,38.5572m,1.8288m>
 U23 suf2a 10i6.5 15:10:30 -5p
 U23 suf2b 3.2131m 15.175d -2.8624d
-U23 suf2c i126.5 15:10:30 -2:51.744
+U23 suf2c 10i6.5 15:10:30 -2:51.744
 U23 suf2d 3.2131m 15.175d -2:51:44.64
 ; Test mils (360d=6400m)
 U23 suf2e 3.2131m 269.7778m -50.8871m

@@ -82,6 +82,7 @@ void get_token_no_blanks(void);
 
 // Read up to the next BLANK, COMM or end of line.
 void get_word(void);
+void get_word_no_blanks(void);
 
 typedef struct { const char *sz; int tok; } sztok;
 int match_tok(const sztok *tab, int tab_size);
@@ -92,3 +93,5 @@ void update_separator_map_for_foreign_name(const char* name);
 void update_separator_map_for_foreign_format(const short *t);
 void update_output_separator(void);
 void commands_reset_state(void);
+
+void start_passage(void);

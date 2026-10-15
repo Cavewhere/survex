@@ -101,7 +101,7 @@ TESTS_=
  percent_gradient dotinsurvey leandroclino lowsd revdir gettokennullderef\
  complexhanging inventedhanging\
  nosurveyhanging nosurveyhanging2\
- cmd_solve_nothing cmd_solve_nothing_implicit\
+ cmd_solve_hanging cmd_solve_nothing cmd_solve_nothing_implicit\
  cmd_cartesian cmd_cartesian_bad\
  cmd_calibrate cmd_declination cmd_declination_auto cmd_declination_auto_bad\
  cmd_declination_conv cmd_declination_conv_proj_bug\
@@ -111,7 +111,7 @@ TESTS_=
  backread.dat corrections.dat crcrlf.dat depthguage.dat flags.dat\
  karstcompat.dat lrud.dat nomeasure.dat noteam.dat\
  badmak.mak\
- fixfeet.mak linkfix.mak utm.mak\
+ fixfeet.mak linkfix.mak folder.mak utm.mak\
  clptest.dat clptest.clp\
  walls.srv\
  baddate.srv badomit.srv badopts.srv\
@@ -125,7 +125,12 @@ TESTS_=
  wallsfsbsclino.wpj\
  wallshtie.wpj\
  wallsihth.wpj\
+ wallsmissingsrv.wpj\
+ wallsplumb.wpj\
  wallsprefix.wpj\
+ wallsups.wpj\
+ wallsvariance.wpj\
+ wallsbadoptions.wpj\
  wallsbadreadings.wpj\
  passage hanging_lrud equatenosuchstn surveytypo\
  skipafterbadomit passagebad badreadingdotplus badcalibrate calibrate_clino\

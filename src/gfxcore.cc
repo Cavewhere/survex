@@ -1186,7 +1186,7 @@ void GfxCore::DrawErrorKey()
 	//
 	// If there should be a space between the number and this, include
 	// one in the translation.
-	wxString units = wmsg(/*σ*/584);
+	wxString units = wmsg(/*σ*/544);
 	num_bands = GetNumColourBands();
 	for (int band = 0; band < num_bands; ++band) {
 	    if (MAX_ERROR == num_bands - 1) {
@@ -2528,10 +2528,10 @@ void GfxCore::ToggleFatFinger()
 {
     if (sqrd_measure_threshold == sqrd(MEASURE_THRESHOLD)) {
 	sqrd_measure_threshold = sqrd(5 * MEASURE_THRESHOLD);
-	wxMessageBox(wxT("Fat finger enabled"), wxT("Aven Debug"), wxOK | wxICON_INFORMATION);
+	wxMessageBox(wxT("Fat finger on (F2 to toggle)"), wxT("Aven Debug"), wxOK | wxICON_INFORMATION);
     } else {
 	sqrd_measure_threshold = sqrd(MEASURE_THRESHOLD);
-	wxMessageBox(wxT("Fat finger disabled"), wxT("Aven Debug"), wxOK | wxICON_INFORMATION);
+	wxMessageBox(wxT("Fat finger off (F2 to toggle)"), wxT("Aven Debug"), wxOK | wxICON_INFORMATION);
     }
 }
 

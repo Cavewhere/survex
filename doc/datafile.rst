@@ -556,7 +556,11 @@ Description
      resource for finding the EPSG code you want.  For example, ``EPSG:4167``
      is NZGD2000.  Supported since Survex 1.2.15.
 
-   * ``CUSTOM`` followed by a PROJ string (like in the example above).
+   * ``CUSTOM`` followed by a string PROJ understands (like in the example
+     above).  If the coordinate system description is long you may find it
+     cumbersome to have to write the description inline in the ``.svx`` file,
+     in which case see ``FILE`` below which allows specifying it in a separate
+     file.
 
    * ``ESRI:`` followed by a positive integer code.  ESRI codes are used by
      ArcGIS to specify coordinate systems (in a similar way to EPSG codes)
@@ -565,22 +569,24 @@ Description
    * ``EUR79Z30`` for UTM zone 30, EUR79 datum.  Supported since Survex
      1.2.15.
 
-   * ``FILE`` followed by the name of a file which describes the coordinate
-     system (like in the example above).  The description may be a PROJ string,
-     but the point of reading it from a file is that it can also be WKT or
-     PROJJSON, which are made up of double quoted strings written over several
-     lines and so are awkward to write in a ``.svx`` file.  It means a ``.prj``
-     file such as those which accompany ESRI shapefiles can be used directly,
-     so you can georeference a survey to match GIS data you already have.
+   * ``FILE`` followed by the name of a file which contains a description of
+     the coordinate system (like in the example above).  The description can
+     be anything PROJ understands.  This provides a convenient way to specify
+     the coordinate system using a format such as WKT or PROJJSON, which
+     contain double quoted strings written over several lines and so are
+     awkward to write inline in a ``.svx`` file as required by ``CUSTOM``.
+     This also allows ``.prj`` file such as those which accompany ESRI
+     shapefiles to be used directly, so you can georeference a survey to match
+     GIS data you already have.
 
      WKT can also express datums which a PROJ string can't, such as
      NAD83(2011), ETRS89 and GDA2020.
 
      The file is resolved relative to the directory which the file containing
-     the ``*cs`` is in, and if the name as specified is not found cavern will
-     try adding a ``.prj`` extension.  If the filename contains spaces, it must
-     be enclosed in double quotes, and you can double the quote character to
-     include it in the filename.
+     the ``*cs`` is in, and the same case-mapping is applied as for opening
+     survey data files.  If the file has an extension, you need to include it.
+     If the filename contains spaces, it must be enclosed in double quotes, and
+     you can double the quote character to include it in the filename.
 
      The lines of the file are joined with a single space, since the coordinate
      system is stored in the ``.3d`` file as a single line.  Neither WKT nor
@@ -873,7 +879,10 @@ Description
       CYLPOLAR
          A ``CYLPOLAR`` style survey is very similar to a diving survey, except
          that the tape is always measured horizontally rather than along the
-         slope of the leg.
+         slope of the leg.  Names sometimes used for this style include
+         "flat tape surveys" and "delta height surveys" (Survex's name comes
+         from "cylindrical polar", which is the name of a mathematical
+         coordinate system which matches this style).
 
          ::
 
@@ -1967,17 +1976,15 @@ Syntax
 
 Description
    Station names may be of any length in Survex, but some other (mostly older)
-   cave surveying software only regards the first few characters of a name as
-   significant (e.g. "entran" and "entrance" might be treated as the same).
-   To facilitate using data imported from such a package, Survex allows you to
-   truncate names to whatever length you want (but by default truncation is
-   off).
+   cave surveying software imposes a limit on the length of station names.
+   An 8 character limit seems common (e.g. Smaps 4, Surveyor87/88, Walls),
+   but CMAP had a 6 character limit and Compass has a limit of 12.
 
-   Figures for the number of characters which are significant in various
-   software packages: Compass currently has a limit of 12, CMAP has a limit of
-   6, Smaps 4 had a limit of 8, Surveyor87/8 used 8. Survex itself used 8 per
-   prefix level up to version 0.41, and 12 per prefix level up to 0.73 (more
-   recent versions removed this rather archaic restriction).
+   Rather than giving an error, some software only regarded the first few
+   characters of a name as significant (e.g. "entran" and "entrance" might be
+   treated as the same).  To facilitate working with data imported from such
+   software Survex allows you to truncate names to whatever length you want.
+   By default truncation is off.
 
 See Also
    ``*case``
