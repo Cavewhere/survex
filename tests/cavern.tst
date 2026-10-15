@@ -128,6 +128,7 @@ TESTS_=
  wallsmissingsrv.wpj\
  wallsplumb.wpj\
  wallsprefix.wpj\
+ wallsrefindex.wpj\
  wallsups.wpj\
  wallsvariance.wpj\
  wallsbadoptions.wpj\

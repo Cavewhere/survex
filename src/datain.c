@@ -3933,6 +3933,39 @@ static const sztok walls_wpj_cmd_tab[] = {
     {NULL,	WALLS_WPJ_CMD_NULL}
 };
 
+// Datum names in the order of Walls' datum index (from gDatum[] in
+// Walls32/datum.cpp).
+static const char *const walls_datums[] = {
+    "Adindan",
+    "Arc 1950",
+    "Arc 1960",
+    "Australian Geod `66",
+    "Australian Geod `84",
+    "Camp Area Astro",
+    "Cape",
+    "European 1950",
+    "European 1979",
+    "Geodetic Datum `49",
+    "Hong Kong 1963",
+    "Hu-Tzu-Shan",
+    "Indian Bangladesh",
+    "NAD27 Alaska",
+    "NAD27 Canada",
+    "NAD27 CONUS",
+    "NAD27 Cuba",
+    "NAD27 Mexico",
+    "NAD27 San Salvador",
+    "NAD83",
+    "Oman",
+    "Ord Srvy Grt Britn",
+    "Prov So Amrican `56",
+    "Puerto Rico",
+    "South American `69",
+    "Tokyo",
+    "WGS 1972",
+    "WGS 1984"
+};
+
 static void
 data_file_walls_wpj(void)
 {
@@ -4277,15 +4310,30 @@ detached_or_not_srv:
 	    (void)read_numeric(false);
 	    (void)read_numeric(false);
 
-	    // Ignore integer index for the datum (e.g. 27 for "WGS 1984").
-	    // The string names seem more likely to have not changed over time.
-	    (void)read_uint();
+	    // Integer index for the datum (e.g. 27 for "WGS 1984").  We use
+	    // the string name if there is one, as the names seem more likely
+	    // to have not changed over time, but Walls may write an empty
+	    // name and rely on the index alone.
+	    unsigned datum_index = read_uint();
 
 	    skipblanks();
 	    filepos fp;
 	    get_pos(&fp);
 	    string datum_str = S_INIT;
 	    read_string(&datum_str);
+	    if (s_empty(&datum_str)) {
+		const char *name = NULL;
+		if (datum_index < sizeof(walls_datums) / sizeof(walls_datums[0])) {
+		    name = walls_datums[datum_index];
+		} else if (datum_index == 254) {
+		    // Legacy code from older versions of Walls.
+		    name = "NAD27 CONUS";
+		} else if (datum_index >= 251 && datum_index <= 255) {
+		    // Other legacy codes from older versions of Walls.
+		    name = "WGS 1984";
+		}
+		if (name) s_append(&datum_str, name);
+	    }
 	    int datum = img_parse_datum_string(s_str(&datum_str),
 					       s_len(&datum_str));
 	    if (datum == 0) {
