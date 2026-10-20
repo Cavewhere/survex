@@ -31,10 +31,29 @@ Walls .WPJ and .SRV support
 ---------------------------
 
 Survex 1.4.9 and later can read Walls unprocessed survey data (``.SRV``
-and ``.WPJ`` files).  When we started to add support, Walls was no longer being
-developed, so the initial focus was to help people with existing Walls data to
-migrate.  Walls development has since restarted, so ongoing interoperation is
-now also an aim.
+and ``.WPJ`` files).  You can process a ``.WPJ`` (which is a Walls Project
+file) or an individual ``.SRV`` (which contains unprocessed survey data)
+with cavern or aven as if it were a ``.svx`` file.
+
+You can even use ``*include wallsdat.srv`` or ``*include
+wallsproject.wpj`` in a ``.svx`` file and it'll work, which allows combining
+separate cave survey projects maintained in Survex and Walls.  (There's
+similar support for Compass ``.DAT`` and ``.MAK``.)
+
+When we started to add support, Walls was no longer being developed, so the
+initial focus was to help people with existing Walls data to migrate.  Walls
+development has since restarted, so ongoing interoperation is now also an aim.
+
+If you are wanting to migrate from Walls to using Survex instead, the ability
+to process mixed format datasets means you don't need to mass-convert all
+your existing survey data, but can keep it in ``.SRV`` format.  Walls ``.WPJ``
+format is textual but not amenable to human modification, so in this scenario
+we would suggest you replace your ``.WPJ`` with a simple top-level ``.svx``
+file which includes each of your ``.SRV`` files using e.g. ``*include
+file1.srv``.  If you are setting options in your ``.WPJ`` you'll need to
+replace those with ``#units`` at the start of each ``.SRV``.  Then going
+forwards, you can either add new data as ``.SRV`` or ``.svx``, depending on
+your preference.
 
 We've mostly implemented this support based on Walls documentation, but
 unfortunately the documentation of the SRV format is often incomplete and
@@ -52,11 +71,17 @@ As of 1.4.24, some large Walls datasets can be successfully processed:
 
 .. FIXME: Link Thailand to https://cave-registry.org.uk/ once that's updated.
 
-Behaviour is not 100% identical and station positions after loop closure will
-inevitably be slightly different, but we encourage processing your Walls
-dataset with both Walls and Survex and comparing the result.  Please report
-significant or apparently systematic errors, or anything that seems suspect.
-If you can provide some data demonstrating the problem, that's really helpful.
+We encourage processing your Walls dataset with both Walls and Survex and
+comparing the result.  If there are loop closures, station positions will
+inevitably not be identical as Walls and Survex model errors differently.
+Walls documents that the SDs are purely proportional to the leg length, and
+appears to solve in X, Y and Z independently.  Survex calculates a variance
+matrix for each leg based on its geometry and the instrument SDs (and this
+matrix includes covariances, so doesn't assume X, Y and Z are independent).
+The differences should small except in cases where there are large misclosures
+due to blunders.  Please report significant or apparently systematic errors, or
+anything that seems suspect.  If you can provide some data demonstrating the
+problem, that's really helpful.
 
 We suggest a couple of ways to compare the results:
 
@@ -72,6 +97,9 @@ We suggest a couple of ways to compare the results:
   report stations whose positions are different by more than 0.5m::
 
     diffpos SURVEY.LST SURVEY.3d 0.5
+
+  Differences are reported as (East,North,Up) vectors in metres from the
+  first file to the second.
 
   ``diffpos`` doesn't compare connectivity, but that's unlikely to differ
   between Survex and Walls output.
