@@ -1,0 +1,3 @@
+; pos=dump warn=0
+*cs out EPSG:26717
+*include w_csout.wpj

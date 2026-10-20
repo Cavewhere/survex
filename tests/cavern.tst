@@ -117,6 +117,8 @@ TESTS_=
  baddate.srv badomit.srv badopts.srv\
  unknowndirective.srv\
  wallsbaddatum.wpj\
+ wallscsout\
+ wallscsoutnoref\
  wallscylpolar.wpj\
  wallsdecl.wpj\
  wallsdiving.wpj\

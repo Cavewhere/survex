@@ -3686,6 +3686,52 @@ next_line:
 		    /* Set dummy values which are finite. */
 		    coords[0] = coords[1] = coords[2] = 0;
 		}
+	    } else if (pcs->proj_str && proj_str_out) {
+		// Convert grid coordinates from the input coordinate system
+		// (set by .REF in the wpj, or by *cs) to the output one.
+		PJ *transform = pj_cached;
+		if (!transform) {
+		    transform = proj_create_crs_to_crs(PJ_DEFAULT_CTX,
+						       pcs->proj_str,
+						       proj_str_out,
+						       NULL);
+		    if (transform) {
+			/* Normalise the output order so x is longitude and y
+			 * latitude - by default new PROJ has them switched for
+			 * EPSG:4326 which just seems confusing.
+			 */
+			PJ* pj_norm = proj_normalize_for_visualization(PJ_DEFAULT_CTX,
+								       transform);
+			proj_destroy(transform);
+			transform = pj_norm;
+		    }
+
+		    pj_cached = transform;
+		}
+
+		if (proj_angular_input(transform, PJ_FWD)) {
+		    /* Input coordinate system expects radians. */
+		    coords[0] = rad(coords[0]);
+		    coords[1] = rad(coords[1]);
+		}
+
+		PJ_COORD coord = {{coords[0], coords[1], coords[2], HUGE_VAL}};
+		coord = proj_trans(transform, PJ_FWD, coord);
+		coords[0] = coord.xyzt.x;
+		coords[1] = coord.xyzt.y;
+		coords[2] = coord.xyzt.z;
+
+		if (coords[0] == HUGE_VAL || coords[1] == HUGE_VAL || coords[2] == HUGE_VAL) {
+		    compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
+				       proj_context_errno_string(PJ_DEFAULT_CTX,
+								 proj_errno(transform)));
+		    /* Set dummy values which are finite. */
+		    coords[0] = coords[1] = coords[2] = 0;
+		}
+	    } else if (pcs->proj_str) {
+		compile_diagnostic(DIAG_ERR, /*The input projection is set but the output projection isn't*/437);
+	    } else if (proj_str_out) {
+		compile_diagnostic(DIAG_ERR, /*The output projection is set but the input projection isn't*/438);
 	    }
 
 	    // Apply station flags inferred from Walls "default flag".
