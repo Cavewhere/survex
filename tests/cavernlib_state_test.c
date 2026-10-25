@@ -52,6 +52,7 @@
 #endif
 
 static const char *test_cases[] = {
+    "xsect_too_many_errors",
     "singlefix", "singlereffix", "oneleg", "midpoint", "lollipop",
     "fixedlollipop", "cross", "firststn", "deltastar", "deltastar2",
     "deltastarhanging", "bug3", "calibrate_tape", "nosurvey2", "cartesian",

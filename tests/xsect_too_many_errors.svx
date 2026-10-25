@@ -1,0 +1,56 @@
+; pos=fail
+; 50 cross-sections at stations the centreline never names: the 50th error
+; is "Too many errors", raised from inside the passage-model free loop.
+*data normal from to tape compass clino
+a b 10 0 0
+*data passage station left right up down
+ghost1 1 1 1 1
+ghost2 1 1 1 1
+ghost3 1 1 1 1
+ghost4 1 1 1 1
+ghost5 1 1 1 1
+ghost6 1 1 1 1
+ghost7 1 1 1 1
+ghost8 1 1 1 1
+ghost9 1 1 1 1
+ghost10 1 1 1 1
+ghost11 1 1 1 1
+ghost12 1 1 1 1
+ghost13 1 1 1 1
+ghost14 1 1 1 1
+ghost15 1 1 1 1
+ghost16 1 1 1 1
+ghost17 1 1 1 1
+ghost18 1 1 1 1
+ghost19 1 1 1 1
+ghost20 1 1 1 1
+ghost21 1 1 1 1
+ghost22 1 1 1 1
+ghost23 1 1 1 1
+ghost24 1 1 1 1
+ghost25 1 1 1 1
+ghost26 1 1 1 1
+ghost27 1 1 1 1
+ghost28 1 1 1 1
+ghost29 1 1 1 1
+ghost30 1 1 1 1
+ghost31 1 1 1 1
+ghost32 1 1 1 1
+ghost33 1 1 1 1
+ghost34 1 1 1 1
+ghost35 1 1 1 1
+ghost36 1 1 1 1
+ghost37 1 1 1 1
+ghost38 1 1 1 1
+ghost39 1 1 1 1
+ghost40 1 1 1 1
+ghost41 1 1 1 1
+ghost42 1 1 1 1
+ghost43 1 1 1 1
+ghost44 1 1 1 1
+ghost45 1 1 1 1
+ghost46 1 1 1 1
+ghost47 1 1 1 1
+ghost48 1 1 1 1
+ghost49 1 1 1 1
+ghost50 1 1 1 1

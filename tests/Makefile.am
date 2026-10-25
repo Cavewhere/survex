@@ -180,7 +180,7 @@ eswap.svx eswap.espec eswapx.3d\
 eswap-break.svx eswap-break.espec eswap-breakx.3d\
 equatenosuchstn.out equatenosuchstn.svx\
 surveytypo.out surveytypo.svx\
-skipafterbadomit.svx passagebad.svx\
+skipafterbadomit.svx passagebad.svx xsect_too_many_errors.svx\
 badreadingdotplus.svx badreadingdotplus.out\
 badcalibrate.svx badcalibrate.out\
 calibrate_clino.svx calibrate_clino.out calibrate_clino.pos\

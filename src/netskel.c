@@ -1029,6 +1029,10 @@ static void
 write_passage_models(void)
 {
    lrudlist * psg = model;
+   /* Detach the list before freeing it: a fatal error in the loop (such as
+    * "Too many errors" from the cross-section diagnostic) unwinds to
+    * cavern_run(), whose cleanup frees whatever model still points at. */
+   model = NULL;
    while (psg) {
       lrudlist * oldp;
       lrud * xsect = psg->tube;
@@ -1070,7 +1074,6 @@ write_passage_models(void)
       psg = psg->next;
       free(oldp);
    }
-   model = NULL;
 }
 
 node *

@@ -136,7 +136,7 @@ TESTS_=
  wallsbadoptions.wpj\
  wallsbadreadings.wpj\
  passage hanging_lrud equatenosuchstn surveytypo\
- skipafterbadomit passagebad badreadingdotplus badcalibrate calibrate_clino\
+ skipafterbadomit passagebad xsect_too_many_errors badreadingdotplus badcalibrate calibrate_clino\
  badunits badbegin anonstn anonstnbad anonstnrev doubleinc reenterlots\
  cs csbad csbadsdfix csfeet cslonglat csprj csprj2 csprjbad\
  omitfixaroundsolve repeatreading\
