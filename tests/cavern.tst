@@ -108,8 +108,8 @@ TESTS_=
  lech level 2fixbug dot17 3dcorner\
  unconnected-bug\
  stationnotes\
- backread.dat corrections.dat crcrlf.dat depthguage.dat flags.dat\
- karstcompat.dat lrud.dat nomeasure.dat noteam.dat\
+ backread.dat compassxlrud.dat corrections.dat crcrlf.dat\
+ depthguage.dat flags.dat karstcompat.dat lrud.dat nomeasure.dat noteam.dat\
  badmak.mak\
  fixfeet.mak linkfix.mak folder.mak utm.mak\
  clptest.dat clptest.clp\
@@ -223,7 +223,7 @@ for file in $TESTS ; do
   pos=
 
   case $file in
-    backread.dat|clptest.dat|clptest.clp|depthguage.dat|karstcompat.dat)
+    backread.dat|clptest.dat|clptest.clp|compassxlrud.dat|depthguage.dat|karstcompat.dat)
       pos=dump
       warn=0
       ;;

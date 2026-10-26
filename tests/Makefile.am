@@ -123,6 +123,7 @@ dotinsurvey.svx dotinsurvey.out\
 gettokennullderef.svx lech.svx level.svx level.pos\
 backread.dat backread.dump\
 clptest.dat clptest.clp clptest.dump\
+compassxlrud.dat compassxlrud.dump compassxlrud.out\
 corrections.dat corrections.pos\
 crcrlf.dat crcrlf.pos\
 depthguage.dat depthguage.dump\

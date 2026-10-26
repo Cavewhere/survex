@@ -6057,13 +6057,6 @@ data_normal(void)
 	  break;
        }
        case CompassDATFlags:
-	  if (compass_lrud_previous_to != fr) start_passage();
-	  if (compass_lrud_on_to) {
-	      process_lrud(to);
-	  } else {
-	      process_lrud(fr);
-	  }
-	  compass_lrud_previous_to = to;
 	  if (ch == '#') {
 	     filepos fp;
 	     get_pos(&fp);
@@ -6092,6 +6085,16 @@ data_normal(void)
 	     } else {
 		set_pos(&fp);
 	     }
+	  }
+	  /* Compass excludes a shot flagged X entirely, including its LRUD. */
+	  if (!(compass_dat_flags & BIT('X' - 'A'))) {
+	      if (compass_lrud_previous_to != fr) start_passage();
+	      if (compass_lrud_on_to) {
+		  process_lrud(to);
+	      } else {
+		  process_lrud(fr);
+	      }
+	      compass_lrud_previous_to = to;
 	  }
 	  break;
        case WallsSRVFr:
