@@ -1,0 +1,35 @@
+csoutpipeline.svx:6:8: error: Failed to convert coordinates: Unknown error (code 4096)
+ *fix a 500000 4000000 100
+        ^~~~~~~~~~~~~~~~~~
+
+Removing trailing traverses...
+
+Concatenating traverses...
+
+Simplifying network...
+
+Calculating network...
+
+Calculating traverses...
+
+Calculating trailing traverses...
+
+Calculating statistics...
+
+cavern: error: Failed to convert coordinates: Unknown error (code 4096)
+cavern: error: Failed to convert coordinates: Unknown error (code 4096)
+cavern: error: Failed to convert coordinates: Unknown error (code 4096)
+cavern: error: Failed to convert coordinates: Unknown error (code 4096)
+cavern: error: Failed to convert coordinates: Unknown error (code 4096)
+cavern: error: Failed to convert coordinates: Unknown error (code 4096)
+Approximate full range of grid convergence: -0.0dg at b to -0.0dg at b
+Survey contains 2 survey stations, joined by 1 leg.
+There are 0 loops.
+Total length of survey legs =   10.00m (  10.00m adjusted)
+Total plan length of survey legs =   10.00m
+Total vertical length of survey legs =    0.00m
+Vertical range = 0.00m (from b at 0.00m to b at 0.00m)
+North-South range = 10.00m (from b at 10.00m to a at 0.00m)
+East-West range = 0.00m (from b at 0.00m to b at 0.00m)
+
+There were 0 warning(s) and 7 error(s) - no output files produced.

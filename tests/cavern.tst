@@ -119,6 +119,7 @@ TESTS_=
  wallsbaddatum.wpj\
  wallscsout\
  wallscsoutnoref\
+ wallscsoutpipeline\
  wallscylpolar.wpj\
  wallsdecl.wpj\
  wallsdiving.wpj\
@@ -138,7 +139,8 @@ TESTS_=
  passage hanging_lrud equatenosuchstn surveytypo\
  skipafterbadomit passagebad xsect_too_many_errors badreadingdotplus badcalibrate calibrate_clino\
  badunits badbegin anonstn anonstnbad anonstnrev doubleinc reenterlots\
- cs csbad csbadsdfix csfeet cslonglat csprj csprj2 csprjbad\
+ cs csbad csbadsdfix csdeclpipeline csfeet csfixpipeline cslonglat\
+ csoutpipeline csprj csprj2 csprjbad\
  omitfixaroundsolve repeatreading\
  mixedeols utf8bom nonewlineateof suspectreadings cmd_data_default\
  cmd_data_ignore\

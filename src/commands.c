@@ -1260,14 +1260,21 @@ cmd_fix(void)
 	     pj_cached = transform;
 	 }
 
-	 if (proj_angular_input(transform, PJ_FWD)) {
-	    /* Input coordinate system expects radians. */
-	    coord.v[0] = rad(coord.v[0]);
-	    coord.v[1] = rad(coord.v[1]);
-	 }
+	 if (transform) {
+	    if (proj_angular_input(transform, PJ_FWD)) {
+	       /* Input coordinate system expects radians. */
+	       coord.v[0] = rad(coord.v[0]);
+	       coord.v[1] = rad(coord.v[1]);
+	    }
 
-	 coord.v[3] = HUGE_VAL;
-	 coord = proj_trans(transform, PJ_FWD, coord);
+	    coord.v[3] = HUGE_VAL;
+	    coord = proj_trans(transform, PJ_FWD, coord);
+	 } else {
+	    /* PROJ couldn't create the transform - proj_errno(NULL) reports
+	     * the error from the default context.
+	     */
+	    coord.v[0] = HUGE_VAL;
+	 }
 
 	 if (coord.v[0] == HUGE_VAL ||
 	     coord.v[1] == HUGE_VAL ||

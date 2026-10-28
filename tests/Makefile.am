@@ -139,6 +139,7 @@ walls.srv walls.out walls.dump\
 wallsbaddatum.out wallsbaddatum.wpj\
 wallscsout.svx wallscsout.dump w_csout.wpj w_csout.srv\
 wallscsoutnoref.svx w_csnref.srv\
+wallscsoutpipeline.out wallscsoutpipeline.svx w_csoutpipe.wpj w_csoutpipe.srv\
 wallscylpolar.wpj wallscylpolar.dump wallscylpolar.out w_cylpol.srv\
 wallsdecl.wpj wallsdecl.out wallsdecl.dump w_decl.srv\
 wallsdiving.wpj wallsdiving.dump wallsdiving.out w_diving.srv\
@@ -197,8 +198,11 @@ reenterlots.out reenterlots.svx\
 cs.out cs.pos cs.svx\
 csbad.altout csbad.out csbad.svx\
 csbadsdfix.altout csbadsdfix.out csbadsdfix.svx\
+csdeclpipeline.out csdeclpipeline.svx\
 csfeet.out csfeet.pos csfeet.svx\
+csfixpipeline.out csfixpipeline.svx\
 cslonglat.out cslonglat.svx\
+csoutpipeline.out csoutpipeline.svx\
 csprj.out csprj.dump csprj.prj csprj.svx\
 csprj2.out csprj2.dump csprj2.prj csprj2.svx csprj6318.json\
 csprjbad.out csprjbad.svx csprjbom.prj\

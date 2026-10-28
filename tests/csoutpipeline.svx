@@ -1,0 +1,8 @@
+; pos=fail warn=0 error=7
+; An output pipeline gives no transform for a *fix or for the grid
+; convergence reported at the end, and both must be reported.
+*cs out custom "+proj=pipeline +step +proj=unitconvert +xy_in=m +xy_out=m"
+*cs EPSG:32616
+*fix a 500000 4000000 100
+*data normal from to tape compass clino
+a b 10 0 0

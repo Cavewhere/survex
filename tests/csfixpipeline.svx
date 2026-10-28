@@ -1,0 +1,11 @@
+; pos=fail warn=0 error=2
+; A PROJ pipeline is an operation rather than a coordinate system, so PROJ
+; can't build a transform from it.  Each *fix must report that rather than
+; crash.
+*cs out EPSG:32616
+*cs custom "+proj=pipeline +step +proj=unitconvert +xy_in=m +xy_out=m"
+*fix a 500000 4000000 100
+*fix c 500100 4000000 100
+*data normal from to tape compass clino
+a b 10 0 0
+b c 90 0 0

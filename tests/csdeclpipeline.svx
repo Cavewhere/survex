@@ -1,0 +1,9 @@
+; pos=fail warn=1 error=1
+; *declination auto must report a coordinate system PROJ can't build a
+; transform from rather than crash.
+*cs out EPSG:32616
+*cs custom "+proj=pipeline +step +proj=unitconvert +xy_in=m +xy_out=m"
+*declination auto 500000 4000000 100
+*date 2000.01.01
+*data normal from to tape compass clino
+a b 10 0 0

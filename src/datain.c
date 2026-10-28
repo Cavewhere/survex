@@ -175,17 +175,24 @@ set_declination_location(real x, real y, real z, const char *proj_str,
 	transform = pj_norm;
     }
 
-    if (proj_angular_input(transform, PJ_FWD)) {
-	/* Input coordinate system expects radians. */
-	x = rad(x);
-	y = rad(y);
-    }
+    if (transform) {
+	if (proj_angular_input(transform, PJ_FWD)) {
+	    /* Input coordinate system expects radians. */
+	    x = rad(x);
+	    y = rad(y);
+	}
 
-    PJ_COORD coord = {{x, y, z, HUGE_VAL}};
-    coord = proj_trans(transform, PJ_FWD, coord);
-    x = coord.xyzt.x;
-    y = coord.xyzt.y;
-    z = coord.xyzt.z;
+	PJ_COORD coord = {{x, y, z, HUGE_VAL}};
+	coord = proj_trans(transform, PJ_FWD, coord);
+	x = coord.xyzt.x;
+	y = coord.xyzt.y;
+	z = coord.xyzt.z;
+    } else {
+	/* PROJ couldn't create the transform - proj_errno(NULL) reports the
+	 * error from the default context.
+	 */
+	x = HUGE_VAL;
+    }
 
     if (x == HUGE_VAL || y == HUGE_VAL || z == HUGE_VAL) {
        int diag_flags = DIAG_ERR;
@@ -3656,17 +3663,24 @@ next_line:
 			transform = pj_norm;
 		    }
 
-		    if (proj_angular_input(transform, PJ_FWD)) {
-			/* Input coordinate system expects radians. */
-			coords[0] = rad(coords[0]);
-			coords[1] = rad(coords[1]);
-		    }
+		    if (transform) {
+			if (proj_angular_input(transform, PJ_FWD)) {
+			    /* Input coordinate system expects radians. */
+			    coords[0] = rad(coords[0]);
+			    coords[1] = rad(coords[1]);
+			}
 
-		    PJ_COORD coord = {{coords[0], coords[1], coords[2], HUGE_VAL}};
-		    coord = proj_trans(transform, PJ_FWD, coord);
-		    coords[0] = coord.xyzt.x;
-		    coords[1] = coord.xyzt.y;
-		    coords[2] = coord.xyzt.z;
+			PJ_COORD coord = {{coords[0], coords[1], coords[2], HUGE_VAL}};
+			coord = proj_trans(transform, PJ_FWD, coord);
+			coords[0] = coord.xyzt.x;
+			coords[1] = coord.xyzt.y;
+			coords[2] = coord.xyzt.z;
+		    } else {
+			/* PROJ couldn't create the transform - proj_errno(NULL)
+			 * reports the error from the default context.
+			 */
+			coords[0] = HUGE_VAL;
+		    }
 
 		    if (coords[0] == HUGE_VAL || coords[1] == HUGE_VAL || coords[2] == HUGE_VAL) {
 			compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
@@ -3709,17 +3723,24 @@ next_line:
 		    pj_cached = transform;
 		}
 
-		if (proj_angular_input(transform, PJ_FWD)) {
-		    /* Input coordinate system expects radians. */
-		    coords[0] = rad(coords[0]);
-		    coords[1] = rad(coords[1]);
-		}
+		if (transform) {
+		    if (proj_angular_input(transform, PJ_FWD)) {
+			/* Input coordinate system expects radians. */
+			coords[0] = rad(coords[0]);
+			coords[1] = rad(coords[1]);
+		    }
 
-		PJ_COORD coord = {{coords[0], coords[1], coords[2], HUGE_VAL}};
-		coord = proj_trans(transform, PJ_FWD, coord);
-		coords[0] = coord.xyzt.x;
-		coords[1] = coord.xyzt.y;
-		coords[2] = coord.xyzt.z;
+		    PJ_COORD coord = {{coords[0], coords[1], coords[2], HUGE_VAL}};
+		    coord = proj_trans(transform, PJ_FWD, coord);
+		    coords[0] = coord.xyzt.x;
+		    coords[1] = coord.xyzt.y;
+		    coords[2] = coord.xyzt.z;
+		} else {
+		    /* PROJ couldn't create the transform - proj_errno(NULL)
+		     * reports the error from the default context.
+		     */
+		    coords[0] = HUGE_VAL;
+		}
 
 		if (coords[0] == HUGE_VAL || coords[1] == HUGE_VAL || coords[2] == HUGE_VAL) {
 		    compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,
@@ -4877,11 +4898,18 @@ calculate_convergence_xy(const char *proj_str, double x, double y, double z)
 	transform = pj_norm;
     }
 
-    PJ_COORD coord = {{x, y, z, HUGE_VAL}};
-    coord = proj_trans(transform, PJ_FWD, coord);
-    x = coord.xyzt.x;
-    y = coord.xyzt.y;
-    z = coord.xyzt.z;
+    if (transform) {
+	PJ_COORD coord = {{x, y, z, HUGE_VAL}};
+	coord = proj_trans(transform, PJ_FWD, coord);
+	x = coord.xyzt.x;
+	y = coord.xyzt.y;
+	z = coord.xyzt.z;
+    } else {
+	/* PROJ couldn't create the transform - proj_errno(NULL)
+	 * reports the error from the default context.
+	 */
+	x = HUGE_VAL;
+    }
 
     if (x == HUGE_VAL || y == HUGE_VAL || z == HUGE_VAL) {
        compile_diagnostic(DIAG_ERR, /*Failed to convert coordinates: %s*/436,

@@ -1,0 +1,5 @@
+; pos=fail warn=0 error=8
+; Walls grid and lat/long fixes must report an output coordinate system PROJ
+; can't build a transform to rather than crash.
+*cs out custom "+proj=pipeline +step +proj=unitconvert +xy_in=m +xy_out=m"
+*include w_csoutpipe.wpj

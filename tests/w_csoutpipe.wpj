@@ -1,0 +1,9 @@
+;WALLS Project File
+.BOOK	Output pipeline test
+.NAME	PROJECT
+.STATUS	8
+.REF	4040000.000 520000.000 16 0.123 200 6 36 30 25.000 86 46 40.000 15 "NAD27 CONUS"
+.SURVEY	Grid and lat/long fixes
+.NAME	w_csoutpipe
+.STATUS	8
+.ENDBOOK
