@@ -627,11 +627,11 @@ read_walls_station(char * const walls_prefix[3], bool anon_allowed, bool *p_new)
 		} else {
 		    ptr->sflags |= sflag;
 		}
-		if (!TSTBIT(ptr->sflags, SFLAGS_SURVEY)) {
-		    ptr->min_export = USHRT_MAX;
-		}
 		walls_cached_survey = back_ptr;
 		walls_cached_station = ptr;
+	    }
+	    if (!TSTBIT(ptr->sflags, SFLAGS_SURVEY)) {
+		ptr->min_export = USHRT_MAX;
 	    }
 	    if (name == p) free(p);
 	}

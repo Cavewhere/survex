@@ -1,0 +1,5 @@
+; pos=no warn=0 error=0
+; A Walls station with an explicit prefix is exported up to that prefix, also
+; when it is the first station created in its survey.
+*infer exports on
+*include w_infexp.srv

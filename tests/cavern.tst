@@ -128,6 +128,7 @@ TESTS_=
  wallsfsbsclino.wpj\
  wallshtie.wpj\
  wallsihth.wpj\
+ wallsinferexports\
  wallsmissingsrv.wpj\
  wallsplumb.wpj\
  wallsprefix.wpj\

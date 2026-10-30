@@ -1,0 +1,8 @@
+#PREFIX A
+#FIX A1 0 0 0
+A1	A2	10	0	0
+; B:X1 is the first station in survey B, referenced only here.
+A2	B:X1	10	90	0
+; C:Y1 is the first station in survey C, referenced again on the next shot.
+A2	C:Y1	10	180	0
+C:Y1	C:Y2	10	180	0
